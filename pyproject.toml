@@ -1,0 +1,154 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "horticulture-lighting-simulator"
+description = "A Radiance-based horticultural lighting simulation and 3D visualization engine."
+readme = "README.md"
+dynamic = ["version"]
+requires-python = ">=3.10,<3.13"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [
+    {name = "Austin Rouse"},
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Flask",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    "fastapi==0.137.1",
+    "Flask==3.1.3",
+    "numpy==1.26.4",
+    "pillow==12.2.0",
+    "pydantic==2.10.4",
+]
+
+[project.urls]
+Homepage = "https://github.com/luminousphotonics/horticulture-lighting-simulator"
+Repository = "https://github.com/luminousphotonics/horticulture-lighting-simulator"
+
+[project.optional-dependencies]
+api = [
+    "uvicorn==0.30.6",
+]
+web = [
+    "gunicorn==26.0.0",
+]
+scientific = [
+    "matplotlib==3.10.5",
+    "numexpr==2.14.1",
+    "pandas==2.3.2",
+    "plotly==6.3.0",
+    "scipy==1.11.4",
+    "seaborn==0.13.2",
+]
+live-radiance = [
+    "matplotlib==3.10.5",
+    "numexpr==2.14.1",
+    "pandas==2.3.2",
+    "plotly==6.3.0",
+    "scipy==1.11.4",
+    "seaborn==0.13.2",
+    "uvicorn==0.30.6",
+]
+test = [
+    "coverage==7.14.1",
+    "hypothesis==6.155.3",
+    "pytest==9.1.0",
+    "pytest-benchmark==5.2.3",
+    "pytest-cov==7.1.0",
+]
+lint = [
+    "ruff==0.15.17",
+]
+type = [
+    "mypy==2.1.0",
+]
+security = [
+    "bandit==1.9.4",
+    "pip-audit==2.10.1",
+]
+docs = [
+]
+build = [
+    "build==1.5.0",
+    "uv==0.11.21",
+]
+# Canonical source-checkout app/development profile used by README and CI.
+dev = [
+    "bandit==1.9.4",
+    "build==1.5.0",
+    "coverage==7.14.1",
+    "gunicorn==26.0.0",
+    "hypothesis==6.155.3",
+    "matplotlib==3.10.5",
+    "mypy==2.1.0",
+    "numexpr==2.14.1",
+    "pandas==2.3.2",
+    "pip-audit==2.10.1",
+    "plotly==6.3.0",
+    "pytest==9.1.0",
+    "pytest-benchmark==5.2.3",
+    "pytest-cov==7.1.0",
+    "radon==6.0.1",
+    "ruff==0.15.17",
+    "scipy==1.11.4",
+    "seaborn==0.13.2",
+    "uv==0.11.21",
+    "uvicorn==0.30.6",
+]
+
+[project.scripts]
+rad-rebuild-web = "rad_rebuild.web.app:main"
+rad-rebuild-radiance-api = "rad_rebuild.radiance.backend.server:main"
+rad-rebuild-dev = "rad_rebuild.dev:main"
+
+[tool.setuptools]
+include-package-data = false
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"rad_rebuild" = ["py.typed"]
+"rad_rebuild.web" = [
+    "templates/*.html",
+    "static/css/*.css",
+    "static/img/*.svg",
+    "static/js/*.js",
+    "static/js/assembly-viewer/*.js",
+    "static/js/assembly-viewer/**/*.js",
+    "static/js/radiance-simulator/*.js",
+    "static/vendor/**/*",
+    "static/viewer/**/*",
+]
+
+[tool.setuptools.dynamic]
+version = {attr = "rad_rebuild.__version__"}
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers"
+testpaths = ["tests"]
+filterwarnings = [
+    "error:::rad_rebuild\\.",
+    "error:::tests\\.",
+]
+markers = [
+    "unit: fast pure-Python unit or contract tests",
+    "integration: tests that cross package, API, or filesystem boundaries",
+    "radiance: tests covering Radiance scientific or execution contracts",
+    "docker: tests that require Docker or Docker command construction",
+    "slow: tests with intentionally heavier runtime or benchmark cost",
+    "benchmark: performance baseline tests run through pytest-benchmark",
+]

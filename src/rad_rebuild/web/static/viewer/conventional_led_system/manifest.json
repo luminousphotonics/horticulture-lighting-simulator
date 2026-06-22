@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "system": "conventional_led_system",
+  "display_name": "Conventional LED System",
+  "units": "meters",
+  "source_units": "millimeters",
+  "viewer_scale": 0.001,
+  "placement_strategy": "single_fixture_center",
+  "axis_mapping": {
+    "cad_horizontal": [
+      "x",
+      "z"
+    ],
+    "cad_vertical": "y",
+    "layout_horizontal": [
+      "x",
+      "y"
+    ],
+    "layout_vertical": "z"
+  },
+  "mount_orientation": "leds_down",
+  "assets": {
+    "fixture": {
+      "high": "fixture.high.glb",
+      "medium": "fixture.medium.glb",
+      "proxy": "fixture.proxy.glb"
+    }
+  },
+  "notes": [
+    "Single fixture asset used for direct fixture-to-fixture placement."
+  ]
+}

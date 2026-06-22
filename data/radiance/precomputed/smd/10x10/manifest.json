@@ -1,0 +1,33 @@
+{
+  "artifacts": {
+    "basis_A_npy": "basis_A.npy",
+    "basis_build_log_json": "basis_build_log.json",
+    "basis_manifest_json": "basis_manifest.json",
+    "layout_json": "smd_layout.json"
+  },
+  "dims_ft": {
+    "length_ft": 10,
+    "width_ft": 10
+  },
+  "generated_at": "2026-06-16T16:51:58.833691+00:00",
+  "mode": "SMD",
+  "request_params": {
+    "basis_backend": "rtrace",
+    "dialux_sensor_grid": false,
+    "layout_family": "horticultural_tiled_v1",
+    "match_system_ppe": false,
+    "module_profile": "145led_clear_lid_ptfe_stack_v2",
+    "mount_z_m": 0.4572,
+    "sensor_grid_profile": "adaptive_centered_v1",
+    "sensor_grid_spacing_m": 0.25,
+    "smd_base_ring": 0,
+    "smd_curve_model": "curve_vf_rel_ppe_v1",
+    "smd_model": "curve",
+    "subpatch_grid": 1
+  },
+  "schema_version": 1,
+  "stats": {
+    "n_points": 441,
+    "n_vars": 5
+  }
+}

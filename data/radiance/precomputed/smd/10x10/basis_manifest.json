@@ -1,0 +1,246 @@
+{
+  "n_points": 441,
+  "n_vars": 5,
+  "n_rings": 5,
+  "layout_modules": 61,
+  "room_L_m": 3.048,
+  "room_W_m": 3.048,
+  "layout_mode": "exact_tiled",
+  "layout_family": null,
+  "base_n": 0,
+  "sensor_file": "sensor_points.txt",
+  "sensor_grid": {
+    "sample_layout": "centered",
+    "grid_z_m": 0.005,
+    "target_spacing_m": 0.25,
+    "min_points_x": 5,
+    "min_points_y": 5,
+    "min_floor_points_x": 21,
+    "min_floor_points_y": 21,
+    "max_points_x": 0,
+    "max_points_y": 0,
+    "wall_margin_m": 0.005,
+    "grid_module_side_m": 0.0,
+    "length_m": 3.048,
+    "width_m": 3.048,
+    "interior_length_m": 3.038,
+    "interior_width_m": 3.038,
+    "base_resolution_x": 12,
+    "base_resolution_y": 12,
+    "resolution_x": 21,
+    "resolution_y": 21,
+    "explicit_resolution": false,
+    "minimum_floor_enforced_x": true,
+    "minimum_floor_enforced_y": true,
+    "n_points": 441,
+    "x_min": -1.446667,
+    "x_max": 1.446667,
+    "y_min": -1.446667,
+    "y_max": 1.446667,
+    "sensor_file": "/workspace/outputs/radiance/sensor_points.txt",
+    "sensor_file_sha256": "133b87b67e4c568b74a3d31b47e79b5d577d42dcdf89814279ff73a22c2d037e"
+  },
+  "basis_unit_w_per_module": 1.0,
+  "basis_backend": "rtrace",
+  "basis_backend_config": {
+    "basis_backend": "rtrace"
+  },
+  "basis_build_log_json": "basis_build_log.json",
+  "basis_matrix_sha256": "9852328447572fdd0d15787b519c9d5baaceb49508c6b82830077f3685774830",
+  "generator": "generate_emitters_smd.py",
+  "generator_sha256": "f4a00923b78dd24558692ccccef9bdab19e7528ced40c1077bf0d9b219f0d4b5",
+  "module_profile_sha256": "c50189611a5fdf5f6c1cb9c519e15d3b736a44e88aac22ae5f10d02f1df24ede",
+  "curve_model_sha256": "eb81c18f2a11b6d92c9af220feef577a0ba26702c9652289a9ea239fba4a8418",
+  "emitter_env": {
+    "SMD_MODEL": "curve",
+    "SMD_MODULE_PROFILE": "145led_clear_lid_ptfe_stack_v2",
+    "SMD_BASE_RING_N": 0,
+    "SMD_PERIM_GAP_FILL": 0,
+    "SMD_OUTER_PER_MODULE": 0,
+    "SMD_ALL_PER_MODULE": 0,
+    "LAYOUT_MODE": "exact_tiled",
+    "LENGTH_FT": 10.0,
+    "WIDTH_FT": 10.0,
+    "SMD_FIXED_PITCH_M": 0.0,
+    "SMD_SOURCE_VARIANT": "native",
+    "SMD_OUTER_OPTICS": 0,
+    "SMD_OUTER_FWHM_DEG": 40.0,
+    "SMD_ROW_ZONES": 0,
+    "SMD_ROW_EDGE_FILL": 0,
+    "SMD_PERIM_STRIPS": 0,
+    "SMD_PERIM_STRIP_LEN_M": 0.36,
+    "SMD_PERIM_STRIP_WIDTH_M": 0.12,
+    "SMD_PERIM_STRIP_GAP_M": 0.0,
+    "DROOP_P_NOM": 100.0,
+    "DROOP_K": 0.12,
+    "PATCH_SIDE_M": 0.12,
+    "MODULE_SIDE_M": 0.12,
+    "MODULE_FOOTPRINT_X_M": 0.1524,
+    "MODULE_FOOTPRINT_Y_M": 0.165,
+    "SMD_FIXTURE_ANGLE_IN": 0.25,
+    "PMMA_MODE": 1,
+    "PMMA_IOR": 1.49,
+    "PMMA_T": 0.92,
+    "PMMA_THK_M": 0.003,
+    "PMMA_SIDE_M": 0.128,
+    "PMMA_LID_OFFSET_M": 0.008,
+    "PTFE_MODE": 1,
+    "PTFE_REFLECTANCE": 0.97,
+    "PTFE_THK_M": 0.000508,
+    "STACK_APERTURE_M": 0.126,
+    "MARGIN_IN": 1.0,
+    "PPE_IS_SYSTEM": 0,
+    "SMD_TARGET_PPE_UMOL_PER_J": 0.0,
+    "SMD_WW_COUNT": 52,
+    "SMD_CW_COUNT": 52,
+    "SMD_RED_COUNT": 41,
+    "SMD_WW_NOMINAL_W": 0.68,
+    "SMD_CW_NOMINAL_W": 0.68,
+    "SMD_RED_NOMINAL_W": 0.44,
+    "SMD_WW_NOMINAL_PPE": 2.73,
+    "SMD_CW_NOMINAL_PPE": 2.81,
+    "SMD_RED_NOMINAL_PPE": 4.13,
+    "DRIVER_EFF": 0.96,
+    "THERMAL_EFF": 1.0,
+    "BOARD_OPT_EFF": 1.0,
+    "WIRING_EFF": 0.99,
+    "EFF_SCALE": 1.0,
+    "SMD_PPE_REFERENCE_MODE": "nominal_current",
+    "SMD_THERMAL_REF_INPUT_W": 93.392256,
+    "SMD_THERMAL_REF_MULTIPLIER": 0.985,
+    "SMD_THERMAL_SLOPE_PER_W": 0.0015,
+    "SMD_THERMAL_MIN_MULTIPLIER": 0.9,
+    "SMD_THERMAL_MAX_MULTIPLIER": 1.0,
+    "SMD_WHITE_VF_CSV": "white_fC_vs_fV.csv",
+    "SMD_WHITE_PPE_CSV": "white_ppe_vs_fC.csv",
+    "SMD_RED_VF_CSV": "red_fC_vs_fV.csv",
+    "SMD_RED_PPE_CSV": "red_ppe_vs_fC.csv",
+    "OPTICS": "stack",
+    "SUBPATCH_GRID": 1
+  },
+  "curve_model": {
+    "curve_model_version": "curve_vf_rel_ppe_v1",
+    "enabled": true,
+    "model": "curve",
+    "ppe_reference_mode": "nominal_current",
+    "curve_model_sha256": "eb81c18f2a11b6d92c9af220feef577a0ba26702c9652289a9ea239fba4a8418",
+    "driver_eff": 0.96,
+    "wiring_eff": 0.99,
+    "pmma_transmission": 0.92,
+    "thermal_ref_input_w": 93.392256,
+    "thermal_ref_multiplier": 0.985,
+    "thermal_slope_per_w": 0.0015,
+    "thermal_min_multiplier": 0.9,
+    "thermal_max_multiplier": 1.0,
+    "nominal_led_power_w": 88.75999999999999,
+    "nominal_module_input_w": 93.39225589225589,
+    "nominal_package_assumptions": {
+      "warm_white": {
+        "count": 52,
+        "nominal_package_w": 0.68,
+        "nominal_ppe_umol_per_j": 2.73
+      },
+      "cool_white": {
+        "count": 52,
+        "nominal_package_w": 0.68,
+        "nominal_ppe_umol_per_j": 2.81
+      },
+      "deep_red": {
+        "count": 41,
+        "nominal_package_w": 0.44,
+        "nominal_ppe_umol_per_j": 4.13
+      }
+    },
+    "channels": {
+      "white": {
+        "count": 104,
+        "nominal_package_w": 0.68,
+        "nominal_ppe_umol_per_j": 2.77,
+        "nominal_current_a": 0.2342893034761338,
+        "nominal_vf_v": 2.902394560532163,
+        "nominal_rel_ppe_multiplier_raw": 0.8526345764876764,
+        "spectral_par_photon_umol_per_radiant_w": 4.605838355249971,
+        "nominal_radiant_efficiency": 0.6014105981037332,
+        "spectral_components": [
+          {
+            "label": "warm_white",
+            "count": 52,
+            "nominal_package_w": 0.68,
+            "nominal_ppe_umol_per_j": 2.73,
+            "spd_path": "/workspace/data/radiance/curve_data/smd/smd_3000k_spd.csv",
+            "spectral_par_photon_umol_per_radiant_w": 4.696876185769382,
+            "spectral_par_centroid_nm": 573.0706839183637
+          },
+          {
+            "label": "cool_white",
+            "count": 52,
+            "nominal_package_w": 0.68,
+            "nominal_ppe_umol_per_j": 2.81,
+            "spd_path": "/workspace/data/radiance/curve_data/smd/smd_5000k_spd.csv",
+            "spectral_par_photon_umol_per_radiant_w": 4.520709707435841,
+            "spectral_par_centroid_nm": 547.6300080132153
+          }
+        ]
+      },
+      "red": {
+        "count": 41,
+        "nominal_package_w": 0.44,
+        "nominal_ppe_umol_per_j": 4.13,
+        "nominal_current_a": 0.23365780453699891,
+        "nominal_vf_v": 1.8830956700627883,
+        "nominal_rel_ppe_multiplier_raw": 1.0327014334447286,
+        "spectral_par_photon_umol_per_radiant_w": 5.508495594305319,
+        "nominal_radiant_efficiency": 0.7497509854177958,
+        "spectral_components": [
+          {
+            "label": "deep_red",
+            "count": 41,
+            "nominal_package_w": 0.44,
+            "nominal_ppe_umol_per_j": 4.13,
+            "spd_path": "/workspace/data/radiance/curve_data/smd/smd_660nm_spd.csv",
+            "spectral_par_photon_umol_per_radiant_w": 5.508495594305319,
+            "spectral_par_centroid_nm": 658.9624097826385
+          }
+        ]
+      }
+    },
+    "curve_files": {
+      "white_vf_csv": {
+        "path": "/workspace/data/radiance/curve_data/smd/white_fC_vs_fV.csv",
+        "sha256": "b7d2e144e77bcba4040e1e3427121a9a3f87965ec59dc566b8998935f14bcd2c"
+      },
+      "white_ppe_csv": {
+        "path": "/workspace/data/radiance/curve_data/smd/white_ppe_vs_fC.csv",
+        "sha256": "44409e3069bc95adce13d8710e6a4e5608bdec38cc6e89ae9e7b7d7e89c1a583"
+      },
+      "red_vf_csv": {
+        "path": "/workspace/data/radiance/curve_data/smd/red_fC_vs_fV.csv",
+        "sha256": "ce4f0f646c1a6abddf8e7c1b61fe9e68266ad2c1a4a908a028cd269be950062f"
+      },
+      "red_ppe_csv": {
+        "path": "/workspace/data/radiance/curve_data/smd/red_ppe_vs_fC.csv",
+        "sha256": "ea6eefa2bbfaaed8b719de1b26854a6abe07583568cf657536897fa87dbb7f28"
+      },
+      "warm_white_spd_csv": {
+        "path": "/workspace/data/radiance/curve_data/smd/smd_3000k_spd.csv",
+        "sha256": "68797d94ab11251ea777dfdf98bf478baa25fcd2874e349a1173e2b57bab03c1"
+      },
+      "cool_white_spd_csv": {
+        "path": "/workspace/data/radiance/curve_data/smd/smd_5000k_spd.csv",
+        "sha256": "630acb83a1f83fd1723621671a83b502fc933dabcb6af109dd0b9578e5fe698b"
+      },
+      "deep_red_spd_csv": {
+        "path": "/workspace/data/radiance/curve_data/smd/smd_660nm_spd.csv",
+        "sha256": "5a1f911fd6596e2ffd91e691561e08a245277f621617fbca51fd8df5160cd6de"
+      }
+    }
+  },
+  "variables": "rings",
+  "ring_indices": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ]
+}

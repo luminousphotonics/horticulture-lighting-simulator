@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="{% block meta_description %}A Radiance-based horticultural lighting simulation and 3D visualization engine.{% endblock %}">
+  <title>{% block title %}Horticulture Lighting Simulator{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}">
+{% block page_css %}{% endblock %}
+</head>
+
+<body class="{% block body_class %}{% endblock %}">
+  <header class="navbar">
+    <a href="{{ url_for('pages.index') }}" class="navbar__brand" aria-label="Horticulture Lighting Simulator">
+      <span class="navbar__brand-mark">HLS</span>
+      <span class="navbar__brand-copy">
+        <strong>Horticulture Lighting Simulator</strong>
+        <span>Radiance Simulation Engine</span>
+      </span>
+    </a>
+
+    <button class="navbar__hamburger" type="button" aria-label="Toggle navigation" aria-expanded="false" data-nav-toggle>
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+
+    <div class="navbar__panel" data-nav-panel>
+      <nav class="navbar__links" data-nav-links>
+        <a href="{{ url_for('pages.index') }}" class="navbar__link"{% if request.endpoint in ('pages.index', 'pages.radiance_simulator_page') %} aria-current="page"{% endif %}>Simulator</a>
+        <button class="navbar__link navbar__link--button" type="button" data-about-open>About</button>
+        <a
+          href="https://github.com/luminousphotonics/horticulture-lighting-simulator"
+          class="navbar__link"
+          target="_blank"
+          rel="noopener noreferrer"
+        >GitHub</a>
+      </nav>
+
+      <button class="theme-button" type="button" data-theme-toggle aria-label="Toggle color theme" aria-pressed="false">
+        <span class="theme-button__icon" aria-hidden="true">◐</span>
+        <span class="theme-button__label">Theme</span>
+      </button>
+    </div>
+  </header>
+
+{% block content %}{% endblock %}
+
+  <footer class="site-footer">
+    <p>A Radiance-based horticultural lighting simulation and 3D visualization engine.</p>
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/site.js') }}"></script>
+{% block page_scripts %}{% endblock %}
+</body>
+
+</html>

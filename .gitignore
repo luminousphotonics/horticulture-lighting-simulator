@@ -1,0 +1,105 @@
+# OS files
+.DS_Store
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Frontend/build artifacts
+node_modules/
+dist/
+build/
+
+# Environment and local process state
+.env
+.env.*
+*.log
+*.lock
+*.pid
+*.stamp
+
+# Local/editor settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Future generated outputs
+tmp/
+outputs/
+outputs/radiance/
+outputs/radiance/runtime_state/
+outputs/radiance/basis/
+outputs/radiance/visualizations/
+outputs/radiance/cache/
+outputs/radiance/artifacts/
+outputs/radiance/*.rad
+outputs/radiance/*.oct
+outputs/radiance/*.txt
+outputs/radiance/*.json
+
+# Editable install metadata
+*.egg-info/
+
+# Generated Radiance precomputed bundles
+data/radiance/precomputed/
+!data/radiance/precomputed/
+data/radiance/precomputed/*
+!data/radiance/precomputed/smd/
+data/radiance/precomputed/smd/*
+!data/radiance/precomputed/smd/10x10/
+!data/radiance/precomputed/smd/10x10/**
+!data/radiance/precomputed/competitor_practical/
+data/radiance/precomputed/competitor_practical/*
+!data/radiance/precomputed/competitor_practical/10x10/
+!data/radiance/precomputed/competitor_practical/10x10/**
+!data/radiance/precomputed/hps_karma_4x4/
+data/radiance/precomputed/hps_karma_4x4/*
+!data/radiance/precomputed/hps_karma_4x4/10x10/
+!data/radiance/precomputed/hps_karma_4x4/10x10/**
+
+# Local GitHub release packaging artifacts
+release_assets/
+runtime_state/
+.agents/
+.codex
+*.pyc
+project_structure*.csv
+show_tree.py
+
+# Ensure frontend lock and package configurations are explicitly tracked
+!package.json
+!package-lock.json
+!uv.lock
+
+# Property-based testing, benchmark, and coverage caches
+.hypothesis/
+.benchmarks/
+.coverage.*
+coverage.xml
+
+# 3D viewer CAD source/debug assets
+scripts/viewer/*.step
+data/viewer/source/
+build/viewer/
+*.raw.glb
+src/rad_rebuild/web/static/viewer/**/*.raw.glb
+
+# Test artifacts
+test-results/
+playwright-report/
+
+# Licensed/proprietary Radiance photometry sources
+data/radiance/ies_sources/
