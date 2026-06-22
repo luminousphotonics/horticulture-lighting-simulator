@@ -64,7 +64,7 @@ live-radiance = [
 test = [
     "coverage==7.14.1",
     "hypothesis==6.155.3",
-    "pytest==9.1.0",
+    "pytest==9.1.1",
     "pytest-benchmark==5.2.3",
     "pytest-cov==7.1.0",
 ]
@@ -97,7 +97,7 @@ dev = [
     "pandas==2.3.2",
     "pip-audit==2.10.1",
     "plotly==6.3.0",
-    "pytest==9.1.0",
+    "pytest==9.1.1",
     "pytest-benchmark==5.2.3",
     "pytest-cov==7.1.0",
     "radon==6.0.1",
