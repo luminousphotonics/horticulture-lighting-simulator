@@ -49,7 +49,7 @@ scientific = [
     "numexpr==2.14.1",
     "pandas==2.3.2",
     "plotly==6.3.0",
-    "scipy==1.11.4",
+    "scipy==1.15.3",
     "seaborn==0.13.2",
 ]
 live-radiance = [
@@ -57,7 +57,7 @@ live-radiance = [
     "numexpr==2.14.1",
     "pandas==2.3.2",
     "plotly==6.3.0",
-    "scipy==1.11.4",
+    "scipy==1.15.3",
     "seaborn==0.13.2",
     "uvicorn==0.30.6",
 ]
@@ -102,7 +102,7 @@ dev = [
     "pytest-cov==7.1.0",
     "radon==6.0.1",
     "ruff==0.15.17",
-    "scipy==1.11.4",
+    "scipy==1.15.3",
     "seaborn==0.13.2",
     "uv==0.11.21",
     "uvicorn==0.30.6",
