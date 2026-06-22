@@ -1,0 +1,20 @@
+{
+  "scripts": {
+    "check": "npm run check:api-types && npm run typecheck:js && npm run lint:js && npm run test:browser",
+    "check:api-types": "python3 scripts/dev/generate_frontend_types.py --check",
+    "generate:api-types": "python3 scripts/dev/generate_frontend_types.py",
+    "lint:js": "eslint --no-config-lookup --format stylish --rule no-undef:error --rule 'no-unused-vars:[\"warn\",{\"argsIgnorePattern\":\"^_\",\"caughtErrorsIgnorePattern\":\"^_\"}]' --rule no-redeclare:error --global window --global document --global fetch --global FormData --global URLSearchParams --global URL --global setTimeout --global setInterval --global clearInterval --global navigator --global HTMLElement --global HTMLButtonElement --global Node --global DOMParser src/rad_rebuild/web/static/js/**/*.js",
+    "test:browser": "playwright test",
+    "typecheck:js": "tsc --noEmit",
+    "vendor:viewer": "node scripts/dev/vendor_viewer_assets.mjs"
+  },
+  "devDependencies": {
+    "@gltf-transform/cli": "^4.4.0",
+    "@playwright/test": "^1.61.0",
+    "eslint": "^10.5.0",
+    "gltfpack": "^1.1.0",
+    "html-validate": "^11.5.3",
+    "three": "^0.184.0",
+    "typescript": "^6.0.3"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "fixture_centerpiece": "scripts/viewer/fixture_centerpiece.step",
+  "fixture_L2_linear": "scripts/viewer/fixture_L2_linear.step",
+  "fixture_L3_linear": "scripts/viewer/fixture_L3_linear.step",
+  "fixture_L3": "scripts/viewer/fixture_L3.step",
+  "fixture_L4_linear": "scripts/viewer/fixture_L4_linear.step",
+  "fixture_L4_reverse": "scripts/viewer/fixture_L4_reverse.step",
+  "fixture_L4": "scripts/viewer/fixture_L4.step"
+}

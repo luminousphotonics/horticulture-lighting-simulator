@@ -1,0 +1,16 @@
+{
+  "droop_enabled": false,
+  "droop_k": 0.0,
+  "eff_scale": 1.0,
+  "fixture_count": 4,
+  "fixture_input_w": 800.0,
+  "layout_mode": "practical",
+  "model_label": "EnVision Qube QB-FSG-8B-7T660W whole-fixture IES+SPD comparator",
+  "ppe_effective": 2.8,
+  "ppe_full": 2.8,
+  "ppe_low": 2.8,
+  "total_ppf": 8960.0,
+  "total_w": 3200.0,
+  "w_full": 663.2,
+  "w_low": 331.6
+}

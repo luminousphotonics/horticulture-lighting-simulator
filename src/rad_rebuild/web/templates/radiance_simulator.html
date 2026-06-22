@@ -1,0 +1,732 @@
+{% extends "base.html" %}
+
+{% block title %}Horticulture Lighting Simulator{% endblock %}
+{% block meta_description %}A Radiance-based horticultural lighting simulation and 3D visualization engine.{% endblock %}
+{% block page_css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/radiance-simulator.css') }}">
+{% endblock %}
+
+{% block body_class %}radiance-page{% endblock %}
+
+{% block content %}
+  <main class="radiance-shell">
+    <section class="radiance-hero">
+      <div class="radiance-hero__copy">
+        <p class="radiance-hero__eyebrow">Tool 01</p>
+        <h1>Horticulture Lighting Simulator</h1>
+        <p class="radiance-hero__lede">
+          A Radiance-based horticultural lighting simulation and 3D visualization engine.
+        </p>
+        <div class="radiance-hero__cta-group">
+          <div class="radiance-hero__context-card">
+            <span class="radiance-hero__context-kicker">Reproducibility</span>
+            <strong>Reproduce the results from the manuscript</strong>
+            <span>The public app uses precomputed playback so it can run from a lightweight clone without local Radiance or Docker setup.</span>
+          </div>
+        </div>
+      </div>
+      <section class="radiance-hero__facts" aria-label="Radiance simulator highlights">
+        <article class="radiance-fact">
+          <span class="radiance-fact__label">Playback</span>
+          <strong>Precomputed first</strong>
+          <p>Cached Radiance outputs are used automatically when a matching room, target, and mode are available.</p>
+        </article>
+        <article class="radiance-fact">
+          <span class="radiance-fact__label">Outputs</span>
+          <strong>Visuals plus metrics</strong>
+          <p>Overlay heatmaps, annotated maps, 3D views, manifests, and metric payloads all stay aligned to the same rendered request.</p>
+        </article>
+        <article class="radiance-fact">
+          <span class="radiance-fact__label">Modes</span>
+          <strong>Three system families</strong>
+          <p>Compare the SMD basis-driven system, the conventional LED baseline, and a 1000W HPS research comparator from one page.</p>
+        </article>
+      </section>
+    </section>
+
+    <section class="radiance-main">
+      <article class="radiance-panel radiance-controls">
+        <div class="radiance-section-head">
+          <div>
+            <h2>Simulation Controls</h2>
+            <p>Choose a 10-30 ft room, target PPFD, and system mode to run the precomputed visualization pipeline.</p>
+          </div>
+        </div>
+
+        <form class="radiance-form" id="radiance-form">
+          <label class="radiance-field">
+            <span>System</span>
+            <select id="rad-mode">
+              {%- for option in radiance_mode_options %}
+                <option value="{{ option.value }}">{{ option.label }}</option>
+              {%- endfor %}
+            </select>
+          </label>
+          <label class="radiance-field" id="rad-basis-backend-field" hidden>
+            <span>SMD Basis Backend</span>
+            <select id="rad-basis-backend">
+              <option value="rtrace" selected>Repeated isolated rtrace</option>
+              <option value="rcontrib_legacy">rcontrib legacy</option>
+              <option value="rcontrib_mcpt">rcontrib MCPT</option>
+            </select>
+            <span class="radiance-tooltip" role="note">
+              Basis backend selection applies only to Proposed LED System ring-basis runs.
+            </span>
+          </label>
+          <label class="radiance-field" id="rad-mount-height-field" hidden>
+            <span>Mounting Height</span>
+            <select id="rad-mount-height">
+              <option value="0.1524">6"</option>
+              <option value="0.3048">12"</option>
+              <option value="0.4572" selected>18"</option>
+              <option value="0.5588">22"</option>
+              <option value="0.6096">24"</option>
+              <option value="0.9144">36"</option>
+            </select>
+          </label>
+          <label class="radiance-field" id="rad-sim-mode-field" {% if not radiance_show_live_modes %}hidden{% endif %}>
+            <span>Sim Mode</span>
+            <select id="rad-sim-mode">
+              {%- for option in radiance_execution_mode_options %}
+                <option value="{{ option.value }}"{% if option.value == radiance_default_execution_mode %} selected{% endif %}>{{ option.label }}</option>
+              {%- endfor %}
+            </select>
+          </label>
+          <label class="radiance-field" id="rad-quality-field" hidden>
+            <span>Quality Preset</span>
+            <select id="rad-quality-preset">
+              <option value="standard" selected>Standard</option>
+              <option value="quality">Quality</option>
+              <option value="rigorous">Rigorous</option>
+            </select>
+            <span id="rad-quality-tooltip" class="radiance-tooltip" role="note">
+              Precomputed playback uses the bundled Standard outputs.
+            </span>
+          </label>
+          <label class="radiance-field radiance-field--target" id="rad-target-field">
+            <span>Target PPFD</span>
+            <input id="rad-target" type="number" min="1" step="1" value="1000" required aria-describedby="rad-target-tooltip">
+            <span id="rad-target-tooltip" class="radiance-tooltip" role="note">
+              1000W HPS runs at fixed output. The target PPFD is a reference, not a dimming setpoint.
+            </span>
+          </label>
+          <label class="radiance-field radiance-field--toggle" id="rad-peak-capping-field" hidden>
+            <span>Peak Capping</span>
+            <span class="radiance-toggle">
+              <input id="rad-peak-capping" type="checkbox">
+              <span>Enable hotspot peak-capping metrics and dimming behavior</span>
+            </span>
+            <span id="rad-peak-capping-tooltip" class="radiance-tooltip" role="note">
+              Leave this off to make dimmable LED systems aim for the requested target PPFD by default.
+            </span>
+          </label>
+          <label class="radiance-field" id="rad-hps-variant-field" hidden>
+            <span>HPS Comparator</span>
+            <select id="rad-hps-variant">
+              <option value="karma" selected>KARMA research default</option>
+            </select>
+          </label>
+          <label class="radiance-field" id="rad-hps-coverage-field" hidden>
+            <span>HPS Layout</span>
+            <select id="rad-hps-coverage">
+              <option value="4">4' x 4' Coverage</option>
+              <option value="5">5' x 5' Coverage</option>
+            </select>
+          </label>
+          <label class="radiance-field" id="rad-led-layout-field" hidden>
+            <span>LED Layout</span>
+            <select id="rad-led-layout">
+              <option value="full">Full Coverage</option>
+              <option value="practical" selected>Practical Coverage</option>
+            </select>
+          </label>
+          <label class="radiance-field radiance-field--dimension" id="rad-length-field">
+            <span>Length (ft)</span>
+            <input id="rad-length" type="number" min="{{ radiance_public_min_ft }}" max="{{ radiance_public_max_ft }}" step="1" value="{{ radiance_default_length_ft }}" required aria-describedby="rad-length-tooltip">
+            <span id="rad-length-tooltip" class="radiance-tooltip" role="note">
+              Public precomputed playback supports whole-foot rooms from {{ radiance_public_min_ft }} ft through {{ radiance_public_max_ft }} ft. The included demo bundles use 10x10.
+            </span>
+          </label>
+          <label class="radiance-field radiance-field--dimension" id="rad-width-field">
+            <span>Width (ft)</span>
+            <input id="rad-width" type="number" min="{{ radiance_public_min_ft }}" max="{{ radiance_public_max_ft }}" step="1" value="{{ radiance_default_width_ft }}" required aria-describedby="rad-width-tooltip">
+            <span id="rad-width-tooltip" class="radiance-tooltip" role="note">
+              Public precomputed playback supports whole-foot rooms from {{ radiance_public_min_ft }} ft through {{ radiance_public_max_ft }} ft. The included demo bundles use 10x10.
+            </span>
+          </label>
+        </form>
+
+        <p id="rad-status-note" class="radiance-status-note" aria-live="polite">Ready. Precomputed bundles will be used when installed.</p>
+
+        <div class="radiance-actions">
+          <button id="btn-rad-all" class="btn btn--primary" type="button">Run + Visualize</button>
+          <button id="btn-rad-scatter" class="btn btn--secondary" type="button">Load 3D Scatter</button>
+          <button id="btn-rad-metrics" class="btn btn--secondary" type="button">Refresh Metrics</button>
+          <button id="btn-rad-manifest" class="btn btn--secondary" type="button">Load Manifest</button>
+          <button class="radiance-hidden-submit" type="submit" form="radiance-form" aria-hidden="true" tabindex="-1">Submit</button>
+        </div>
+
+        <div id="rad-progress" class="radiance-progress hidden">
+          <div class="radiance-progress__bar">
+            <span id="rad-progress-fill"></span>
+          </div>
+          <div class="radiance-progress__meta">
+            <span id="rad-progress-label">Idle.</span>
+            <span id="rad-progress-text">Simulation is running...</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="radiance-panel radiance-visuals">
+        <div class="radiance-section-head">
+          <div>
+            <h2>Visual Outputs</h2>
+            <p>Click any visualization to open it at full size.</p>
+            <p id="rad-visual-note" class="radiance-visual-note" hidden></p>
+          </div>
+        </div>
+
+        <div class="radiance-image-grid">
+          <figure class="radiance-image-card">
+            <img id="rad-img-overlay" alt="PPFD heatmap with fixture overlay" data-file="ppfd_heatmap_overlay.png" src="{{ url_for('static', filename='img/transparent-placeholder.svg') }}">
+            <figcaption>PPFD Heatmap with Overlay</figcaption>
+          </figure>
+          <figure class="radiance-image-card">
+            <img id="rad-img-annot" alt="Annotated PPFD heatmap" data-file="ppfd_heatmap_annotated.png" src="{{ url_for('static', filename='img/transparent-placeholder.svg') }}">
+            <figcaption>PPFD Heatmap</figcaption>
+          </figure>
+        </div>
+
+        <div class="radiance-visual-actions">
+          <a
+            id="btn-rad-ppfd-csv"
+            class="btn btn--secondary"
+            href="#"
+            download="ppfd_map.csv"
+            aria-disabled="true"
+          >Download PPFD CSV</a>
+          <button id="btn-rad-assembly" class="btn btn--secondary" type="button" disabled>View 3D Assembly</button>
+        </div>
+
+        <section id="rad-cost-card" class="radiance-cost-card radiance-cost-card--empty" aria-live="polite" hidden>
+          <div class="radiance-cost-card__head">
+            <div>
+              <p class="radiance-cost-card__eyebrow">Cost Estimate</p>
+              <h3 id="rad-cost-title">Rendered Hardware Estimate</h3>
+            </div>
+            <div class="radiance-cost-card__total-wrap">
+              <strong id="rad-cost-total">—</strong>
+              <span id="rad-cost-subtitle">Run a simulation to load the estimate.</span>
+            </div>
+          </div>
+          <p id="rad-cost-summary" class="radiance-cost-card__summary">
+            Pricing appears here after a simulation completes.
+          </p>
+          <div class="radiance-cost-card__actions">
+            <button id="btn-rad-electrical-cost" class="btn btn--secondary" type="button">Estimate Electrical Cost</button>
+          </div>
+          <div id="rad-cost-breakdown" class="radiance-cost-breakdown"></div>
+        </section>
+      </article>
+    </section>
+
+    <section class="radiance-output-grid">
+      <article class="radiance-panel">
+        <div class="radiance-section-head">
+          <h2>Run Log</h2>
+        </div>
+        <pre id="rad-log" class="radiance-output radiance-output--log">Ready.</pre>
+      </article>
+      <article class="radiance-panel">
+        <div class="radiance-section-head">
+          <h2>Metrics</h2>
+          <button id="btn-rad-explain-metrics" class="btn btn--secondary radiance-inline-btn" type="button">
+            Explain the Metrics
+          </button>
+        </div>
+        <pre id="rad-metrics" class="radiance-output">Run a simulation to load metrics.</pre>
+      </article>
+    </section>
+  </main>
+
+  <div id="media-modal" class="radiance-modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="radiance-modal__card">
+      <div class="radiance-modal__header">
+        <strong id="modal-title">Visualization</strong>
+        <button id="modal-close" class="btn btn--secondary" type="button">Close</button>
+      </div>
+      <div class="radiance-modal__body">
+        <img id="modal-image" class="hidden" alt="Visualization full size" src="{{ url_for('static', filename='img/transparent-placeholder.svg') }}">
+        <iframe id="modal-frame" class="hidden" title="3D Scatter" sandbox="allow-scripts allow-same-origin"></iframe>
+        <pre id="modal-text" class="hidden"></pre>
+      </div>
+    </div>
+  </div>
+
+  <div id="metrics-modal" class="radiance-modal hidden" role="dialog" aria-modal="true" aria-labelledby="metrics-modal-title">
+    <div class="radiance-modal__card radiance-modal__card--metrics">
+      <div class="radiance-modal__header radiance-modal__header--metrics">
+        <div>
+          <p class="radiance-modal__eyebrow">Metric Guide</p>
+          <strong id="metrics-modal-title">How to read the lighting metrics</strong>
+        </div>
+        <button id="metrics-modal-close" class="btn btn--secondary" type="button">Close</button>
+      </div>
+      <div class="radiance-metrics-guide">
+        <section class="radiance-guide-hero">
+          <div class="radiance-guide-hero__copy">
+            <h3>Three questions these numbers answer</h3>
+            <p>
+              Every metric in this panel is trying to answer one of three practical questions:
+              how bright the canopy is, how evenly that light is distributed, and how much useful light remains
+              once hotspots or power limits are taken seriously.
+            </p>
+          </div>
+          <div class="radiance-guide-pillars">
+            <article class="radiance-guide-pillar">
+              <span class="radiance-guide-pillar__label">Brightness</span>
+              <strong>How much light reaches the canopy?</strong>
+              <p>Mean PPFD and photon totals tell you the overall delivery level.</p>
+            </article>
+            <article class="radiance-guide-pillar">
+              <span class="radiance-guide-pillar__label">Uniformity</span>
+              <strong>How even is that light?</strong>
+              <p>Ratios, CV, and DOU show whether the room is smooth or hotspot-heavy.</p>
+            </article>
+            <article class="radiance-guide-pillar">
+              <span class="radiance-guide-pillar__label">Usability</span>
+              <strong>How much survives real limits?</strong>
+              <p>Optional cap metrics estimate what is still useful after peak-capping or dimming pressure.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="radiance-guide-section">
+          <div class="radiance-guide-section__head">
+            <h3>Core field stats</h3>
+            <p>These describe the raw PPFD field on the canopy plane before any optional peak-capping logic is applied.</p>
+          </div>
+          <div class="radiance-guide-grid">
+            <article class="radiance-guide-card">
+              <h4>mean</h4>
+              <p>The canopy-wide average PPFD. This is the single best quick read on overall intensity.</p>
+              <span>Think of it as the room’s average light level.</span>
+            </article>
+            <article class="radiance-guide-card">
+              <h4>min / max</h4>
+              <p>The darkest and brightest sampled points on the canopy.</p>
+              <span>They reveal the worst corner and worst hotspot.</span>
+            </article>
+            <article class="radiance-guide-card">
+              <h4>p05 / p50 / p95</h4>
+              <p>Percentiles that show the lower tail, midpoint, and upper tail of the PPFD field.</p>
+              <span>They are more stable than just staring at the single darkest or brightest point.</span>
+            </article>
+          </div>
+        </section>
+
+        <section class="radiance-guide-section">
+          <div class="radiance-guide-section__head">
+            <h3>Uniformity ratios</h3>
+            <p>These numbers describe shape and smoothness, not just raw brightness.</p>
+          </div>
+          <div class="radiance-guide-grid">
+            <article class="radiance-guide-card">
+              <h4>peak/mean</h4>
+              <p>How much brighter the hotspot is than the average canopy level.</p>
+              <span>Closer to 1.0 usually means fewer hotspots.</span>
+            </article>
+            <article class="radiance-guide-card">
+              <h4>min/mean</h4>
+              <p>How the darkest point compares with the average canopy level.</p>
+              <span>Higher is better because weak corners are less severe.</span>
+            </article>
+            <article class="radiance-guide-card">
+              <h4>min/max</h4>
+              <p>The darkest point divided by the brightest point.</p>
+              <span>It is a blunt but intuitive “worst-case uniformity” ratio.</span>
+            </article>
+            <article class="radiance-guide-card">
+              <h4>mean/peak</h4>
+              <p>The average level compared with the hotspot.</p>
+              <span>Higher values mean less of your system is “wasted” in peaks.</span>
+            </article>
+          </div>
+        </section>
+
+        <section class="radiance-guide-section">
+          <div class="radiance-guide-section__head">
+            <h3>Photon delivery</h3>
+            <p>These convert field statistics into total canopy photon flow and capture.</p>
+          </div>
+          <div class="radiance-guide-grid">
+            <article class="radiance-guide-card">
+              <h4>ppf_out</h4>
+              <p>Total photosynthetic photon flow arriving on the sampled canopy area.</p>
+              <span>This is output delivered to plants, not just emitted by fixtures.</span>
+            </article>
+            <article class="radiance-guide-card">
+              <h4>ppf_emitted</h4>
+              <p>Total photons the luminaires are assumed to emit into the room.</p>
+              <span>It is the source-side total before losses in the room.</span>
+            </article>
+            <article class="radiance-guide-card">
+              <h4>capture_frac</h4>
+              <p>The fraction of emitted photons that end up on the sampled canopy area.</p>
+              <span>Higher capture means less light is lost to walls, aisles, and overshoot.</span>
+            </article>
+          </div>
+        </section>
+
+        <section class="radiance-guide-section">
+          <div class="radiance-guide-section__head">
+            <h3>Electrical metrics</h3>
+            <p>These relate useful photon delivery back to input power.</p>
+          </div>
+          <div class="radiance-guide-grid">
+            <article class="radiance-guide-card">
+              <h4>watts_in</h4>
+              <p>Total electrical input power assumed for the run.</p>
+              <span>This is the electrical cost side of the comparison.</span>
+            </article>
+            <article class="radiance-guide-card">
+              <h4>watts_at_cap</h4>
+              <p>Estimated electrical input after global dimming needed to respect a PPFD cap.</p>
+              <span>Only appears when peak capping is enabled for a dimmable system.</span>
+            </article>
+            <article class="radiance-guide-card">
+              <h4>deuc_elec</h4>
+              <p>Delivered efficacy under cap: useful canopy photons divided by electrical input.</p>
+              <span>This is a practical “usable umol per joule” metric.</span>
+            </article>
+          </div>
+        </section>
+
+        <section class="radiance-guide-section radiance-guide-section--accent">
+          <div class="radiance-guide-section__head">
+            <h3>Peak-cap metrics</h3>
+            <p>
+              When peak capping is enabled, these answer a real-world question: if the brightest point cannot exceed a ceiling,
+              how much useful average light is left after you globally scale the system down?
+            </p>
+          </div>
+          <div class="radiance-guide-grid">
+            <article class="radiance-guide-card">
+              <h4>cap / setpoint_ppfd</h4>
+              <p>The PPFD ceiling being enforced for the analysis.</p>
+              <span>Think of it as the maximum acceptable hotspot level.</span>
+            </article>
+            <article class="radiance-guide-card">
+              <h4>cap_scale</h4>
+              <p>The global dimming factor required so the brightest point no longer exceeds the cap.</p>
+              <span>If this is far below 1.0, the room had major hotspot pressure.</span>
+            </article>
+            <article class="radiance-guide-card">
+              <h4>dim_penalty</h4>
+              <p>How much of the original output had to be given up to respect that cap.</p>
+              <span>Higher penalty means more light was trapped in hotspots.</span>
+            </article>
+            <article class="radiance-guide-card">
+              <h4>mean_at_cap / min_at_cap / p05_at_cap</h4>
+              <p>The average, darkest point, and 5th percentile after applying the cap-scale.</p>
+              <span>These show what the room actually looks like after the hotspot problem is corrected.</span>
+            </article>
+            <article class="radiance-guide-card">
+              <h4>utilization_at_cap</h4>
+              <p>The achieved average PPFD after capping divided by the cap itself.</p>
+              <span>Higher means the design keeps more useful average light after hotspots are tamed.</span>
+            </article>
+            <article class="radiance-guide-card">
+              <h4>ppf_at_cap</h4>
+              <p>Total canopy photon delivery remaining after peak-capping.</p>
+              <span>It translates hotspot penalties into lost usable photons.</span>
+            </article>
+            <article class="radiance-guide-card">
+              <h4>cov±5%mean</h4>
+              <p>The share of canopy points that land within plus or minus 5% of the achieved post-cap mean.</p>
+              <span>Higher values mean a smoother, more uniform field.</span>
+            </article>
+            <article class="radiance-guide-card">
+              <h4>score_hmean_5</h4>
+              <p>A balanced score combining post-cap utilization and ±5% coverage around the mean.</p>
+              <span>It rewards systems that are both usable and even after caps are enforced.</span>
+            </article>
+          </div>
+        </section>
+
+        <section class="radiance-guide-section">
+          <div class="radiance-guide-section__head">
+            <h3>Legacy uniformity metrics</h3>
+            <p>These are familiar from lighting analysis, but they do not directly capture hotspot-capping behavior.</p>
+          </div>
+          <div class="radiance-guide-grid">
+            <article class="radiance-guide-card">
+              <h4>std</h4>
+              <p>The standard deviation of PPFD values across the canopy.</p>
+              <span>Higher standard deviation means the room is less even.</span>
+            </article>
+            <article class="radiance-guide-card">
+              <h4>cv_percent</h4>
+              <p>Coefficient of variation: standard deviation divided by the mean.</p>
+              <span>Lower CV is generally better for uniformity.</span>
+            </article>
+            <article class="radiance-guide-card">
+              <h4>dou_percent</h4>
+              <p>Degree of uniformity, derived from variation about the mean.</p>
+              <span>Higher DOU indicates a smoother canopy field.</span>
+            </article>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="about-modal" class="radiance-modal hidden" role="dialog" aria-modal="true" aria-labelledby="about-modal-title">
+    <div class="radiance-modal__card radiance-modal__card--about">
+      <div class="radiance-modal__header radiance-modal__header--metrics">
+        <div>
+          <p class="radiance-modal__eyebrow">Project Context</p>
+          <strong id="about-modal-title">About Horticulture Lighting Simulator</strong>
+          <p class="radiance-about__subtitle">
+            A Radiance-based horticultural lighting simulation and 3D visualization engine.
+          </p>
+        </div>
+        <button id="about-modal-close" class="btn btn--secondary" type="button">Close</button>
+      </div>
+      <div class="radiance-about">
+        <section class="radiance-about__intro">
+          <h3>What this is</h3>
+          <p>
+            This is a browser-accessible lighting simulator for comparing horticultural lighting layouts across
+            Proposed LED, Conventional LED, and 1000W HPS systems. The hosted public app uses precomputed Radiance
+            results for speed and reproducibility.
+          </p>
+        </section>
+
+        <section class="radiance-about__section">
+          <h3>Engineering highlights</h3>
+          <ul class="radiance-about__highlights">
+            <li>Radiance-based optical simulation workflow.</li>
+            <li>Precomputed public playback architecture.</li>
+            <li>Proposed LED layout generation for square and rectangular spaces.</li>
+            <li>Multi-system comparison: Proposed LED, Conventional LED, and 1000W HPS.</li>
+            <li>Interactive Viridis PPFD heatmap with raw-value hover inspection.</li>
+            <li>High-performance Three.js/WebGL 3D assembly viewer.</li>
+            <li>Optimized CAD asset pipeline: build123d to STEP to GLB to high, medium, and proxy LODs.</li>
+            <li>Lightweight polished GLB assets with strong browser performance.</li>
+            <li>Production deployment is precomputed-only; live Docker/local Radiance modes are for trusted local clones.</li>
+          </ul>
+        </section>
+
+        <section class="radiance-about__grid">
+          <article class="radiance-about__section">
+            <h3>Research and IP context</h3>
+            <p>Created by Austin Rouse.</p>
+            <p>
+              The Proposed LED System relates to U.S. Patent No. 10,687,478,
+              <a href="https://patents.google.com/patent/US10687478B2/en" target="_blank" rel="noopener noreferrer">
+                Optimized LED Lighting Array for Horticultural Applications</a>.
+            </p>
+            <p>
+              The simulation workflow supports a solo-author horticultural lighting manuscript currently under peer
+              review in Lighting Research &amp; Technology.
+            </p>
+          </article>
+
+          <article class="radiance-about__section">
+            <h3>Technical scope</h3>
+            <ul>
+              <li>Public hosted demo: precomputed-only.</li>
+              <li>Local GitHub clone: optional live Proposed LED simulations through Docker or local Radiance.</li>
+              <li>Conventional LED and HPS live modes are not included in the public repo because licensed IES assets are not distributed.</li>
+            </ul>
+          </article>
+        </section>
+
+        <div class="radiance-modal__actions radiance-about__actions">
+          <a
+            class="btn btn--primary"
+            href="https://github.com/luminousphotonics/rad_rebuild"
+            target="_blank"
+            rel="noopener noreferrer"
+          >View GitHub</a>
+          <button id="about-demo-guide" class="btn btn--secondary" type="button">Demo guide</button>
+          <button id="about-modal-cancel" class="btn btn--secondary" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="missing-bundle-modal" class="radiance-modal hidden" role="dialog" aria-modal="true" aria-labelledby="missing-bundle-title">
+    <div class="radiance-modal__card radiance-modal__card--missing">
+      <div class="radiance-modal__header radiance-modal__header--metrics">
+        <div>
+          <p class="radiance-modal__eyebrow">Precomputed Dataset</p>
+          <strong id="missing-bundle-title">Precomputed bundle not installed</strong>
+        </div>
+        <button id="missing-bundle-close" class="btn btn--secondary" type="button">Close</button>
+      </div>
+      <div class="radiance-missing-bundle">
+        <p id="missing-bundle-message">
+          The selected precomputed bundle is not installed in this checkout.
+        </p>
+        <dl class="radiance-missing-bundle__facts">
+          <div>
+            <dt>Requested</dt>
+            <dd id="missing-bundle-request">-</dd>
+          </div>
+          <div>
+            <dt>Included Demo</dt>
+            <dd>10x10 bundles for each public system</dd>
+          </div>
+          <div>
+            <dt>Full Dataset</dt>
+            <dd id="missing-bundle-size">{{ radiance_precomputed_size_text }}</dd>
+          </div>
+        </dl>
+        <p>
+          The lightweight public repo ships only limited demo bundles. Downloading the full precomputed dataset enables the requested room size and system once release archives are available.
+        </p>
+        <div class="radiance-command-row">
+          <code id="missing-bundle-command">{{ radiance_precomputed_download_command }}</code>
+          <button id="missing-bundle-copy" class="btn btn--secondary" type="button">Copy</button>
+        </div>
+        <div class="radiance-modal__actions">
+          <button id="missing-bundle-demo" class="btn btn--primary" type="button">Run Included 10x10 Demo</button>
+          <button id="missing-bundle-cancel" class="btn btn--secondary" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+{% if radiance_show_live_modes %}
+    <div id="live-runtime-modal" class="radiance-modal hidden" role="dialog" aria-modal="true" aria-labelledby="live-runtime-title">
+      <div class="radiance-modal__card radiance-modal__card--runtime">
+        <div class="radiance-modal__header radiance-modal__header--metrics">
+          <div>
+            <p id="live-runtime-eyebrow" class="radiance-modal__eyebrow">Live Runtime</p>
+            <strong id="live-runtime-title">Live mode setup</strong>
+          </div>
+          <button id="live-runtime-close" class="btn btn--secondary" type="button">Close</button>
+        </div>
+        <div class="radiance-runtime">
+          <p id="live-runtime-message" class="radiance-runtime__message">
+            Live mode needs a runtime check before the simulation starts.
+          </p>
+          <dl id="live-runtime-facts" class="radiance-missing-bundle__facts"></dl>
+          <div id="live-runtime-diagnostics" class="radiance-runtime__diagnostics"></div>
+          <p id="live-runtime-note" class="radiance-runtime__note">
+            Terminal export commands are temporary and affect only the current terminal and dev server process. Restart the dev server after changing runtime environment variables.
+          </p>
+          <div id="live-runtime-commands" class="radiance-runtime__commands"></div>
+          <div class="radiance-modal__actions">
+            <button id="live-runtime-precomputed" class="btn btn--primary" type="button">Switch to Precomputed</button>
+            <button id="live-runtime-recheck" class="btn btn--secondary" type="button">Re-check</button>
+            <button id="live-runtime-cancel" class="btn btn--secondary" type="button">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+{% endif %}
+  <div id="electrical-modal" class="radiance-modal hidden" role="dialog" aria-modal="true" aria-labelledby="electrical-modal-title">
+    <div class="radiance-modal__card radiance-modal__card--metrics">
+      <div class="radiance-modal__header radiance-modal__header--metrics">
+        <div>
+          <p class="radiance-modal__eyebrow">Operating Cost</p>
+          <strong id="electrical-modal-title">Estimate Electrical Cost</strong>
+        </div>
+        <button id="electrical-modal-close" class="btn btn--secondary" type="button">Close</button>
+      </div>
+      <div class="radiance-modal__body radiance-modal__body--electrical">
+        <div class="radiance-electrical">
+          <form id="electrical-form" class="radiance-electrical__form">
+            <div class="radiance-electrical__toolbar">
+              <label class="radiance-field">
+                <span>Utility Rate ($/kWh)</span>
+                  <input id="elec-rate" type="number" min="0.01" step="0.001" value="0.128" required>
+              </label>
+              <div class="radiance-cost-card__actions">
+                <button id="btn-elec-calculate" class="btn btn--primary" type="submit">Calculate Cycle Cost</button>
+              </div>
+            </div>
+            <div class="radiance-electrical__grid">
+              <section class="radiance-electrical__stage">
+                <h3>Propagation</h3>
+                <label class="radiance-field">
+                  <span>Days</span>
+                  <input id="elec-prop-days" type="number" min="1" step="1" value="14" required>
+                </label>
+                <label class="radiance-field">
+                  <span>Hours / Day</span>
+                  <input id="elec-prop-hours" type="number" min="1" max="24" step="0.5" value="18" required>
+                </label>
+                <label class="radiance-field">
+                  <span>Average PPFD</span>
+                  <input id="elec-prop-ppfd" type="number" min="1" step="1" value="250" required>
+                </label>
+              </section>
+              <section class="radiance-electrical__stage">
+                <h3>Vegetative</h3>
+                <label class="radiance-field">
+                  <span>Days</span>
+                  <input id="elec-veg-days" type="number" min="1" step="1" value="21" required>
+                </label>
+                <label class="radiance-field">
+                  <span>Hours / Day</span>
+                  <input id="elec-veg-hours" type="number" min="1" max="24" step="0.5" value="18" required>
+                </label>
+                <label class="radiance-field">
+                  <span>Average PPFD</span>
+                  <input id="elec-veg-ppfd" type="number" min="1" step="1" value="650" required>
+                </label>
+              </section>
+              <section class="radiance-electrical__stage">
+                <h3>Flower</h3>
+                <label class="radiance-field">
+                  <span>Days</span>
+                  <input id="elec-flower-days" type="number" min="1" step="1" value="56" required>
+                </label>
+                <label class="radiance-field">
+                  <span>Hours / Day</span>
+                  <input id="elec-flower-hours" type="number" min="1" max="24" step="0.5" value="12" required>
+                </label>
+                <label class="radiance-field">
+                  <span>Average PPFD</span>
+                  <input id="elec-flower-ppfd" type="number" min="1" step="1" value="1000" required>
+                </label>
+              </section>
+            </div>
+          </form>
+
+          <section class="radiance-electrical__summary" aria-live="polite">
+            <div class="radiance-electrical__total">
+              <p class="radiance-modal__eyebrow">Total cycle estimate</p>
+              <strong id="elec-total-cost">—</strong>
+              <span id="elec-total-meta">Run the estimate after simulating the current layout.</span>
+            </div>
+            <p id="elec-summary" class="radiance-cost-card__summary">
+              This estimate scales rendered fixture power to the average PPFD targets entered for each cultivation stage.
+            </p>
+            <div id="elec-stage-results" class="radiance-electrical__results"></div>
+            <p id="elec-notes" class="radiance-electrical__notes"></p>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block page_scripts %}
+  <script id="radiance-config" type="application/json">{{ {
+    "apiBase": "/radiance-api",
+    "defaultExecutionMode": radiance_default_execution_mode,
+    "publicMinFt": radiance_public_min_ft,
+    "publicMaxFt": radiance_public_max_ft,
+    "defaultLengthFt": radiance_default_length_ft,
+    "defaultWidthFt": radiance_default_width_ft,
+    "precomputedDownloadCommand": radiance_precomputed_download_command,
+    "precomputedSizeText": radiance_precomputed_size_text,
+    "showLiveModes": radiance_show_live_modes
+  }|tojson }}</script>
+  <script type="module" src="{{ url_for('static', filename='js/radiance-simulator.js') }}"></script>
+{% endblock %}

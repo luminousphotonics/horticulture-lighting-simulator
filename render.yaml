@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: horticulture-lighting-simulator
+    runtime: python
+    plan: starter
+    buildCommand: python -m pip install -e ".[web,api,scientific]"
+    startCommand: python scripts/deploy/render_start.py
+    healthCheckPath: /healthz
+    disk:
+      name: radiance-runtime
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: RAD_REBUILD_DEPLOYMENT_MODE
+        value: production
+      - key: RAD_REBUILD_SHOW_LIVE_MODES
+        value: "0"
+      - key: RADIANCE_ENABLE_LIVE_EXECUTION
+        value: "0"
+      - key: RADIANCE_USE_DOCKER
+        value: "0"
+      - key: RADIANCE_PRECOMPUTED_MODE
+        value: only
+      - key: RENDER_DISK_PATH
+        value: /var/data
+      - key: RADIANCE_OUTPUT_ROOT
+        value: /var/data/runtime
+      - key: RADIANCE_PRECOMPUTED_ROOT
+        value: /var/data/precomputed
+      - key: RAD_REBUILD_PRECOMPUTED_AUTO_DOWNLOAD
+        value: "1"
+      - key: RADIANCE_SESSION_ARTIFACT_RETENTION_S
+        value: "3600"
+      - key: RADIANCE_RUNTIME_CLEANUP_INTERVAL_S
+        value: "300"
+      - key: RADIANCE_COMPLETED_JOB_RETENTION_S
+        value: "1800"
+      - key: RADIANCE_JOB_WORKER_COUNT
+        value: "1"
+      - key: RAD_REBUILD_TRUSTED_HOSTS
+        sync: false
+      - key: RAD_REBUILD_FRAME_ANCESTORS
+        sync: false

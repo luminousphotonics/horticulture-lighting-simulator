@@ -1,0 +1,194 @@
+{
+  "schema_version": 1,
+  "system": "proposed_led_system",
+  "units": "meters",
+  "source_units": "millimeters",
+  "viewer_scale": 0.001,
+  "axis_mapping": {
+    "cad_horizontal": [
+      "x",
+      "z"
+    ],
+    "cad_vertical": "y",
+    "layout_horizontal": [
+      "x",
+      "y"
+    ],
+    "layout_vertical": "z"
+  },
+  "anchors_m": {
+    "centerpiece": [
+      {
+        "name": "module_0",
+        "x": -7.832e-06,
+        "z": 1e-09,
+        "vertical_y": -0.003547298
+      },
+      {
+        "name": "module_1",
+        "x": 0.280002422,
+        "z": -0.280010253,
+        "vertical_y": -0.003547298
+      },
+      {
+        "name": "module_2",
+        "x": 0.280002422,
+        "z": 0.280010255,
+        "vertical_y": -0.003547298
+      },
+      {
+        "name": "module_3",
+        "x": -0.279994372,
+        "z": -0.280010253,
+        "vertical_y": -0.003547298
+      },
+      {
+        "name": "module_4",
+        "x": -0.279994372,
+        "z": 0.280010255,
+        "vertical_y": -0.003547298
+      }
+    ],
+    "l4_corner": [
+      {
+        "name": "module_1",
+        "x": -0.559977965,
+        "z": -2.7559e-05,
+        "vertical_y": -0.003558005
+      },
+      {
+        "name": "module_2",
+        "x": -1.5e-08,
+        "z": -2.7559e-05,
+        "vertical_y": -0.003558005
+      },
+      {
+        "name": "module_3",
+        "x": 0.559977936,
+        "z": -2.7559e-05,
+        "vertical_y": -0.003558005
+      },
+      {
+        "name": "module_4",
+        "x": 0.559977936,
+        "z": -0.560005509,
+        "vertical_y": -0.003558005
+      }
+    ],
+    "l4_reverse_corner": [
+      {
+        "name": "module_1",
+        "x": -0.559977965,
+        "z": -0.560005509,
+        "vertical_y": -0.003558005
+      },
+      {
+        "name": "module_2",
+        "x": -0.559977965,
+        "z": -2.7559e-05,
+        "vertical_y": -0.003558005
+      },
+      {
+        "name": "module_3",
+        "x": -1.5e-08,
+        "z": -2.7559e-05,
+        "vertical_y": -0.003558005
+      },
+      {
+        "name": "module_4",
+        "x": 0.559977936,
+        "z": -2.7559e-05,
+        "vertical_y": -0.003558005
+      }
+    ],
+    "linear2": [
+      {
+        "name": "module_1",
+        "x": -0.283210611,
+        "z": 5.741e-06,
+        "vertical_y": -0.008045624
+      },
+      {
+        "name": "module_2",
+        "x": 0.283210595,
+        "z": 5.741e-06,
+        "vertical_y": -0.008045624
+      }
+    ],
+    "linear3_corner": [
+      {
+        "name": "module_1",
+        "x": 1.4092e-05,
+        "z": 1.0835e-05,
+        "vertical_y": -0.008038842
+      },
+      {
+        "name": "module_2",
+        "x": 0.51399358,
+        "z": 1.0835e-05,
+        "vertical_y": -0.008038842
+      },
+      {
+        "name": "module_3",
+        "x": 0.51399358,
+        "z": -0.514010832,
+        "vertical_y": -0.008038842
+      }
+    ],
+    "linear3_linear": [
+      {
+        "name": "module_1",
+        "x": -0.559977965,
+        "z": -2.7559e-05,
+        "vertical_y": -0.003584776
+      },
+      {
+        "name": "module_2",
+        "x": -1.5e-08,
+        "z": -2.7559e-05,
+        "vertical_y": -0.003584776
+      },
+      {
+        "name": "module_3",
+        "x": 0.559977936,
+        "z": -2.7559e-05,
+        "vertical_y": -0.003584776
+      }
+    ],
+    "linear4_linear": [
+      {
+        "name": "module_1",
+        "x": -0.770962273,
+        "z": 3.214e-06,
+        "vertical_y": -0.008029901
+      },
+      {
+        "name": "module_2",
+        "x": -0.257022287,
+        "z": 3.214e-06,
+        "vertical_y": -0.008029901
+      },
+      {
+        "name": "module_3",
+        "x": 0.257022242,
+        "z": 3.214e-06,
+        "vertical_y": -0.008029901
+      },
+      {
+        "name": "module_4",
+        "x": 0.770962228,
+        "z": 3.214e-06,
+        "vertical_y": -0.008029901
+      }
+    ]
+  },
+  "source_files": {
+    "centerpiece": "fixture_centerpiece.high.glb",
+    "l4_corner": "fixture_L4.high.glb",
+    "l4_reverse_corner": "fixture_L4_reverse.high.glb",
+    "linear2": "fixture_L2_linear.high.glb",
+    "linear3_corner": "fixture_L3.high.glb",
+    "linear3_linear": "fixture_L3_linear.high.glb",
+    "linear4_linear": "fixture_L4_linear.high.glb"
+  }
+}

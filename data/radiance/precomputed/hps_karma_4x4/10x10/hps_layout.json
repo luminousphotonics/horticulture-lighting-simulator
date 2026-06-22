@@ -1,0 +1,265 @@
+{
+  "profile": "glh_karma_8_hps1000_research_primary_v1",
+  "label": "1000W HPS",
+  "archetype": "GLH-KARMA-8-HPS1000 horizontal-lamp horticultural research comparator",
+  "reference_geometry_archetype": "Barron Growlite KARMA-8 horizontal-lamp horticultural reflector",
+  "units": "meters",
+  "coverage_ft": 4.0,
+  "z": 0.4572,
+  "room": {
+    "L": 3.048,
+    "W": 3.048
+  },
+  "fixture_envelope_m": {
+    "length": 0.798576,
+    "width": 0.603504,
+    "height": 0.0
+  },
+  "lamp_arc_m": {
+    "length": 0.16,
+    "diameter": 0.014,
+    "faces": 8,
+    "description": "1000W double-ended high-pressure sodium lamp surrogate"
+  },
+  "nx": 2,
+  "ny": 2,
+  "fixtures": [
+    {
+      "cx": -0.6096,
+      "cy": -0.6096,
+      "lamp_line": [
+        [
+          -0.6896,
+          -0.6096,
+          0.4572
+        ],
+        [
+          -0.5296000000000001,
+          -0.6096,
+          0.4572
+        ]
+      ],
+      "body_corners": [
+        [
+          -1.008888,
+          -0.911352
+        ],
+        [
+          -0.21031200000000005,
+          -0.911352
+        ],
+        [
+          -0.21031200000000005,
+          -0.307848
+        ],
+        [
+          -1.008888,
+          -0.307848
+        ]
+      ]
+    },
+    {
+      "cx": 0.6096,
+      "cy": -0.6096,
+      "lamp_line": [
+        [
+          0.5296000000000001,
+          -0.6096,
+          0.4572
+        ],
+        [
+          0.6896,
+          -0.6096,
+          0.4572
+        ]
+      ],
+      "body_corners": [
+        [
+          0.21031200000000005,
+          -0.911352
+        ],
+        [
+          1.008888,
+          -0.911352
+        ],
+        [
+          1.008888,
+          -0.307848
+        ],
+        [
+          0.21031200000000005,
+          -0.307848
+        ]
+      ]
+    },
+    {
+      "cx": -0.6096,
+      "cy": 0.6096,
+      "lamp_line": [
+        [
+          -0.6896,
+          0.6096,
+          0.4572
+        ],
+        [
+          -0.5296000000000001,
+          0.6096,
+          0.4572
+        ]
+      ],
+      "body_corners": [
+        [
+          -1.008888,
+          0.307848
+        ],
+        [
+          -0.21031200000000005,
+          0.307848
+        ],
+        [
+          -0.21031200000000005,
+          0.911352
+        ],
+        [
+          -1.008888,
+          0.911352
+        ]
+      ]
+    },
+    {
+      "cx": 0.6096,
+      "cy": 0.6096,
+      "lamp_line": [
+        [
+          0.5296000000000001,
+          0.6096,
+          0.4572
+        ],
+        [
+          0.6896,
+          0.6096,
+          0.4572
+        ]
+      ],
+      "body_corners": [
+        [
+          0.21031200000000005,
+          0.307848
+        ],
+        [
+          1.008888,
+          0.307848
+        ],
+        [
+          1.008888,
+          0.911352
+        ],
+        [
+          0.21031200000000005,
+          0.911352
+        ]
+      ]
+    }
+  ],
+  "surrogate_assumptions": {
+    "variant": "karma",
+    "profile_version": "glh_karma_8_hps1000_research_primary_v1",
+    "label": "1000W HPS KARMA research comparator",
+    "archetype": "GLH-KARMA-8-HPS1000 horizontal-lamp horticultural research comparator",
+    "reference_geometry_archetype": "Barron Growlite KARMA-8 horizontal-lamp horticultural reflector",
+    "fixture_length_in": 31.44,
+    "fixture_width_in": 23.76,
+    "fixture_height_in": 0.0,
+    "default_ies_file": "ies_sources/GLH-KARMA-8-HPS1000.IES",
+    "default_spd_file": "curve_data/hps/DEhps_1000w_spd.csv",
+    "ies_header_lumens_per_lamp_lm": 150000.0,
+    "ies_total_luminaire_lumens_lm": 118214.63252874288,
+    "ies_header_input_watts": 1045.0,
+    "nominal_fixture_ppf_umol_s": 1797.3999999999999,
+    "nominal_input_watts": 1045.0,
+    "nominal_fixture_ppe_umol_per_j": 1.72,
+    "requires_manual_aperture": false,
+    "default_effective_aperture_length_in": null,
+    "default_effective_aperture_width_in": null,
+    "default_effective_aperture_z_offset_in": null,
+    "lamp_orientation": "horizontal_x"
+  },
+  "model_label": "1000W HPS KARMA research comparator IES+SPD comparator",
+  "fixture_emitter_interpretation": "single_whole_fixture_ies_emitter",
+  "reference_geometry": "fixture body outline and lamp axis retained in layout JSON only",
+  "legacy_surrogate_available": true,
+  "legacy_surrogate_active": false,
+  "ies_mode": true,
+  "ies_variant": "karma",
+  "ies_variant_profile": "glh_karma_8_hps1000_research_primary_v1",
+  "directional_model": "whole_fixture_ies_photometry",
+  "ies_file": "/workspace/data/radiance/ies_sources/GLH-KARMA-8-HPS1000.IES",
+  "ies_spd_path": "/workspace/data/radiance/curve_data/hps/DEhps_1000w_spd.csv",
+  "ies_rot_x_deg": 0.0,
+  "ies_rot_z_deg": 0.0,
+  "ies_header_summary": {
+    "lamp_count": 1,
+    "lumens_per_lamp_lm": 150000.0,
+    "total_luminaire_lumens_lm": 118214.63252874288,
+    "input_watts": 1045.0,
+    "luminous_opening_m": [
+      0.6035039999999999,
+      0.798576,
+      0.0
+    ]
+  },
+  "ies_zero_luminous_opening": false,
+  "raw_ies2rad_geometry": "polygon",
+  "ies_source_geometry": "native_polygon",
+  "ies_source_correction_function": "flatcorr",
+  "ies_source_primitive_type": "polygon",
+  "ies_source_primitive_count": 1,
+  "ies_source_geometry_note": "The OG horticultural IES provides a usable luminous opening, so the native ies2rad source polygon is retained as the active emitter.",
+  "ies_source_aperture": {
+    "name": "GLH-KARMA-8-HPS1000.d",
+    "length_m": 0.798576,
+    "width_m": 0.603504,
+    "z_offset_m": -0.00025,
+    "builder_thickness_m": 0.001,
+    "length_in": 23.999999999999996,
+    "width_in": 16.0,
+    "z_offset_in": -1.4999999999999998,
+    "primitive_count_replaced": 1,
+    "faces_removed": 0,
+    "manual_aperture": false
+  },
+  "bare_lamp_reference": {
+    "ppf_umol_s": 2000.0,
+    "total_luminous_flux_lm": 144400.0
+  },
+  "legacy_surrogate_reference": {
+    "fixture_ppf_umol_s": 1806.0,
+    "input_watts": 1050.0
+  },
+  "ies_lm_to_umol": 0.012497775752480587,
+  "ies_lm_to_umol_method": "digitized relative SPD (DEhps_1000w_spd.csv, wavelength-aware PAR/lumen bridge)",
+  "pre_normalization_fixture_ppf_umol_s": 1477.4199680061256,
+  "default_fixture_anchor_umol_s": 1797.3999999999999,
+  "fixture_ppf_anchor_umol_s": 1797.4,
+  "fixture_ppf_anchor_authority": "explicit HPS_FIXTURE_PPF override",
+  "fixture_input_w_reference": 1045.0,
+  "fixture_input_w_authority": "explicit HPS_INPUT_WATTS override",
+  "active_fixture_ppf_umol_s": 1797.4,
+  "fixture_ppe_umol_j": 1.7200000000000002,
+  "ies_scale": 1.2165802811137774,
+  "ies_baseline_radiant_w": 319.78715104941796,
+  "ies_target_radiant_w": 389.0467421202748,
+  "spd_metrics": {
+    "sample_count": 401,
+    "par_fraction_of_total_power": 0.9315347037531656,
+    "par_centroid_nm": 593.2961775611814,
+    "luminous_efficacy_lm_per_radiant_w": 369.6666114970789,
+    "par_photon_umol_per_radiant_w": 4.6200104136698545,
+    "umol_per_lumen": 0.012497775752480587
+  },
+  "normalization_path_summary": "IES total luminaire lumens x SPD-derived umol/lm gives the pre-normalization fixture PPF. That result is then normalized to the explicit fixture anchor rather than inheriting the legacy 2050 umol/s surrogate.",
+  "active_ies_geometry_builder": "native IES luminous opening dimensions",
+  "legacy_conflicts": [
+    "Legacy surrogate default was 1806.0 umol/s; the active IES comparator anchor is 1797.400 umol/s from explicit HPS_FIXTURE_PPF override."
+  ]
+}

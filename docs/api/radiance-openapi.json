@@ -1,0 +1,5751 @@
+{
+  "components": {
+    "schemas": {
+      "AssemblyAssetFallbackResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_key": {
+            "title": "Asset Key",
+            "type": "string"
+          },
+          "fallback_asset_key": {
+            "title": "Fallback Asset Key",
+            "type": "string"
+          },
+          "instance_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Instance Ids",
+            "type": "array"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset_key",
+          "fallback_asset_key",
+          "instance_ids",
+          "reason"
+        ],
+        "title": "AssemblyAssetFallbackResponse",
+        "type": "object"
+      },
+      "AssemblyAssetsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "anchors": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchors"
+          },
+          "manifest": {
+            "title": "Manifest",
+            "type": "string"
+          }
+        },
+        "required": [
+          "manifest"
+        ],
+        "title": "AssemblyAssetsResponse",
+        "type": "object"
+      },
+      "AssemblyAxisMappingResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "cad_horizontal": {
+            "items": {
+              "enum": [
+                "x",
+                "z"
+              ],
+              "type": "string"
+            },
+            "title": "Cad Horizontal",
+            "type": "array"
+          },
+          "cad_vertical": {
+            "const": "y",
+            "title": "Cad Vertical",
+            "type": "string"
+          },
+          "layout_horizontal": {
+            "items": {
+              "enum": [
+                "x",
+                "y"
+              ],
+              "type": "string"
+            },
+            "title": "Layout Horizontal",
+            "type": "array"
+          },
+          "layout_vertical": {
+            "const": "z",
+            "title": "Layout Vertical",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cad_horizontal",
+          "cad_vertical",
+          "layout_horizontal",
+          "layout_vertical"
+        ],
+        "title": "AssemblyAxisMappingResponse",
+        "type": "object"
+      },
+      "AssemblyFixturePointResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "x": {
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "title": "Y",
+            "type": "number"
+          },
+          "z": {
+            "title": "Z",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "z"
+        ],
+        "title": "AssemblyFixturePointResponse",
+        "type": "object"
+      },
+      "AssemblyInstanceResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_fallback_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Fallback Key"
+          },
+          "asset_key": {
+            "title": "Asset Key",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "layout_source": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Layout Source"
+          },
+          "layout_type": {
+            "title": "Layout Type",
+            "type": "string"
+          },
+          "module_count": {
+            "title": "Module Count",
+            "type": "integer"
+          },
+          "orient": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Orient"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/AssemblyFixturePointResponse"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssemblyFixturePointResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "shape": {
+            "enum": [
+              "linear",
+              "corner",
+              "centerpiece",
+              "fixture",
+              "unknown"
+            ],
+            "title": "Shape",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "yaw_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yaw Deg"
+          }
+        },
+        "required": [
+          "id",
+          "layout_type",
+          "orient",
+          "module_count",
+          "shape",
+          "asset_key",
+          "asset_fallback_key",
+          "points",
+          "warnings"
+        ],
+        "title": "AssemblyInstanceResponse",
+        "type": "object"
+      },
+      "AssemblyModuleAssetResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "anchor_source": {
+            "anyOf": [
+              {
+                "const": "module_nodes",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor Source"
+          },
+          "fallback_asset_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Asset Key"
+          },
+          "high": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High"
+          },
+          "medium": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Medium"
+          },
+          "optional": {
+            "default": false,
+            "title": "Optional",
+            "type": "boolean"
+          },
+          "proxy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proxy"
+          }
+        },
+        "required": [
+          "high",
+          "medium",
+          "proxy"
+        ],
+        "title": "AssemblyModuleAssetResponse",
+        "type": "object"
+      },
+      "AssemblyPhotometricBoundsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "x_max": {
+            "title": "X Max",
+            "type": "number"
+          },
+          "x_min": {
+            "title": "X Min",
+            "type": "number"
+          },
+          "y_max": {
+            "title": "Y Max",
+            "type": "number"
+          },
+          "y_min": {
+            "title": "Y Min",
+            "type": "number"
+          },
+          "z_m": {
+            "title": "Z M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x_min",
+          "x_max",
+          "y_min",
+          "y_max",
+          "z_m"
+        ],
+        "title": "AssemblyPhotometricBoundsResponse",
+        "type": "object"
+      },
+      "AssemblyPhotometricColorScaleResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "clamp": {
+            "const": true,
+            "title": "Clamp",
+            "type": "boolean"
+          },
+          "source": {
+            "const": "simulation-visualization-mean-ppfd",
+            "title": "Source",
+            "type": "string"
+          },
+          "vmax": {
+            "title": "Vmax",
+            "type": "number"
+          },
+          "vmin": {
+            "title": "Vmin",
+            "type": "number"
+          }
+        },
+        "required": [
+          "vmin",
+          "vmax",
+          "source",
+          "clamp"
+        ],
+        "title": "AssemblyPhotometricColorScaleResponse",
+        "type": "object"
+      },
+      "AssemblyPhotometricColormapResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "const": "viridis",
+            "title": "Name",
+            "type": "string"
+          },
+          "normalization": {
+            "const": "linear-clamped",
+            "title": "Normalization",
+            "type": "string"
+          },
+          "source": {
+            "const": "matplotlib",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "source",
+          "normalization"
+        ],
+        "title": "AssemblyPhotometricColormapResponse",
+        "type": "object"
+      },
+      "AssemblyPhotometricLayerResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "bounds_m": {
+            "$ref": "#/components/schemas/AssemblyPhotometricBoundsResponse"
+          },
+          "color_scale": {
+            "$ref": "#/components/schemas/AssemblyPhotometricColorScaleResponse"
+          },
+          "colormap": {
+            "$ref": "#/components/schemas/AssemblyPhotometricColormapResponse"
+          },
+          "encoding": {
+            "const": "float32-le",
+            "title": "Encoding",
+            "type": "string"
+          },
+          "grid_height": {
+            "title": "Grid Height",
+            "type": "integer"
+          },
+          "grid_width": {
+            "title": "Grid Width",
+            "type": "integer"
+          },
+          "max_ppfd": {
+            "title": "Max Ppfd",
+            "type": "number"
+          },
+          "mean_ppfd": {
+            "title": "Mean Ppfd",
+            "type": "number"
+          },
+          "min_ppfd": {
+            "title": "Min Ppfd",
+            "type": "number"
+          },
+          "mode": {
+            "enum": [
+              "SMD",
+              "Competitor",
+              "1000W HPS"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "mode_label": {
+            "title": "Mode Label",
+            "type": "string"
+          },
+          "orientation": {
+            "$ref": "#/components/schemas/AssemblyPhotometricOrientationResponse"
+          },
+          "schema_version": {
+            "const": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "target_ppfd": {
+            "title": "Target Ppfd",
+            "type": "number"
+          },
+          "units": {
+            "const": "\u00b5mol/m\u00b2/s",
+            "title": "Units",
+            "type": "string"
+          },
+          "value_count": {
+            "title": "Value Count",
+            "type": "integer"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "mode_label",
+          "units",
+          "grid_width",
+          "grid_height",
+          "value_count",
+          "bounds_m",
+          "min_ppfd",
+          "max_ppfd",
+          "mean_ppfd",
+          "target_ppfd",
+          "encoding",
+          "colormap",
+          "color_scale",
+          "orientation",
+          "warnings"
+        ],
+        "title": "AssemblyPhotometricLayerResponse",
+        "type": "object"
+      },
+      "AssemblyPhotometricOrientationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "column_axis": {
+            "const": "x",
+            "title": "Column Axis",
+            "type": "string"
+          },
+          "column_order": {
+            "const": "ascending",
+            "title": "Column Order",
+            "type": "string"
+          },
+          "plane": {
+            "const": "xy",
+            "title": "Plane",
+            "type": "string"
+          },
+          "row_axis": {
+            "const": "y",
+            "title": "Row Axis",
+            "type": "string"
+          },
+          "row_order": {
+            "const": "ascending",
+            "title": "Row Order",
+            "type": "string"
+          },
+          "storage_order": {
+            "const": "row-major",
+            "title": "Storage Order",
+            "type": "string"
+          },
+          "value_index": {
+            "const": "row * grid_width + column",
+            "title": "Value Index",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plane",
+          "column_axis",
+          "row_axis",
+          "column_order",
+          "row_order",
+          "storage_order",
+          "value_index"
+        ],
+        "title": "AssemblyPhotometricOrientationResponse",
+        "type": "object"
+      },
+      "AssemblyRoomResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "length_ft": {
+            "title": "Length Ft",
+            "type": "number"
+          },
+          "length_m": {
+            "title": "Length M",
+            "type": "number"
+          },
+          "mount_z_m": {
+            "title": "Mount Z M",
+            "type": "number"
+          },
+          "width_ft": {
+            "title": "Width Ft",
+            "type": "number"
+          },
+          "width_m": {
+            "title": "Width M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "length_ft",
+          "width_ft",
+          "length_m",
+          "width_m",
+          "mount_z_m"
+        ],
+        "title": "AssemblyRoomResponse",
+        "type": "object"
+      },
+      "AssemblySceneResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_fallbacks_used": {
+            "items": {
+              "$ref": "#/components/schemas/AssemblyAssetFallbackResponse"
+            },
+            "title": "Asset Fallbacks Used",
+            "type": "array"
+          },
+          "assets": {
+            "$ref": "#/components/schemas/AssemblyAssetsResponse"
+          },
+          "axis_mapping": {
+            "$ref": "#/components/schemas/AssemblyAxisMappingResponse"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "fixture_counts_by_asset_key": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Fixture Counts By Asset Key",
+            "type": "object"
+          },
+          "fixture_counts_by_layout_type": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Fixture Counts By Layout Type",
+            "type": "object"
+          },
+          "instances": {
+            "items": {
+              "$ref": "#/components/schemas/AssemblyInstanceResponse"
+            },
+            "title": "Instances",
+            "type": "array"
+          },
+          "missing_asset_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Asset Keys",
+            "type": "array"
+          },
+          "mode": {
+            "enum": [
+              "SMD",
+              "Competitor",
+              "1000W HPS"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "mode_label": {
+            "title": "Mode Label",
+            "type": "string"
+          },
+          "module_assets": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/AssemblyModuleAssetResponse"
+            },
+            "title": "Module Assets",
+            "type": "object"
+          },
+          "placement_strategy": {
+            "default": "anchor_fit",
+            "enum": [
+              "anchor_fit",
+              "single_fixture_center"
+            ],
+            "title": "Placement Strategy",
+            "type": "string"
+          },
+          "room": {
+            "$ref": "#/components/schemas/AssemblyRoomResponse"
+          },
+          "schema_version": {
+            "const": 3,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source_units": {
+            "const": "millimeters",
+            "title": "Source Units",
+            "type": "string"
+          },
+          "system": {
+            "enum": [
+              "proposed_led_system",
+              "conventional_led_system",
+              "hps_1000w_system"
+            ],
+            "title": "System",
+            "type": "string"
+          },
+          "units": {
+            "const": "meters",
+            "title": "Units",
+            "type": "string"
+          },
+          "viewer_scale": {
+            "title": "Viewer Scale",
+            "type": "number"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "schema_version",
+          "system",
+          "mode",
+          "mode_label",
+          "display_name",
+          "units",
+          "source_units",
+          "viewer_scale",
+          "axis_mapping",
+          "room",
+          "assets",
+          "module_assets",
+          "instances",
+          "fixture_counts_by_layout_type",
+          "fixture_counts_by_asset_key",
+          "missing_asset_keys",
+          "asset_fallbacks_used",
+          "warnings"
+        ],
+        "title": "AssemblySceneResponse",
+        "type": "object"
+      },
+      "DockerStatusResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "available",
+          "detail"
+        ],
+        "title": "DockerStatusResponse",
+        "type": "object"
+      },
+      "ElectricalCostRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "default": "metrics",
+            "enum": [
+              "uniformity",
+              "competitor",
+              "visualize",
+              "all",
+              "metrics"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "basis_backend": {
+            "default": "rtrace",
+            "enum": [
+              "rtrace",
+              "rcontrib_legacy",
+              "rcontrib_mcpt"
+            ],
+            "title": "Basis Backend",
+            "type": "string"
+          },
+          "competitor_layout": {
+            "default": "full",
+            "enum": [
+              "full",
+              "practical",
+              "square",
+              "rect_rect",
+              "exact_tiled",
+              "grid"
+            ],
+            "title": "Competitor Layout",
+            "type": "string"
+          },
+          "dialux_sensor_grid": {
+            "default": false,
+            "title": "Dialux Sensor Grid",
+            "type": "boolean"
+          },
+          "execution_mode": {
+            "default": "precomputed",
+            "enum": [
+              "precomputed",
+              "live_docker",
+              "live_local"
+            ],
+            "title": "Execution Mode",
+            "type": "string"
+          },
+          "hps_coverage_ft": {
+            "default": 4.0,
+            "exclusiveMinimum": 0.0,
+            "maximum": 12.0,
+            "title": "Hps Coverage Ft",
+            "type": "number"
+          },
+          "hps_fixture_ppf": {
+            "default": 1797.3999999999999,
+            "exclusiveMinimum": 0.0,
+            "maximum": 10000.0,
+            "title": "Hps Fixture Ppf",
+            "type": "number"
+          },
+          "hps_ies_variant": {
+            "default": "karma",
+            "maxLength": 32,
+            "title": "Hps Ies Variant",
+            "type": "string"
+          },
+          "hps_input_watts": {
+            "default": 1045.0,
+            "exclusiveMinimum": 0.0,
+            "maximum": 2000.0,
+            "title": "Hps Input Watts",
+            "type": "number"
+          },
+          "hps_z_m": {
+            "default": 0.4572,
+            "exclusiveMinimum": 0.0,
+            "maximum": 3.0,
+            "title": "Hps Z M",
+            "type": "number"
+          },
+          "length_ft": {
+            "default": 10.0,
+            "exclusiveMinimum": 0.0,
+            "maximum": 30.0,
+            "title": "Length Ft",
+            "type": "number"
+          },
+          "match_system_ppe": {
+            "default": false,
+            "title": "Match System Ppe",
+            "type": "boolean"
+          },
+          "mode": {
+            "default": "SMD",
+            "enum": [
+              "SMD",
+              "Competitor",
+              "1000W HPS"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "mount_z_m": {
+            "default": 0.4572,
+            "exclusiveMinimum": 0.0,
+            "maximum": 3.0,
+            "title": "Mount Z M",
+            "type": "number"
+          },
+          "overlay": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "smd",
+              "spydr3",
+              "hps"
+            ],
+            "title": "Overlay",
+            "type": "string"
+          },
+          "peak_capping_enabled": {
+            "default": false,
+            "title": "Peak Capping Enabled",
+            "type": "boolean"
+          },
+          "run_basis": {
+            "default": true,
+            "title": "Run Basis",
+            "type": "boolean"
+          },
+          "sim_mode": {
+            "default": "standard",
+            "enum": [
+              "direct",
+              "standard",
+              "quality",
+              "rigorous"
+            ],
+            "title": "Sim Mode",
+            "type": "string"
+          },
+          "smd_base_ring": {
+            "default": 0,
+            "maximum": 16.0,
+            "minimum": 0.0,
+            "title": "Smd Base Ring",
+            "type": "integer"
+          },
+          "sp_ppe": {
+            "default": 2.8,
+            "exclusiveMinimum": 0.0,
+            "maximum": 10.0,
+            "title": "Sp Ppe",
+            "type": "number"
+          },
+          "sp_ppf": {
+            "default": 2240.0,
+            "exclusiveMinimum": 0.0,
+            "maximum": 10000.0,
+            "title": "Sp Ppf",
+            "type": "number"
+          },
+          "sp_z_m": {
+            "default": 0.4572,
+            "exclusiveMinimum": 0.0,
+            "maximum": 3.0,
+            "title": "Sp Z M",
+            "type": "number"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/ElectricalCostStage"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Stages",
+            "type": "array"
+          },
+          "subpatch_grid": {
+            "default": 1,
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Subpatch Grid",
+            "type": "integer"
+          },
+          "target_ppfd": {
+            "default": 1000.0,
+            "exclusiveMinimum": 0.0,
+            "maximum": 3000.0,
+            "title": "Target Ppfd",
+            "type": "number"
+          },
+          "utility_rate_kwh": {
+            "default": 0.128,
+            "maximum": 5.0,
+            "minimum": 0.0,
+            "title": "Utility Rate Kwh",
+            "type": "number"
+          },
+          "w_max": {
+            "default": 100.0,
+            "maximum": 200.0,
+            "minimum": 0.0,
+            "title": "W Max",
+            "type": "number"
+          },
+          "w_min": {
+            "default": 0.0,
+            "maximum": 200.0,
+            "minimum": 0.0,
+            "title": "W Min",
+            "type": "number"
+          },
+          "width_ft": {
+            "default": 10.0,
+            "exclusiveMinimum": 0.0,
+            "maximum": 30.0,
+            "title": "Width Ft",
+            "type": "number"
+          }
+        },
+        "required": [
+          "stages"
+        ],
+        "title": "ElectricalCostRequest",
+        "type": "object"
+      },
+      "ElectricalCostStage": {
+        "additionalProperties": false,
+        "properties": {
+          "avg_ppfd": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 3000.0,
+            "title": "Avg Ppfd",
+            "type": "number"
+          },
+          "days": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 365.0,
+            "title": "Days",
+            "type": "number"
+          },
+          "hours_per_day": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 24.0,
+            "title": "Hours Per Day",
+            "type": "number"
+          },
+          "name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "days",
+          "hours_per_day",
+          "avg_ppfd"
+        ],
+        "title": "ElectricalCostStage",
+        "type": "object"
+      },
+      "ElectricalEstimateResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "cycle_cost_usd": {
+            "title": "Cycle Cost Usd",
+            "type": "number"
+          },
+          "cycle_kwh": {
+            "title": "Cycle Kwh",
+            "type": "number"
+          },
+          "mode": {
+            "enum": [
+              "SMD",
+              "Competitor",
+              "1000W HPS"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "ok": {
+            "const": true,
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/ElectricalEstimateStageResponse"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "utility_rate_kwh": {
+            "title": "Utility Rate Kwh",
+            "type": "number"
+          }
+        },
+        "required": [
+          "ok",
+          "mode",
+          "utility_rate_kwh",
+          "cycle_kwh",
+          "cycle_cost_usd",
+          "stages",
+          "notes"
+        ],
+        "title": "ElectricalEstimateResponse",
+        "type": "object"
+      },
+      "ElectricalEstimateStageResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "avg_ppfd": {
+            "title": "Avg Ppfd",
+            "type": "number"
+          },
+          "days": {
+            "title": "Days",
+            "type": "number"
+          },
+          "fixed_output": {
+            "title": "Fixed Output",
+            "type": "boolean"
+          },
+          "hours_per_day": {
+            "title": "Hours Per Day",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "simulated_mean_ppfd": {
+            "title": "Simulated Mean Ppfd",
+            "type": "number"
+          },
+          "stage_cost_usd": {
+            "title": "Stage Cost Usd",
+            "type": "number"
+          },
+          "stage_hours": {
+            "title": "Stage Hours",
+            "type": "number"
+          },
+          "stage_kwh": {
+            "title": "Stage Kwh",
+            "type": "number"
+          },
+          "stage_watts": {
+            "title": "Stage Watts",
+            "type": "number"
+          },
+          "usable_efficacy_umol_j": {
+            "title": "Usable Efficacy Umol J"
+          },
+          "watts_basis": {
+            "title": "Watts Basis",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "days",
+          "hours_per_day",
+          "avg_ppfd",
+          "simulated_mean_ppfd",
+          "stage_watts",
+          "stage_hours",
+          "stage_kwh",
+          "stage_cost_usd",
+          "usable_efficacy_umol_j",
+          "watts_basis",
+          "fixed_output"
+        ],
+        "title": "ElectricalEstimateStageResponse",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "backend": {
+            "title": "Backend",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "backend",
+          "version"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "JobStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Code"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelling",
+              "cancelled",
+              "timed_out"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "status",
+          "exit_code"
+        ],
+        "title": "JobStatus",
+        "type": "object"
+      },
+      "JobTailResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "done": {
+            "title": "Done",
+            "type": "boolean"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "next_cursor": {
+            "title": "Next Cursor",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelling",
+              "cancelled",
+              "timed_out"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "status",
+          "lines",
+          "next_cursor",
+          "done"
+        ],
+        "title": "JobTailResponse",
+        "type": "object"
+      },
+      "LayoutRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "cv_enabled": {
+            "default": false,
+            "title": "Cv Enabled",
+            "type": "boolean"
+          },
+          "include_svg": {
+            "default": true,
+            "title": "Include Svg",
+            "type": "boolean"
+          },
+          "length_ft": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 30.0,
+            "title": "Length Ft",
+            "type": "number"
+          },
+          "width_ft": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 30.0,
+            "title": "Width Ft",
+            "type": "number"
+          }
+        },
+        "required": [
+          "length_ft",
+          "width_ft"
+        ],
+        "title": "LayoutRequest",
+        "type": "object"
+      },
+      "LayoutResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "all_positions": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "All Positions",
+            "type": "array"
+          },
+          "length_ft": {
+            "title": "Length Ft",
+            "type": "number"
+          },
+          "module_count": {
+            "title": "Module Count",
+            "type": "integer"
+          },
+          "module_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Module Counts",
+            "type": "object"
+          },
+          "png_download_name": {
+            "title": "Png Download Name",
+            "type": "string"
+          },
+          "svg": {
+            "title": "Svg",
+            "type": "string"
+          },
+          "svg_download_name": {
+            "title": "Svg Download Name",
+            "type": "string"
+          },
+          "total_cost": {
+            "title": "Total Cost",
+            "type": "integer"
+          },
+          "width_ft": {
+            "title": "Width Ft",
+            "type": "number"
+          }
+        },
+        "required": [
+          "length_ft",
+          "width_ft",
+          "module_count",
+          "module_counts",
+          "total_cost",
+          "all_positions",
+          "svg",
+          "svg_download_name",
+          "png_download_name"
+        ],
+        "title": "LayoutResponse",
+        "type": "object"
+      },
+      "MetricsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "dependencies_ready": {
+            "title": "Dependencies Ready",
+            "type": "boolean"
+          },
+          "requests_total": {
+            "title": "Requests Total",
+            "type": "integer"
+          },
+          "service": {
+            "title": "Service",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "requests_total",
+          "dependencies_ready"
+        ],
+        "title": "MetricsResponse",
+        "type": "object"
+      },
+      "PublicErrorResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "correlation_id": {
+            "title": "Correlation Id",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "error": {
+            "title": "Error",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "ok": {
+            "const": false,
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "error",
+          "message",
+          "correlation_id"
+        ],
+        "title": "PublicErrorResponse",
+        "type": "object"
+      },
+      "RadianceImagesResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "annot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annot"
+          },
+          "overlay": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overlay"
+          }
+        },
+        "required": [
+          "overlay",
+          "annot"
+        ],
+        "title": "RadianceImagesResponse",
+        "type": "object"
+      },
+      "RadianceManifestResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "manifest": {
+            "title": "Manifest",
+            "type": "object"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "manifest",
+          "path"
+        ],
+        "title": "RadianceManifestResponse",
+        "type": "object"
+      },
+      "RadianceMetricsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "cost_estimate": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Estimate"
+          },
+          "metrics": {
+            "title": "Metrics",
+            "type": "object"
+          }
+        },
+        "required": [
+          "metrics",
+          "cost_estimate"
+        ],
+        "title": "RadianceMetricsResponse",
+        "type": "object"
+      },
+      "RadianceRunRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "uniformity",
+              "competitor",
+              "visualize",
+              "all",
+              "metrics"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "basis_backend": {
+            "default": "rtrace",
+            "enum": [
+              "rtrace",
+              "rcontrib_legacy",
+              "rcontrib_mcpt"
+            ],
+            "title": "Basis Backend",
+            "type": "string"
+          },
+          "competitor_layout": {
+            "default": "full",
+            "enum": [
+              "full",
+              "practical",
+              "square",
+              "rect_rect",
+              "exact_tiled",
+              "grid"
+            ],
+            "title": "Competitor Layout",
+            "type": "string"
+          },
+          "dialux_sensor_grid": {
+            "default": false,
+            "title": "Dialux Sensor Grid",
+            "type": "boolean"
+          },
+          "execution_mode": {
+            "default": "precomputed",
+            "enum": [
+              "precomputed",
+              "live_docker",
+              "live_local"
+            ],
+            "title": "Execution Mode",
+            "type": "string"
+          },
+          "hps_coverage_ft": {
+            "default": 4.0,
+            "exclusiveMinimum": 0.0,
+            "maximum": 12.0,
+            "title": "Hps Coverage Ft",
+            "type": "number"
+          },
+          "hps_fixture_ppf": {
+            "default": 1797.3999999999999,
+            "exclusiveMinimum": 0.0,
+            "maximum": 10000.0,
+            "title": "Hps Fixture Ppf",
+            "type": "number"
+          },
+          "hps_ies_variant": {
+            "default": "karma",
+            "maxLength": 32,
+            "title": "Hps Ies Variant",
+            "type": "string"
+          },
+          "hps_input_watts": {
+            "default": 1045.0,
+            "exclusiveMinimum": 0.0,
+            "maximum": 2000.0,
+            "title": "Hps Input Watts",
+            "type": "number"
+          },
+          "hps_z_m": {
+            "default": 0.4572,
+            "exclusiveMinimum": 0.0,
+            "maximum": 3.0,
+            "title": "Hps Z M",
+            "type": "number"
+          },
+          "length_ft": {
+            "default": 10.0,
+            "exclusiveMinimum": 0.0,
+            "maximum": 30.0,
+            "title": "Length Ft",
+            "type": "number"
+          },
+          "match_system_ppe": {
+            "default": false,
+            "title": "Match System Ppe",
+            "type": "boolean"
+          },
+          "mode": {
+            "default": "SMD",
+            "enum": [
+              "SMD",
+              "Competitor",
+              "1000W HPS"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "mount_z_m": {
+            "default": 0.4572,
+            "exclusiveMinimum": 0.0,
+            "maximum": 3.0,
+            "title": "Mount Z M",
+            "type": "number"
+          },
+          "overlay": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "smd",
+              "spydr3",
+              "hps"
+            ],
+            "title": "Overlay",
+            "type": "string"
+          },
+          "peak_capping_enabled": {
+            "default": false,
+            "title": "Peak Capping Enabled",
+            "type": "boolean"
+          },
+          "run_basis": {
+            "default": true,
+            "title": "Run Basis",
+            "type": "boolean"
+          },
+          "sim_mode": {
+            "default": "standard",
+            "enum": [
+              "direct",
+              "standard",
+              "quality",
+              "rigorous"
+            ],
+            "title": "Sim Mode",
+            "type": "string"
+          },
+          "smd_base_ring": {
+            "default": 0,
+            "maximum": 16.0,
+            "minimum": 0.0,
+            "title": "Smd Base Ring",
+            "type": "integer"
+          },
+          "sp_ppe": {
+            "default": 2.8,
+            "exclusiveMinimum": 0.0,
+            "maximum": 10.0,
+            "title": "Sp Ppe",
+            "type": "number"
+          },
+          "sp_ppf": {
+            "default": 2240.0,
+            "exclusiveMinimum": 0.0,
+            "maximum": 10000.0,
+            "title": "Sp Ppf",
+            "type": "number"
+          },
+          "sp_z_m": {
+            "default": 0.4572,
+            "exclusiveMinimum": 0.0,
+            "maximum": 3.0,
+            "title": "Sp Z M",
+            "type": "number"
+          },
+          "subpatch_grid": {
+            "default": 1,
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Subpatch Grid",
+            "type": "integer"
+          },
+          "target_ppfd": {
+            "default": 1000.0,
+            "exclusiveMinimum": 0.0,
+            "maximum": 3000.0,
+            "title": "Target Ppfd",
+            "type": "number"
+          },
+          "w_max": {
+            "default": 100.0,
+            "maximum": 200.0,
+            "minimum": 0.0,
+            "title": "W Max",
+            "type": "number"
+          },
+          "w_min": {
+            "default": 0.0,
+            "maximum": 200.0,
+            "minimum": 0.0,
+            "title": "W Min",
+            "type": "number"
+          },
+          "width_ft": {
+            "default": 10.0,
+            "exclusiveMinimum": 0.0,
+            "maximum": 30.0,
+            "title": "Width Ft",
+            "type": "number"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "RadianceRunRequest",
+        "type": "object"
+      },
+      "RadianceRunResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_token": {
+            "title": "Artifact Token",
+            "type": "string"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "outdir": {
+            "title": "Outdir",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelling",
+              "cancelled",
+              "timed_out"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "status",
+          "outdir",
+          "artifact_token"
+        ],
+        "title": "RadianceRunResponse",
+        "type": "object"
+      },
+      "ReadinessResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "backend": {
+            "title": "Backend",
+            "type": "string"
+          },
+          "dependencies": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Dependencies",
+            "type": "object"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "backend",
+          "version",
+          "dependencies"
+        ],
+        "title": "ReadinessResponse",
+        "type": "object"
+      },
+      "ReproduceResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelling",
+              "cancelled",
+              "timed_out"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "status"
+        ],
+        "title": "ReproduceResponse",
+        "type": "object"
+      },
+      "RuntimeDockerModeStatusResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "can_build_image": {
+            "title": "Can Build Image",
+            "type": "boolean"
+          },
+          "daemon_available": {
+            "title": "Daemon Available",
+            "type": "boolean"
+          },
+          "docker_cli": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Docker Cli"
+          },
+          "image_available": {
+            "title": "Image Available",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "setup_commands": {
+            "items": {
+              "$ref": "#/components/schemas/RuntimeSetupCommandResponse"
+            },
+            "title": "Setup Commands",
+            "type": "array"
+          },
+          "supported_lighting_modes": {
+            "items": {
+              "enum": [
+                "SMD",
+                "Competitor",
+                "1000W HPS"
+              ],
+              "type": "string"
+            },
+            "title": "Supported Lighting Modes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "available",
+          "supported_lighting_modes",
+          "daemon_available",
+          "image_available",
+          "can_build_image",
+          "setup_commands"
+        ],
+        "title": "RuntimeDockerModeStatusResponse",
+        "type": "object"
+      },
+      "RuntimeLocalModeStatusResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "detected_executables": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Detected Executables",
+            "type": "object"
+          },
+          "env_values": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Env Values",
+            "type": "object"
+          },
+          "missing_executables": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Executables",
+            "type": "array"
+          },
+          "radiance_bin_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Radiance Bin Dir"
+          },
+          "radiance_home": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Radiance Home"
+          },
+          "radiance_lib_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Radiance Lib Dir"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "setup_commands": {
+            "items": {
+              "$ref": "#/components/schemas/RuntimeSetupCommandResponse"
+            },
+            "title": "Setup Commands",
+            "type": "array"
+          },
+          "supported_lighting_modes": {
+            "items": {
+              "enum": [
+                "SMD",
+                "Competitor",
+                "1000W HPS"
+              ],
+              "type": "string"
+            },
+            "title": "Supported Lighting Modes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "available",
+          "supported_lighting_modes",
+          "detected_executables",
+          "missing_executables",
+          "env_values",
+          "setup_commands"
+        ],
+        "title": "RuntimeLocalModeStatusResponse",
+        "type": "object"
+      },
+      "RuntimeModesStatusResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "live_docker": {
+            "$ref": "#/components/schemas/RuntimeDockerModeStatusResponse"
+          },
+          "live_local": {
+            "$ref": "#/components/schemas/RuntimeLocalModeStatusResponse"
+          },
+          "precomputed": {
+            "$ref": "#/components/schemas/RuntimePrecomputedModeStatusResponse"
+          }
+        },
+        "required": [
+          "precomputed",
+          "live_docker",
+          "live_local"
+        ],
+        "title": "RuntimeModesStatusResponse",
+        "type": "object"
+      },
+      "RuntimePrecomputedModeStatusResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "const": true,
+            "title": "Available",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "available"
+        ],
+        "title": "RuntimePrecomputedModeStatusResponse",
+        "type": "object"
+      },
+      "RuntimeSetupCommandResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "title": "Command",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "command"
+        ],
+        "title": "RuntimeSetupCommandResponse",
+        "type": "object"
+      },
+      "RuntimeStatusResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "live_execution_enabled": {
+            "title": "Live Execution Enabled",
+            "type": "boolean"
+          },
+          "live_supported_modes": {
+            "items": {
+              "enum": [
+                "SMD",
+                "Competitor",
+                "1000W HPS"
+              ],
+              "type": "string"
+            },
+            "title": "Live Supported Modes",
+            "type": "array"
+          },
+          "live_unsupported_mode_message": {
+            "title": "Live Unsupported Mode Message",
+            "type": "string"
+          },
+          "modes": {
+            "$ref": "#/components/schemas/RuntimeModesStatusResponse"
+          }
+        },
+        "required": [
+          "live_execution_enabled",
+          "live_supported_modes",
+          "live_unsupported_mode_message",
+          "modes"
+        ],
+        "title": "RuntimeStatusResponse",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Horticulture Lighting Simulator API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/docker/status": {
+      "get": {
+        "operationId": "get_docker_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DockerStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Docker Status"
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "get_health",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/jobs/{job_id}": {
+      "get": {
+        "operationId": "get_job_status",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Job Status"
+      }
+    },
+    "/jobs/{job_id}/cancel": {
+      "post": {
+        "operationId": "cancel_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Job Cancel"
+      }
+    },
+    "/jobs/{job_id}/logs": {
+      "get": {
+        "operationId": "stream_job_logs",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Job Logs"
+      }
+    },
+    "/jobs/{job_id}/tail": {
+      "get": {
+        "operationId": "get_job_tail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "Cursor",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobTailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Job Tail"
+      }
+    },
+    "/layout": {
+      "post": {
+        "operationId": "create_layout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LayoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LayoutResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Run Layout"
+      }
+    },
+    "/metrics": {
+      "get": {
+        "operationId": "get_backend_metrics",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Metrics"
+      }
+    },
+    "/radiance/assembly-photometric-layer": {
+      "get": {
+        "operationId": "get_radiance_assembly_photometric_layer",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "SMD",
+              "title": "Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "execution_mode",
+            "required": false,
+            "schema": {
+              "default": "precomputed",
+              "title": "Execution Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sim_mode",
+            "required": false,
+            "schema": {
+              "default": "standard",
+              "title": "Sim Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_ppfd",
+            "required": false,
+            "schema": {
+              "default": 1000.0,
+              "title": "Target Ppfd",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "peak_capping_enabled",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Peak Capping Enabled",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "length_ft",
+            "required": false,
+            "schema": {
+              "default": 10.0,
+              "title": "Length Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "width_ft",
+            "required": false,
+            "schema": {
+              "default": 10.0,
+              "title": "Width Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "w_min",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "W Min"
+            }
+          },
+          {
+            "in": "query",
+            "name": "w_max",
+            "required": false,
+            "schema": {
+              "default": 100.0,
+              "title": "W Max",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "competitor_layout",
+            "required": false,
+            "schema": {
+              "default": "full",
+              "title": "Competitor Layout",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_coverage_ft",
+            "required": false,
+            "schema": {
+              "default": 4.0,
+              "title": "Hps Coverage Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_ies_variant",
+            "required": false,
+            "schema": {
+              "default": "karma",
+              "title": "Hps Ies Variant",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mount_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Mount Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sp_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Sp Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Hps Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "basis_backend",
+            "required": false,
+            "schema": {
+              "default": "rtrace",
+              "title": "Basis Backend",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "session_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artifact_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artifact Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssemblyPhotometricLayerResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Radiance Assembly Photometric Layer"
+      }
+    },
+    "/radiance/assembly-photometric-layer.bin": {
+      "get": {
+        "operationId": "get_radiance_assembly_photometric_layer_binary",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "SMD",
+              "title": "Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "execution_mode",
+            "required": false,
+            "schema": {
+              "default": "precomputed",
+              "title": "Execution Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sim_mode",
+            "required": false,
+            "schema": {
+              "default": "standard",
+              "title": "Sim Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_ppfd",
+            "required": false,
+            "schema": {
+              "default": 1000.0,
+              "title": "Target Ppfd",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "peak_capping_enabled",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Peak Capping Enabled",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "length_ft",
+            "required": false,
+            "schema": {
+              "default": 10.0,
+              "title": "Length Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "width_ft",
+            "required": false,
+            "schema": {
+              "default": 10.0,
+              "title": "Width Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "w_min",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "W Min"
+            }
+          },
+          {
+            "in": "query",
+            "name": "w_max",
+            "required": false,
+            "schema": {
+              "default": 100.0,
+              "title": "W Max",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "competitor_layout",
+            "required": false,
+            "schema": {
+              "default": "full",
+              "title": "Competitor Layout",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_coverage_ft",
+            "required": false,
+            "schema": {
+              "default": 4.0,
+              "title": "Hps Coverage Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_ies_variant",
+            "required": false,
+            "schema": {
+              "default": "karma",
+              "title": "Hps Ies Variant",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mount_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Mount Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sp_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Sp Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Hps Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "basis_backend",
+            "required": false,
+            "schema": {
+              "default": "rtrace",
+              "title": "Basis Backend",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "session_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artifact_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artifact Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Radiance Assembly Photometric Layer Binary"
+      }
+    },
+    "/radiance/assembly-scene": {
+      "get": {
+        "operationId": "get_radiance_assembly_scene",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "SMD",
+              "title": "Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "execution_mode",
+            "required": false,
+            "schema": {
+              "default": "precomputed",
+              "title": "Execution Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sim_mode",
+            "required": false,
+            "schema": {
+              "default": "standard",
+              "title": "Sim Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_ppfd",
+            "required": false,
+            "schema": {
+              "default": 1000.0,
+              "title": "Target Ppfd",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "peak_capping_enabled",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Peak Capping Enabled",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "length_ft",
+            "required": false,
+            "schema": {
+              "default": 10.0,
+              "title": "Length Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "width_ft",
+            "required": false,
+            "schema": {
+              "default": 10.0,
+              "title": "Width Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "w_min",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "W Min"
+            }
+          },
+          {
+            "in": "query",
+            "name": "w_max",
+            "required": false,
+            "schema": {
+              "default": 100.0,
+              "title": "W Max",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "competitor_layout",
+            "required": false,
+            "schema": {
+              "default": "full",
+              "title": "Competitor Layout",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_coverage_ft",
+            "required": false,
+            "schema": {
+              "default": 4.0,
+              "title": "Hps Coverage Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_ies_variant",
+            "required": false,
+            "schema": {
+              "default": "karma",
+              "title": "Hps Ies Variant",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mount_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Mount Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sp_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Sp Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Hps Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "basis_backend",
+            "required": false,
+            "schema": {
+              "default": "rtrace",
+              "title": "Basis Backend",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "session_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artifact_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artifact Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssemblySceneResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Radiance Assembly Scene"
+      }
+    },
+    "/radiance/electrical-estimate": {
+      "post": {
+        "operationId": "create_radiance_electrical_estimate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ElectricalCostRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ElectricalEstimateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Radiance Electrical Estimate"
+      }
+    },
+    "/radiance/image": {
+      "get": {
+        "operationId": "get_radiance_image",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mode",
+            "required": true,
+            "schema": {
+              "title": "Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "execution_mode",
+            "required": false,
+            "schema": {
+              "default": "precomputed",
+              "title": "Execution Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sim_mode",
+            "required": false,
+            "schema": {
+              "default": "standard",
+              "title": "Sim Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_ppfd",
+            "required": false,
+            "schema": {
+              "default": 1000.0,
+              "title": "Target Ppfd",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "peak_capping_enabled",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Peak Capping Enabled",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "length_ft",
+            "required": false,
+            "schema": {
+              "default": 10.0,
+              "title": "Length Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "width_ft",
+            "required": false,
+            "schema": {
+              "default": 10.0,
+              "title": "Width Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "w_min",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "W Min"
+            }
+          },
+          {
+            "in": "query",
+            "name": "w_max",
+            "required": false,
+            "schema": {
+              "default": 100.0,
+              "title": "W Max",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "competitor_layout",
+            "required": false,
+            "schema": {
+              "default": "full",
+              "title": "Competitor Layout",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_coverage_ft",
+            "required": false,
+            "schema": {
+              "default": 4.0,
+              "title": "Hps Coverage Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_ies_variant",
+            "required": false,
+            "schema": {
+              "default": "karma",
+              "title": "Hps Ies Variant",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mount_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Mount Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sp_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Sp Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Hps Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "basis_backend",
+            "required": false,
+            "schema": {
+              "default": "rtrace",
+              "title": "Basis Backend",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Radiance Image"
+      }
+    },
+    "/radiance/images": {
+      "get": {
+        "operationId": "get_radiance_images",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "SMD",
+              "title": "Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "execution_mode",
+            "required": false,
+            "schema": {
+              "default": "precomputed",
+              "title": "Execution Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sim_mode",
+            "required": false,
+            "schema": {
+              "default": "standard",
+              "title": "Sim Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_ppfd",
+            "required": false,
+            "schema": {
+              "default": 1000.0,
+              "title": "Target Ppfd",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "peak_capping_enabled",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Peak Capping Enabled",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "length_ft",
+            "required": false,
+            "schema": {
+              "default": 10.0,
+              "title": "Length Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "width_ft",
+            "required": false,
+            "schema": {
+              "default": 10.0,
+              "title": "Width Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "w_min",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "W Min"
+            }
+          },
+          {
+            "in": "query",
+            "name": "w_max",
+            "required": false,
+            "schema": {
+              "default": 100.0,
+              "title": "W Max",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "competitor_layout",
+            "required": false,
+            "schema": {
+              "default": "full",
+              "title": "Competitor Layout",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_coverage_ft",
+            "required": false,
+            "schema": {
+              "default": 4.0,
+              "title": "Hps Coverage Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_ies_variant",
+            "required": false,
+            "schema": {
+              "default": "karma",
+              "title": "Hps Ies Variant",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mount_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Mount Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sp_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Sp Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Hps Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "basis_backend",
+            "required": false,
+            "schema": {
+              "default": "rtrace",
+              "title": "Basis Backend",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RadianceImagesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Radiance Images"
+      }
+    },
+    "/radiance/manifest": {
+      "post": {
+        "operationId": "get_radiance_manifest",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RadianceRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RadianceManifestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Radiance Manifest"
+      }
+    },
+    "/radiance/metrics": {
+      "get": {
+        "operationId": "get_radiance_metrics",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "SMD",
+              "title": "Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "execution_mode",
+            "required": false,
+            "schema": {
+              "default": "precomputed",
+              "title": "Execution Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sim_mode",
+            "required": false,
+            "schema": {
+              "default": "standard",
+              "title": "Sim Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_ppfd",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Target Ppfd"
+            }
+          },
+          {
+            "in": "query",
+            "name": "peak_capping_enabled",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Peak Capping Enabled",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "length_ft",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Length Ft"
+            }
+          },
+          {
+            "in": "query",
+            "name": "width_ft",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Width Ft"
+            }
+          },
+          {
+            "in": "query",
+            "name": "w_min",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "W Min"
+            }
+          },
+          {
+            "in": "query",
+            "name": "w_max",
+            "required": false,
+            "schema": {
+              "default": 100.0,
+              "title": "W Max",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "competitor_layout",
+            "required": false,
+            "schema": {
+              "default": "full",
+              "title": "Competitor Layout",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_coverage_ft",
+            "required": false,
+            "schema": {
+              "default": 4.0,
+              "title": "Hps Coverage Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_ies_variant",
+            "required": false,
+            "schema": {
+              "default": "karma",
+              "title": "Hps Ies Variant",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mount_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Mount Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sp_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Sp Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Hps Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "basis_backend",
+            "required": false,
+            "schema": {
+              "default": "rtrace",
+              "title": "Basis Backend",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RadianceMetricsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Radiance Metrics"
+      }
+    },
+    "/radiance/ppfd-csv": {
+      "get": {
+        "operationId": "get_radiance_ppfd_csv",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "SMD",
+              "title": "Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "execution_mode",
+            "required": false,
+            "schema": {
+              "default": "precomputed",
+              "title": "Execution Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sim_mode",
+            "required": false,
+            "schema": {
+              "default": "standard",
+              "title": "Sim Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_ppfd",
+            "required": false,
+            "schema": {
+              "default": 1000.0,
+              "title": "Target Ppfd",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "peak_capping_enabled",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Peak Capping Enabled",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "length_ft",
+            "required": false,
+            "schema": {
+              "default": 10.0,
+              "title": "Length Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "width_ft",
+            "required": false,
+            "schema": {
+              "default": 10.0,
+              "title": "Width Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "w_min",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "W Min"
+            }
+          },
+          {
+            "in": "query",
+            "name": "w_max",
+            "required": false,
+            "schema": {
+              "default": 100.0,
+              "title": "W Max",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "competitor_layout",
+            "required": false,
+            "schema": {
+              "default": "full",
+              "title": "Competitor Layout",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_coverage_ft",
+            "required": false,
+            "schema": {
+              "default": 4.0,
+              "title": "Hps Coverage Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_ies_variant",
+            "required": false,
+            "schema": {
+              "default": "karma",
+              "title": "Hps Ies Variant",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mount_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Mount Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sp_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Sp Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Hps Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "basis_backend",
+            "required": false,
+            "schema": {
+              "default": "rtrace",
+              "title": "Basis Backend",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Radiance Ppfd Csv"
+      }
+    },
+    "/radiance/run": {
+      "post": {
+        "operationId": "start_radiance_run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RadianceRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RadianceRunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Run Radiance"
+      }
+    },
+    "/radiance/runtime/status": {
+      "get": {
+        "operationId": "get_radiance_runtime_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Radiance Runtime Status"
+      }
+    },
+    "/radiance/scatter": {
+      "get": {
+        "operationId": "get_radiance_scatter",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "SMD",
+              "title": "Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "execution_mode",
+            "required": false,
+            "schema": {
+              "default": "precomputed",
+              "title": "Execution Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sim_mode",
+            "required": false,
+            "schema": {
+              "default": "standard",
+              "title": "Sim Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_ppfd",
+            "required": false,
+            "schema": {
+              "default": 1000.0,
+              "title": "Target Ppfd",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "peak_capping_enabled",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Peak Capping Enabled",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "length_ft",
+            "required": false,
+            "schema": {
+              "default": 10.0,
+              "title": "Length Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "width_ft",
+            "required": false,
+            "schema": {
+              "default": 10.0,
+              "title": "Width Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "w_min",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "W Min"
+            }
+          },
+          {
+            "in": "query",
+            "name": "w_max",
+            "required": false,
+            "schema": {
+              "default": 100.0,
+              "title": "W Max",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "competitor_layout",
+            "required": false,
+            "schema": {
+              "default": "full",
+              "title": "Competitor Layout",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_coverage_ft",
+            "required": false,
+            "schema": {
+              "default": 4.0,
+              "title": "Hps Coverage Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_ies_variant",
+            "required": false,
+            "schema": {
+              "default": "karma",
+              "title": "Hps Ies Variant",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mount_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Mount Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sp_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Sp Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Hps Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "basis_backend",
+            "required": false,
+            "schema": {
+              "default": "rtrace",
+              "title": "Basis Backend",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Radiance Scatter"
+      }
+    },
+    "/ready": {
+      "get": {
+        "operationId": "get_readiness",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Ready"
+      }
+    },
+    "/reproduce": {
+      "post": {
+        "operationId": "start_reproduce",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReproduceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Run Reproduce"
+      }
+    }
+  }
+}

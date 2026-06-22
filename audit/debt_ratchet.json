@@ -1,0 +1,29 @@
+{
+  "bandit": {
+    "max_high": 0,
+    "max_low": 25,
+    "max_medium": 7
+  },
+  "coverage": {
+    "min_branch_percent": 65
+  },
+  "created": "2026-06-18",
+  "eslint": {
+    "max_errors": 0,
+    "max_warnings": 0
+  },
+  "mypy": {
+    "allowed_fingerprints": []
+  },
+  "policy": "Exact finding fingerprints prevent replacing fixed debt with new debt. Missing optional tools are reported separately and are not passes.",
+  "pytest_warnings": {
+    "allowed_first_party_fingerprints": []
+  },
+  "ruff": {
+    "allowed_fingerprints": []
+  },
+  "shellcheck": {
+    "allowed_fingerprints": []
+  },
+  "version": 2
+}

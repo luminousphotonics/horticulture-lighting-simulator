@@ -1,0 +1,66 @@
+{
+  "schema_version": 3,
+  "system": "proposed_led_system",
+  "display_name": "Proposed LED System",
+  "units": "meters",
+  "source_units": "millimeters",
+  "viewer_scale": 0.001,
+  "axis_mapping": {
+    "cad_horizontal": ["x", "z"],
+    "cad_vertical": "y",
+    "layout_horizontal": ["x", "y"],
+    "layout_vertical": "z"
+  },
+  "anchor_metadata": "anchors.json",
+  "module_assets": {
+    "centerpiece": {
+      "high": "fixture_centerpiece.high.glb",
+      "medium": "fixture_centerpiece.medium.glb",
+      "proxy": "fixture_centerpiece.proxy.glb",
+      "anchor_source": "module_nodes"
+    },
+    "linear2": {
+      "high": "fixture_L2_linear.high.glb",
+      "medium": "fixture_L2_linear.medium.glb",
+      "proxy": "fixture_L2_linear.proxy.glb",
+      "anchor_source": "module_nodes"
+    },
+    "linear3_linear": {
+      "high": "fixture_L3_linear.high.glb",
+      "medium": "fixture_L3_linear.medium.glb",
+      "proxy": "fixture_L3_linear.proxy.glb",
+      "anchor_source": "module_nodes"
+    },
+    "linear3_corner": {
+      "high": "fixture_L3.high.glb",
+      "medium": "fixture_L3.medium.glb",
+      "proxy": "fixture_L3.proxy.glb",
+      "anchor_source": "module_nodes",
+      "optional": true,
+      "fallback_asset_key": "linear3_linear"
+    },
+    "linear4_linear": {
+      "high": "fixture_L4_linear.high.glb",
+      "medium": "fixture_L4_linear.medium.glb",
+      "proxy": "fixture_L4_linear.proxy.glb",
+      "anchor_source": "module_nodes"
+    },
+    "l4_corner": {
+      "high": "fixture_L4.high.glb",
+      "medium": "fixture_L4.medium.glb",
+      "proxy": "fixture_L4.proxy.glb",
+      "anchor_source": "module_nodes"
+    },
+    "l4_reverse_corner": {
+      "high": "fixture_L4_reverse.high.glb",
+      "medium": "fixture_L4_reverse.medium.glb",
+      "proxy": "fixture_L4_reverse.proxy.glb",
+      "anchor_source": "module_nodes"
+    }
+  },
+  "notes": [
+    "asset_key is derived from fixture group geometry, not layout type alone.",
+    "CAD source files use millimeter-scale geometry; viewer_scale converts to meters.",
+    "GLB horizontal plane is X/Z and vertical axis is Y. Layout horizontal plane is x/y and vertical axis is z."
+  ]
+}

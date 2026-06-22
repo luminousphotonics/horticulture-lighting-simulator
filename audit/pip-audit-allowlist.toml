@@ -1,0 +1,13 @@
+# pip-audit allowlist for Phase 04 dependency audits.
+#
+# Entries expire by date and must include a narrow reason. Keep this file empty
+# when there are no accepted vulnerability waivers.
+#
+# [[vulnerability]]
+# id = "PYSEC-YYYY-NNN"
+# package = "example"
+# reason = "Why this finding is not actionable for this project."
+# expires = "2026-12-31"
+# owner = "Austin Rouse"
+
+vulnerability = []
