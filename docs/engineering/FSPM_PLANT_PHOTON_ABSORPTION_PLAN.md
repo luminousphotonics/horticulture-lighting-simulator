@@ -3,7 +3,7 @@
 ## Status Header
 
 - Feature: Functional Structural Plant Modeling for leafy-green / lettuce-style plant geometry and plant photon absorption groundwork.
-- Current phase: Phase 00 - planning document complete; next phase is Phase 01.
+- Current phase: Phase 01 complete; next phase is Phase 02.
 - Last updated: 2026-06-23.
 - Branch: `feat/fspm-plant-modeling`.
 - Worktree: `/home/austin/Desktop/hls-fspm`.
@@ -174,6 +174,65 @@ Expected outputs:
 - Source files under `src/rad_rebuild/radiance/engine/plants/`.
 - Tests such as `tests/radiance/test_plant_geometry.py` and, if useful, `tests/radiance/test_plant_export_contracts.py`.
 - Tiny inline fixtures only when necessary.
+
+Status: complete.
+
+Completed checklist:
+
+- Added a pure engine plant package under `src/rad_rebuild/radiance/engine/plants/`.
+- Implemented validated meters-first plant geometry configuration.
+- Implemented deterministic leafy-green / lettuce-style rosette generation from an explicit seed.
+- Added deterministic plant IDs, leaf IDs, and Radiance polygon surface IDs.
+- Added low-density curved leaf triangle meshes with finite coordinate validation coverage.
+- Added a Radiance text exporter that returns deterministic text and does not write files.
+- Added a JSON-serializable viewer exporter that does not generate GLB files.
+- Added focused tests in `tests/radiance/test_fspm_plants.py`.
+- Left backend routes, request schemas, viewer UI, public precomputed behavior, and existing lighting modes untouched.
+
+Files added:
+
+- `src/rad_rebuild/radiance/engine/plants/__init__.py`
+- `src/rad_rebuild/radiance/engine/plants/config.py`
+- `src/rad_rebuild/radiance/engine/plants/models.py`
+- `src/rad_rebuild/radiance/engine/plants/generator.py`
+- `src/rad_rebuild/radiance/engine/plants/mesh.py`
+- `src/rad_rebuild/radiance/engine/plants/radiance_export.py`
+- `src/rad_rebuild/radiance/engine/plants/viewer_export.py`
+- `tests/radiance/test_fspm_plants.py`
+
+Validation results:
+
+- `PYTHONPATH=src python -m pytest -q tests/radiance/test_fspm_plants.py`: not runnable in this shell because `python` is not on `PATH`.
+- `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_fspm_plants.py`: passed, 36 tests.
+- `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_import_boundaries.py`: passed, 6 tests, 33 subtests, with existing third-party matplotlib/pyparsing deprecation warnings.
+- `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_config_contracts.py`: passed, 9 tests, 6 subtests.
+- `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance/engine/plants tests/radiance/test_fspm_plants.py`: passed.
+- `git diff --check`: passed.
+- `git diff --stat`: reported the tracked plan update; new Phase 01 source and test files remained untracked.
+- `git status --short`: showed `M docs/engineering/FSPM_PLANT_PHOTON_ABSORPTION_PLAN.md`, `?? src/rad_rebuild/radiance/engine/plants/`, and `?? tests/radiance/test_fspm_plants.py`.
+
+Scientific assumptions made:
+
+- Leaf optical coefficients are treated as a conservative Phase 01 energy partition and must sum to 1.0: reflectance + transmittance + absorptance.
+- The Phase 01 Radiance material is a deterministic placeholder `plastic` material using reflectance only; transmittance and absorptance are retained as metadata and comments until the leaf material model is reviewed.
+- Lettuce-style geometry is an approximate rosette only: each leaf is a low-density tessellated curved surface, not a cultivar-specific botanical model.
+- Growth stage scales generated leaf length, width, and curvature with a nonzero seedling floor; it does not imply biomass, yield, or production.
+- All geometry lengths and coordinates are meters; tilt is stored in radians in generated metadata and accepted as degrees in config.
+
+Risks/open questions:
+
+- The Radiance leaf material remains a placeholder and must not be used for absorption conclusions before scientific review.
+- Leaf density and tessellation are intentionally small for Phase 01; later simulation cost must be characterized before live scene inclusion.
+- Viewer/Radiance coordinate alignment still needs explicit validation when the plant payload is connected to the assembly viewer.
+- Backend request fingerprinting and public API compatibility remain deferred to Phase 04.
+
+Recommended Phase 02 handoff:
+
+- Add explicit runtime artifact helpers that write plant JSON/Radiance outputs only under workspace/runtime output directories.
+- Keep artifact generation developer/internal only; do not include plants in Radiance simulations yet.
+- Add path-safety and determinism tests for any file-writing helper.
+- Keep default no-plant behavior and public precomputed playback unchanged.
+- Decide the canonical plant artifact filenames and whether they belong in manifests before changing sync code.
 
 Validation:
 
@@ -403,6 +462,14 @@ Each later phase must:
 - Runtime/generated plant artifacts belong under ignored runtime output or workspace directories.
 - Public precomputed bundles are not expanded in early phases.
 - Existing assembly scene, manifest, request fingerprint, and public mode contracts remain protected.
+
+### Phase 01 Implementation Decisions
+
+- The Phase 01 plant package uses frozen dataclasses and standard-library deterministic random generation only.
+- The default rosette uses 2 x 2 plants, 12 leaves per plant, and a fixed low-density mesh of 15 vertices and 16 triangle faces per leaf.
+- Optical assumptions are validated as an energy partition that must sum to 1.0.
+- Radiance export returns text only and uses a placeholder `plastic` material until a reviewed leaf material model is selected.
+- Viewer export returns JSON-serializable mesh payloads and metadata only; no GLB generation or browser integration was added.
 
 ### Unresolved Decisions For Later Phases
 
