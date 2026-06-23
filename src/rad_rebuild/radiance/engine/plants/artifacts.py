@@ -20,6 +20,12 @@ PLANTS_RAD_FILENAME = "plants.rad"
 PLANTS_VIEWER_FILENAME = "plants_viewer.json"
 PLANTS_MANIFEST_FILENAME = "plants_manifest.json"
 PLANT_CONFIG_FILENAME = "plant_config.json"
+PLANT_ARTIFACT_FILENAMES = (
+    PLANTS_RAD_FILENAME,
+    PLANTS_VIEWER_FILENAME,
+    PLANTS_MANIFEST_FILENAME,
+    PLANT_CONFIG_FILENAME,
+)
 PLANT_ARTIFACT_SCHEMA = "rad_rebuild.fspm.plants.artifacts.v1"
 PLANT_ARTIFACT_SCHEMA_VERSION = 1
 
@@ -38,6 +44,9 @@ class PlantArtifactPaths:
 def write_plant_artifacts(
     target_dir: str | Path,
     config: PlantGeometryConfig | None = None,
+    *,
+    active_simulation_integration: bool = False,
+    provenance_phase: str = "Phase 02",
 ) -> PlantArtifactPaths:
     """Write deterministic plant artifacts into a caller-provided directory."""
 
@@ -64,7 +73,12 @@ def write_plant_artifacts(
     paths.viewer.write_text(viewer_json, encoding="utf-8")
     paths.config.write_text(config_json, encoding="utf-8")
 
-    manifest = _manifest_payload(scene, paths)
+    manifest = _manifest_payload(
+        scene,
+        paths,
+        active_simulation_integration=active_simulation_integration,
+        provenance_phase=provenance_phase,
+    )
     paths.manifest.write_text(_canonical_json(manifest), encoding="utf-8")
     return paths
 
@@ -87,6 +101,9 @@ def _assert_fixed_artifact_paths(
 def _manifest_payload(
     scene: PlantScene,
     paths: PlantArtifactPaths,
+    *,
+    active_simulation_integration: bool,
+    provenance_phase: str,
 ) -> dict[str, Any]:
     files = [
         _file_record(paths.radiance),
@@ -102,7 +119,7 @@ def _manifest_payload(
             "config": PLANT_CONFIG_FILENAME,
             "manifest": PLANTS_MANIFEST_FILENAME,
         },
-        "active_simulation_integration": False,
+        "active_simulation_integration": active_simulation_integration,
         "config": _config_payload(scene.config),
         "counts": {
             "plants": len(scene.plants),
@@ -110,7 +127,7 @@ def _manifest_payload(
         },
         "files": files,
         "provenance": {
-            "phase": "Phase 02",
+            "phase": provenance_phase,
             "generator": "deterministic_leafy_green_rosette",
             "source_module": "rad_rebuild.radiance.engine.plants.artifacts",
             "units": "meters",

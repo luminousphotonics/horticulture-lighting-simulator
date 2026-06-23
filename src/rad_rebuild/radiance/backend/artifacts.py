@@ -7,6 +7,7 @@ import shlex
 from pathlib import Path
 
 from rad_rebuild.radiance.config import MODE_COMPETITOR, MODE_SMD
+from rad_rebuild.radiance.engine.plants.artifacts import PLANT_ARTIFACT_FILENAMES
 from rad_rebuild.radiance.paths import REPO_ROOT
 from rad_rebuild.radiance.settings import get_settings
 
@@ -226,6 +227,14 @@ def _live_workspace_sync_shell(req: RadianceRunRequest, workspace_root: Path, *,
     else:
         copy_pairs.append((ROOT / "runtime_state" / "smd_summary.txt", workspace_root / "runtime_state" / "smd_summary.txt"))
         copy_pairs.append((ROOT / "ring_powers_optimized.json", workspace_root / "ring_powers_optimized.json"))
+
+    for filename in PLANT_ARTIFACT_FILENAMES:
+        copy_pairs.append(
+            (
+                ROOT / "runtime_state" / filename,
+                workspace_root / "runtime_state" / filename,
+            )
+        )
 
     for src, dst in copy_pairs:
         commands.append(

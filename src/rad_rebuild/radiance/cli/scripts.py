@@ -34,6 +34,14 @@ from rad_rebuild.radiance.engine.optimization.solve_uniformity import (
     solution_coefficients_from_json,
 )
 from rad_rebuild.radiance.engine.photometry.ppfd_metrics import compute_ppfd_metrics, format_ppfd_metrics_line
+from rad_rebuild.radiance.engine.plants.artifacts import (
+    PlantArtifactPaths,
+    write_plant_artifacts,
+)
+from rad_rebuild.radiance.engine.plants.config import (
+    PlantGeometryConfig,
+    PlantOpticalAssumptions,
+)
 from rad_rebuild.radiance.engine.simulation.basis_backends import canonicalize_basis_backend
 from rad_rebuild.radiance.paths import REPO_ROOT
 
@@ -836,6 +844,148 @@ def _float_env(env: Mapping[str, str], key: str, default: str = "0") -> float:
     return float(_env_text(env, key, default))
 
 
+def _int_env(env: Mapping[str, str], key: str, default: int) -> int:
+    try:
+        return int(_env_text(env, key, str(default)))
+    except ValueError as exc:
+        raise ValueError(f"{key} must be an integer") from exc
+
+
+def _float_range_env(
+    env: Mapping[str, str],
+    min_key: str,
+    max_key: str,
+    default: tuple[float, float],
+) -> tuple[float, float]:
+    return (
+        _float_env(env, min_key, str(default[0])),
+        _float_env(env, max_key, str(default[1])),
+    )
+
+
+def _fspm_plants_enabled(env: Mapping[str, str]) -> bool:
+    return _bool_env(env, "FSPM_PLANTS_ENABLED")
+
+
+def _fspm_plant_config_from_env(env: Mapping[str, str]) -> PlantGeometryConfig:
+    defaults = PlantGeometryConfig()
+    optical_defaults = defaults.optical
+    return PlantGeometryConfig(
+        seed=_int_env(env, "FSPM_PLANT_SEED", defaults.seed),
+        plant_grid_rows=_int_env(env, "FSPM_PLANT_ROWS", defaults.plant_grid_rows),
+        plant_grid_columns=_int_env(
+            env,
+            "FSPM_PLANT_COLUMNS",
+            defaults.plant_grid_columns,
+        ),
+        plant_spacing_m=_float_env(
+            env,
+            "FSPM_PLANT_SPACING_M",
+            str(defaults.plant_spacing_m),
+        ),
+        plant_height_m=_float_env(
+            env,
+            "FSPM_PLANT_HEIGHT_M",
+            str(defaults.plant_height_m),
+        ),
+        canopy_radius_m=_float_env(
+            env,
+            "FSPM_PLANT_CANOPY_RADIUS_M",
+            str(defaults.canopy_radius_m),
+        ),
+        leaf_count_per_plant=_int_env(
+            env,
+            "FSPM_PLANT_LEAF_COUNT",
+            defaults.leaf_count_per_plant,
+        ),
+        leaf_length_range_m=_float_range_env(
+            env,
+            "FSPM_PLANT_LEAF_LENGTH_MIN_M",
+            "FSPM_PLANT_LEAF_LENGTH_MAX_M",
+            defaults.leaf_length_range_m,
+        ),
+        leaf_width_range_m=_float_range_env(
+            env,
+            "FSPM_PLANT_LEAF_WIDTH_MIN_M",
+            "FSPM_PLANT_LEAF_WIDTH_MAX_M",
+            defaults.leaf_width_range_m,
+        ),
+        leaf_tilt_range_deg=_float_range_env(
+            env,
+            "FSPM_PLANT_LEAF_TILT_MIN_DEG",
+            "FSPM_PLANT_LEAF_TILT_MAX_DEG",
+            defaults.leaf_tilt_range_deg,
+        ),
+        leaf_curvature_m=_float_env(
+            env,
+            "FSPM_PLANT_CURVATURE_M",
+            str(defaults.leaf_curvature_m),
+        ),
+        growth_stage=_float_env(
+            env,
+            "FSPM_PLANT_GROWTH_STAGE",
+            str(defaults.growth_stage),
+        ),
+        optical=PlantOpticalAssumptions(
+            reflectance=_float_env(
+                env,
+                "FSPM_PLANT_REFLECTANCE",
+                str(optical_defaults.reflectance),
+            ),
+            transmittance=_float_env(
+                env,
+                "FSPM_PLANT_TRANSMITTANCE",
+                str(optical_defaults.transmittance),
+            ),
+            absorptance=_float_env(
+                env,
+                "FSPM_PLANT_ABSORPTANCE",
+                str(optical_defaults.absorptance),
+            ),
+        ),
+    )
+
+
+def _prepare_optional_plant_artifacts(
+    config: RuntimeConfig,
+) -> PlantArtifactPaths | None:
+    if not _fspm_plants_enabled(config.env):
+        return None
+    plant_config = _fspm_plant_config_from_env(config.env)
+    return write_plant_artifacts(
+        config.runtime_state_root,
+        plant_config,
+        active_simulation_integration=True,
+        provenance_phase="Phase 03",
+    )
+
+
+def _prepare_optional_plant_artifacts_or_report(
+    config: RuntimeConfig,
+) -> tuple[int, PlantArtifactPaths | None]:
+    try:
+        return int(RadianceScriptExit.OK), _prepare_optional_plant_artifacts(config)
+    except ValueError as exc:
+        print(f"ERROR: invalid FSPM plant configuration: {exc}", file=sys.stderr)
+        return int(RadianceScriptExit.VALIDATION), None
+
+
+def _octree_scene_inputs(
+    *,
+    room: Path,
+    emitter_file: Path,
+    plant_rad: Path | None = None,
+    static_room_oct: Path | None = None,
+) -> list[str]:
+    if static_room_oct and static_room_oct.is_file():
+        inputs = ["-f", "-i", str(static_room_oct), str(emitter_file)]
+    else:
+        inputs = ["-f", str(room), str(emitter_file)]
+    if plant_rad is not None:
+        inputs.append(str(plant_rad))
+    return inputs
+
+
 def _clamp_0_1(value: float) -> float:
     if value != value:
         return 1.0
@@ -1290,8 +1440,14 @@ def run_simulation_smd(raw_env: Mapping[str, str] | None = None) -> int:
         if not required.is_file():
             print(f"ERROR: {required} not found.", file=sys.stderr)
             return int(RadianceScriptExit.VALIDATION)
+    plant_exit, plant_artifacts = _prepare_optional_plant_artifacts_or_report(config)
+    if plant_exit != 0:
+        return plant_exit
+    plant_rad = plant_artifacts.radiance if plant_artifacts else None
     print("Geometry files:")
     print(f"  • {room}")
+    if plant_rad is not None:
+        print(f"  • {plant_rad}")
     print("Emitters:")
     print(f"  • {emitter_file}")
     mode = _env_text(config.env, "MODE", "standard")
@@ -1302,10 +1458,27 @@ def run_simulation_smd(raw_env: Mapping[str, str] | None = None) -> int:
     static_room_oct = Path(config.env.get("STATIC_ROOM_OCT", ""))
     if str(static_room_oct) and static_room_oct.is_file():
         print("Building octree from frozen room...")
-        oct_exit = _build_octree(config, ["-f", "-i", str(static_room_oct), str(emitter_file)], octree)
+        oct_exit = _build_octree(
+            config,
+            _octree_scene_inputs(
+                room=room,
+                emitter_file=emitter_file,
+                plant_rad=plant_rad,
+                static_room_oct=static_room_oct,
+            ),
+            octree,
+        )
     else:
         print("Building octree...")
-        oct_exit = _build_octree(config, ["-f", str(room), str(emitter_file)], octree)
+        oct_exit = _build_octree(
+            config,
+            _octree_scene_inputs(
+                room=room,
+                emitter_file=emitter_file,
+                plant_rad=plant_rad,
+            ),
+            octree,
+        )
     if oct_exit != 0:
         return oct_exit
     oversample = int(_env_text(config.env, "OS", "4"))
@@ -1356,6 +1529,7 @@ def _run_hps_pass(
     nthreads: int,
     oversample: int,
     options_base: Sequence[str],
+    plant_rad: Path | None,
 ) -> int:
     env = {
         "HPS_FIXTURE_PPF": config.env["HPS_FIXTURE_PPF"],
@@ -1375,7 +1549,15 @@ def _run_hps_pass(
     print("Emitters:")
     print(f"  • {emitter_file}")
     print("Building octree...")
-    oct_exit = _build_octree(config, ["-f", str(room), str(emitter_file)], octree)
+    oct_exit = _build_octree(
+        config,
+        _octree_scene_inputs(
+            room=room,
+            emitter_file=emitter_file,
+            plant_rad=plant_rad,
+        ),
+        octree,
+    )
     if oct_exit != 0:
         return oct_exit
     map_tmp = config.cache_root / f".ppfd_map_tmp_{tag}.txt"
@@ -1431,6 +1613,12 @@ def run_simulation_hps(raw_env: Mapping[str, str] | None = None) -> int:
         return grid_exit
     print("Geometry files:")
     print(f"  • {room}")
+    plant_exit, plant_artifacts = _prepare_optional_plant_artifacts_or_report(config)
+    if plant_exit != 0:
+        return plant_exit
+    plant_rad = plant_artifacts.radiance if plant_artifacts else None
+    if plant_rad is not None:
+        print(f"  • {plant_rad}")
     mode = _env_text(config.env, "MODE", "standard")
     nthreads = 1 if mode == "direct" else _cpu_count()
     oversample = int(_env_text(config.env, "OS", "4"))
@@ -1457,6 +1645,7 @@ def run_simulation_hps(raw_env: Mapping[str, str] | None = None) -> int:
         nthreads=nthreads,
         oversample=oversample,
         options_base=_radiance_options(mode),
+        plant_rad=plant_rad,
     )
     if pass_exit != 0:
         return pass_exit
@@ -1535,6 +1724,7 @@ def _run_spydr_pass(
     oversample: int,
     options_base: Sequence[str],
     static_room_oct: Path | None,
+    plant_rad: Path | None,
 ) -> int:
     emitter_exit = _run_python_module(
         config,
@@ -1558,10 +1748,27 @@ def _run_spydr_pass(
     print("  • conventional emitter Radiance file")
     if static_room_oct and static_room_oct.is_file():
         print("Building octree from frozen room...")
-        oct_exit = _build_octree(config, ["-f", "-i", str(static_room_oct), str(emitter_file)], octree)
+        oct_exit = _build_octree(
+            config,
+            _octree_scene_inputs(
+                room=room,
+                emitter_file=emitter_file,
+                plant_rad=plant_rad,
+                static_room_oct=static_room_oct,
+            ),
+            octree,
+        )
     else:
         print("Building octree...")
-        oct_exit = _build_octree(config, ["-f", str(room), str(emitter_file)], octree)
+        oct_exit = _build_octree(
+            config,
+            _octree_scene_inputs(
+                room=room,
+                emitter_file=emitter_file,
+                plant_rad=plant_rad,
+            ),
+            octree,
+        )
     if oct_exit != 0:
         return oct_exit
     map_tmp = config.cache_root / f".ppfd_map_tmp_{tag}.txt"
@@ -1630,6 +1837,12 @@ def run_simulation_spydr3(raw_env: Mapping[str, str] | None = None) -> int:
         return grid_exit
     print("Geometry files:")
     print(f"  • {room}")
+    plant_exit, plant_artifacts = _prepare_optional_plant_artifacts_or_report(config)
+    if plant_exit != 0:
+        return plant_exit
+    plant_rad = plant_artifacts.radiance if plant_artifacts else None
+    if plant_rad is not None:
+        print(f"  • {plant_rad}")
     mode = config.env["MODE"]
     nthreads = 1 if mode == "direct" else _cpu_count()
     oversample = int(config.env["OS"])
@@ -1662,6 +1875,7 @@ def run_simulation_spydr3(raw_env: Mapping[str, str] | None = None) -> int:
         oversample=oversample,
         options_base=_radiance_options(mode),
         static_room_oct=static_room_oct,
+        plant_rad=plant_rad,
     )
     if pass_exit != 0:
         return pass_exit
@@ -1700,6 +1914,7 @@ def run_simulation_spydr3(raw_env: Mapping[str, str] | None = None) -> int:
                         oversample=oversample,
                         options_base=_radiance_options(mode),
                         static_room_oct=static_room_oct,
+                        plant_rad=plant_rad,
                     )
                     if pass_exit != 0:
                         return pass_exit

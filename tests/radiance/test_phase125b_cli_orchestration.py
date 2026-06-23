@@ -18,7 +18,16 @@ from tests.radiance.runtime_env import configure_test_runtime
 configure_test_runtime()
 
 from rad_rebuild.radiance.cli import scripts  # noqa: E402
+from rad_rebuild.radiance.backend.artifacts import _live_workspace_sync_shell  # noqa: E402
+from rad_rebuild.radiance.backend.models import RadianceRunRequest  # noqa: E402
+from rad_rebuild.radiance.config import MODE_SMD  # noqa: E402
 from rad_rebuild.radiance.engine.emitters.smd_generation.outputs import write_smd_layout_json  # noqa: E402
+from rad_rebuild.radiance.engine.plants.artifacts import (  # noqa: E402
+    PLANT_ARTIFACT_FILENAMES,
+    PLANT_CONFIG_FILENAME,
+    PLANTS_MANIFEST_FILENAME,
+    PLANTS_RAD_FILENAME,
+)
 from rad_rebuild.radiance.paths import REPO_ROOT  # noqa: E402
 
 
@@ -389,6 +398,7 @@ def test_smd_simulation_orchestration_succeeds_with_stubbed_tools(
     tmp_path: Path,
 ) -> None:
     env = _base_env(tmp_path)
+    octree_argvs: list[tuple[str, ...]] = []
 
     def fake_python_module(
         config: scripts.RuntimeConfig,
@@ -420,6 +430,7 @@ def test_smd_simulation_orchestration_succeeds_with_stubbed_tools(
         _config: scripts.RuntimeConfig, argv: Sequence[str], out_path: Path
     ) -> int:
         assert argv[0] == "-f"
+        octree_argvs.append(tuple(argv))
         out_path.write_text("octree\n", encoding="utf-8")
         return int(scripts.RadianceScriptExit.OK)
 
@@ -466,6 +477,158 @@ def test_smd_simulation_orchestration_succeeds_with_stubbed_tools(
 
     assert scripts.run_simulation_smd(env) == int(scripts.RadianceScriptExit.OK)
     assert (tmp_path / "ppfd_map.txt").is_file()
+    assert octree_argvs
+    assert all(PLANTS_RAD_FILENAME not in part for part in octree_argvs[0])
+    assert not (tmp_path / "runtime_state" / PLANTS_RAD_FILENAME).exists()
+
+
+def test_smd_simulation_includes_plants_only_when_gate_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    env = _base_env(tmp_path)
+    env.update(
+        {
+            "FSPM_PLANTS_ENABLED": "1",
+            "FSPM_PLANT_SEED": "99",
+            "FSPM_PLANT_ROWS": "1",
+            "FSPM_PLANT_COLUMNS": "1",
+            "MODE": "direct",
+        }
+    )
+    octree_argvs: list[tuple[str, ...]] = []
+
+    def fake_python_module(
+        config: scripts.RuntimeConfig,
+        module: str,
+        args: Sequence[str] = (),
+        extra_env: Mapping[str, str] | None = None,
+    ) -> int:
+        assert module == "rad_rebuild.radiance.engine.emitters.generate_emitters_smd"
+        assert args == ()
+        assert extra_env is not None
+        (config.runtime_state_root / "emitters_smd_ALL_umol.rad").write_text(
+            "# emitters\n", encoding="utf-8"
+        )
+        return int(scripts.RadianceScriptExit.OK)
+
+    def fake_prepare_static_scene(
+        _config: scripts.RuntimeConfig,
+        *,
+        room: Path,
+        sensors: Path,
+        reuse: bool,
+    ) -> int:
+        assert reuse is False
+        room.write_text("# room\n", encoding="utf-8")
+        sensors.write_text("0 0 0\n", encoding="utf-8")
+        return int(scripts.RadianceScriptExit.OK)
+
+    def fake_build_octree(
+        _config: scripts.RuntimeConfig,
+        argv: Sequence[str],
+        out_path: Path,
+    ) -> int:
+        octree_argvs.append(tuple(argv))
+        out_path.write_text("octree\n", encoding="utf-8")
+        return int(scripts.RadianceScriptExit.OK)
+
+    def fake_trace_ppfd(
+        _config: scripts.RuntimeConfig,
+        *,
+        octree: Path,
+        dirs: Path,
+        snake_os: Path,
+        out_map: Path,
+        oversample: int,
+        nthreads: int,
+        options: Sequence[str],
+        tag: str,
+    ) -> int:
+        del octree, dirs, snake_os, oversample, nthreads, options, tag
+        _write_ppfd(out_map)
+        return int(scripts.RadianceScriptExit.OK)
+
+    def fake_symmetrize(
+        _config: scripts.RuntimeConfig,
+        *,
+        in_map: Path,
+        out_map: Path,
+        enabled: bool,
+        axes_only: bool,
+    ) -> int:
+        assert in_map == out_map
+        assert enabled is True
+        assert axes_only is False
+        return int(scripts.RadianceScriptExit.OK)
+
+    monkeypatch.setattr(scripts, "_run_python_module", fake_python_module)
+    monkeypatch.setattr(scripts, "_prepare_static_scene", fake_prepare_static_scene)
+    monkeypatch.setattr(scripts, "_build_octree", fake_build_octree)
+    monkeypatch.setattr(scripts, "_trace_ppfd", fake_trace_ppfd)
+    monkeypatch.setattr(scripts, "_symmetrize_if_requested", fake_symmetrize)
+
+    assert scripts.run_simulation_smd(env) == int(scripts.RadianceScriptExit.OK)
+
+    runtime = tmp_path / "runtime_state"
+    plant_rad = runtime / PLANTS_RAD_FILENAME
+    assert plant_rad.is_file()
+    assert (runtime / PLANT_CONFIG_FILENAME).is_file()
+    manifest = json.loads((runtime / PLANTS_MANIFEST_FILENAME).read_text(encoding="utf-8"))
+    assert manifest["active_simulation_integration"] is True
+    assert manifest["config"]["seed"] == 99
+    assert manifest["config"]["plant_grid_rows"] == 1
+    assert octree_argvs == [
+        (
+            "-f",
+            str(tmp_path / "room.rad"),
+            str(runtime / "emitters_smd_ALL_umol.rad"),
+            str(plant_rad),
+        )
+    ]
+
+
+def test_static_room_octree_args_append_plants_without_changing_disabled_shape(
+    tmp_path: Path,
+) -> None:
+    room = tmp_path / "room.rad"
+    emitter = tmp_path / "emitters.rad"
+    plant = tmp_path / "plants.rad"
+    static_room_oct = tmp_path / "static_room.oct"
+    static_room_oct.write_text("octree\n", encoding="utf-8")
+
+    assert scripts._octree_scene_inputs(room=room, emitter_file=emitter) == [
+        "-f",
+        str(room),
+        str(emitter),
+    ]
+    assert scripts._octree_scene_inputs(
+        room=room,
+        emitter_file=emitter,
+        plant_rad=plant,
+        static_room_oct=static_room_oct,
+    ) == ["-f", "-i", str(static_room_oct), str(emitter), str(plant)]
+
+
+def test_live_workspace_sync_shell_optionally_copies_plant_artifacts(
+    tmp_path: Path,
+) -> None:
+    req = RadianceRunRequest(
+        action="all",
+        mode=MODE_SMD,
+        execution_mode="live_local",
+        length_ft=10,
+        width_ft=10,
+        target_ppfd=1000,
+    )
+    command = _live_workspace_sync_shell(
+        req,
+        tmp_path / "workspace",
+        include_visuals=False,
+    )
+
+    for filename in PLANT_ARTIFACT_FILENAMES:
+        assert f"runtime_state/{filename}" in command
 
 
 def test_hps_simulation_orchestration_succeeds_with_stubbed_tools(
