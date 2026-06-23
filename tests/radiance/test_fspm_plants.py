@@ -14,6 +14,15 @@ from rad_rebuild.radiance.engine.plants import (
     export_scene_to_radiance,
     export_scene_to_viewer,
     generate_plant_scene,
+    write_plant_artifacts,
+)
+from rad_rebuild.radiance.engine.plants.artifacts import (
+    PLANT_ARTIFACT_SCHEMA,
+    PLANT_ARTIFACT_SCHEMA_VERSION,
+    PLANT_CONFIG_FILENAME,
+    PLANTS_MANIFEST_FILENAME,
+    PLANTS_RAD_FILENAME,
+    PLANTS_VIEWER_FILENAME,
 )
 from rad_rebuild.radiance.engine.plants.mesh import LEAF_FACE_COUNT, LEAF_VERTEX_COUNT
 
@@ -194,3 +203,108 @@ def test_plant_package_does_not_import_web_or_backend_code() -> None:
         source = Path(module_file).read_text(encoding="utf-8")
         for forbidden in forbidden_imports:
             assert forbidden not in source
+
+
+def test_write_plant_artifacts_writes_expected_files_to_tmp_path(
+    tmp_path: Path,
+) -> None:
+    paths = write_plant_artifacts(tmp_path)
+
+    assert paths.directory == tmp_path
+    assert {path.name for path in tmp_path.iterdir()} == {
+        PLANTS_RAD_FILENAME,
+        PLANTS_VIEWER_FILENAME,
+        PLANTS_MANIFEST_FILENAME,
+        PLANT_CONFIG_FILENAME,
+    }
+    assert paths.radiance.read_text(encoding="utf-8").startswith(
+        "# FSPM Phase 01 deterministic plant geometry\n"
+    )
+
+
+def test_write_plant_artifacts_is_deterministic(tmp_path: Path) -> None:
+    config = PlantGeometryConfig(seed=123, plant_grid_rows=1, plant_grid_columns=1)
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+
+    write_plant_artifacts(first, config)
+    write_plant_artifacts(second, config)
+
+    for filename in (
+        PLANTS_RAD_FILENAME,
+        PLANTS_VIEWER_FILENAME,
+        PLANTS_MANIFEST_FILENAME,
+        PLANT_CONFIG_FILENAME,
+    ):
+        assert (first / filename).read_bytes() == (second / filename).read_bytes()
+
+
+def test_plant_manifest_includes_config_seed_version_and_provenance(
+    tmp_path: Path,
+) -> None:
+    config = PlantGeometryConfig(seed=77, plant_grid_rows=1, plant_grid_columns=2)
+    paths = write_plant_artifacts(tmp_path, config)
+
+    manifest = json.loads(paths.manifest.read_text(encoding="utf-8"))
+
+    assert manifest["schema"] == PLANT_ARTIFACT_SCHEMA
+    assert manifest["schema_version"] == PLANT_ARTIFACT_SCHEMA_VERSION
+    assert manifest["active_simulation_integration"] is False
+    assert manifest["config"]["seed"] == 77
+    assert manifest["config"]["plant_grid_columns"] == 2
+    assert manifest["provenance"] == {
+        "phase": "Phase 02",
+        "generator": "deterministic_leafy_green_rosette",
+        "source_module": "rad_rebuild.radiance.engine.plants.artifacts",
+        "units": "meters",
+    }
+    assert manifest["counts"] == {"plants": 2, "leaves": 24}
+
+
+def test_plant_artifact_json_files_are_parseable(tmp_path: Path) -> None:
+    paths = write_plant_artifacts(tmp_path)
+
+    config = json.loads(paths.config.read_text(encoding="utf-8"))
+    viewer = json.loads(paths.viewer.read_text(encoding="utf-8"))
+    manifest = json.loads(paths.manifest.read_text(encoding="utf-8"))
+
+    assert config["seed"] == 1
+    assert viewer["schema"] == "rad_rebuild.fspm.plants.viewer.v1"
+    assert manifest["artifact_filenames"]["viewer"] == PLANTS_VIEWER_FILENAME
+
+
+def test_plant_manifest_file_records_bind_written_files(tmp_path: Path) -> None:
+    paths = write_plant_artifacts(tmp_path)
+    manifest = json.loads(paths.manifest.read_text(encoding="utf-8"))
+    file_records = {record["path"]: record for record in manifest["files"]}
+
+    assert set(file_records) == {
+        PLANTS_RAD_FILENAME,
+        PLANTS_VIEWER_FILENAME,
+        PLANT_CONFIG_FILENAME,
+    }
+    for filename, record in file_records.items():
+        data = (tmp_path / filename).read_bytes()
+        assert record["bytes"] == len(data)
+        assert len(record["sha256"]) == 64
+        assert "/" not in record["path"]
+
+
+def test_write_plant_artifacts_does_not_write_outside_target_directory(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "target"
+    sibling = tmp_path / "sibling"
+    sibling.mkdir()
+
+    paths = write_plant_artifacts(target)
+
+    assert {path.name for path in target.iterdir()} == {
+        PLANT_CONFIG_FILENAME,
+        PLANTS_MANIFEST_FILENAME,
+        PLANTS_RAD_FILENAME,
+        PLANTS_VIEWER_FILENAME,
+    }
+    assert list(sibling.iterdir()) == []
+    for path in (paths.radiance, paths.viewer, paths.manifest, paths.config):
+        assert path.parent == target

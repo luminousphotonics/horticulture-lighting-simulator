@@ -6,6 +6,10 @@ from rad_rebuild.radiance.engine.plants.config import (
     PlantGeometryConfig,
     PlantOpticalAssumptions,
 )
+from rad_rebuild.radiance.engine.plants.artifacts import (
+    PlantArtifactPaths,
+    write_plant_artifacts,
+)
 from rad_rebuild.radiance.engine.plants.generator import generate_plant_scene
 from rad_rebuild.radiance.engine.plants.models import (
     LeafGeometry,
@@ -21,6 +25,7 @@ from rad_rebuild.radiance.engine.plants.viewer_export import export_scene_to_vie
 __all__ = [
     "LeafGeometry",
     "LeafMesh",
+    "PlantArtifactPaths",
     "PlantGeometry",
     "PlantGeometryConfig",
     "PlantOpticalAssumptions",
@@ -28,4 +33,5 @@ __all__ = [
     "export_scene_to_radiance",
     "export_scene_to_viewer",
     "generate_plant_scene",
+    "write_plant_artifacts",
 ]

@@ -3,7 +3,7 @@
 ## Status Header
 
 - Feature: Functional Structural Plant Modeling for leafy-green / lettuce-style plant geometry and plant photon absorption groundwork.
-- Current phase: Phase 01 complete; next phase is Phase 02.
+- Current phase: Phase 02 complete; next phase is Phase 03.
 - Last updated: 2026-06-23.
 - Branch: `feat/fspm-plant-modeling`.
 - Worktree: `/home/austin/Desktop/hls-fspm`.
@@ -260,6 +260,60 @@ Expected outputs:
 - Tests proving generated files are deterministic, path-safe, and ignored unless intentionally tiny fixtures.
 - No public precomputed bundle updates.
 
+Status: complete.
+
+Completed checklist:
+
+- Added an engine-only plant artifact writer under `src/rad_rebuild/radiance/engine/plants/`.
+- Wrote artifacts only into a caller-provided directory, with tests using `tmp_path`.
+- Kept output filenames fixed and deterministic.
+- Included config, seed, schema version, file records, counts, and provenance in manifest/config JSON.
+- Kept manifest paths relative and free of timestamps, absolute paths, local runtime paths, or public URLs.
+- Added tests for deterministic file contents, parseable JSON, manifest metadata, file records, and no writes outside the target directory.
+- Left active Radiance scene/octree assembly, backend request schemas, viewer UI, precomputed bundles, and public-mode behavior untouched.
+
+Artifact filenames:
+
+- `plants.rad`: deterministic Radiance text export for plant geometry.
+- `plants_viewer.json`: JSON-serializable viewer payload for later browser integration.
+- `plants_manifest.json`: deterministic plant artifact manifest.
+- `plant_config.json`: deterministic full plant geometry/material configuration.
+
+Manifest schema notes:
+
+- Plant artifact manifest schema: `rad_rebuild.fspm.plants.artifacts.v1`.
+- Plant artifact manifest `schema_version`: `1`.
+- `active_simulation_integration` is `false` in Phase 02.
+- `files` records include only relative `path`, `bytes`, and `sha256` for `plants.rad`, `plants_viewer.json`, and `plant_config.json`.
+- Manifest provenance is deterministic and contains phase, generator name, source module, and units; it intentionally omits timestamps and host paths.
+- This manifest is plant-specific and does not change the existing Radiance visualization manifest schema.
+
+Validation results:
+
+- `PYTHONPATH=src python -m pytest -q tests/radiance/test_fspm_plants.py`: not runnable in this shell because `python` is not on `PATH`.
+- `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_fspm_plants.py`: passed, 42 tests.
+- `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_import_boundaries.py`: passed, 6 tests, 33 subtests, with existing third-party matplotlib/pyparsing deprecation warnings.
+- `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_config_contracts.py`: passed, 9 tests, 6 subtests.
+- `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance/engine/plants tests/radiance/test_fspm_plants.py`: passed.
+- `git diff --check`: passed.
+- `git diff --stat`: reported 3 tracked files changed, 181 insertions, 1 deletion; new `artifacts.py` remained untracked.
+- `git status --short`: showed modified plan, plant package `__init__.py`, plant tests, and untracked `src/rad_rebuild/radiance/engine/plants/artifacts.py`.
+
+Risks/open questions:
+
+- The plant manifest is internal and plant-specific; decide in Phase 03 or later whether and how it should relate to runtime visualization manifests.
+- `plants.rad` is still a standalone export and must not be included in scene/octree assembly until an explicit gate and no-plant stability tests exist.
+- Artifact sync through backend workspace code remains deferred; Phase 02 only writes to caller-provided directories.
+- Placeholder leaf material assumptions still require scientific review before absorption or comparison metrics.
+
+Recommended Phase 03 handoff:
+
+- Add an explicit opt-in gate for including `plants.rad` in live Radiance scene assembly.
+- Characterize no-plant output before and after the gate, proving default behavior stays stable.
+- Candidate integration points are the live scene/orchestration code that collects room, emitter, material, and sensor inputs, not public request schemas yet.
+- Keep plant artifact generation under runtime/workspace output paths and add tests proving disabled default behavior.
+- Do not alter request fingerprint fields, public API schemas, viewer UI, or precomputed bundle manifests in Phase 03.
+
 Validation:
 
 - Phase 01 tests.
@@ -470,6 +524,14 @@ Each later phase must:
 - Optical assumptions are validated as an energy partition that must sum to 1.0.
 - Radiance export returns text only and uses a placeholder `plastic` material until a reviewed leaf material model is selected.
 - Viewer export returns JSON-serializable mesh payloads and metadata only; no GLB generation or browser integration was added.
+
+### Phase 02 Artifact Export Decisions
+
+- Plant runtime artifact export lives in the pure engine plant package and writes only to caller-provided directories.
+- Phase 02 uses fixed filenames: `plants.rad`, `plants_viewer.json`, `plants_manifest.json`, and `plant_config.json`.
+- Plant artifact JSON is canonicalized with sorted keys and stable indentation.
+- The plant-specific manifest records relative file paths, bytes, SHA-256 hashes, deterministic provenance, and `active_simulation_integration: false`.
+- No backend workspace sync, public artifact grants, request fingerprints, scene assembly, or viewer UI integration was added.
 
 ### Unresolved Decisions For Later Phases
 
