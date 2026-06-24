@@ -150,6 +150,7 @@ export function parsePayload() {
     width: Number.parseFloat(els.radWidth.value),
     target: parsePositive(els.radTarget, 1000),
     peakCappingEnabled: Boolean(els.radPeakCapping && !els.radPeakCapping.disabled && els.radPeakCapping.checked),
+    matchSystemPpe: els.radMatchSystemPpe ? Boolean(els.radMatchSystemPpe.checked) : true,
     basisBackend,
     ...parsePlantPayload(mode, executionMode),
   };
@@ -180,9 +181,9 @@ export function radiancePayload(action) {
     overlay: "auto",
     smd_base_ring: 0,
     basis_backend: values.basisBackend,
-    // The website simulator does not expose the legacy PPE-matching fallback,
-    // so the live path should always use the physically based runtime model.
-    match_system_ppe: false,
+    // Checked by default for architecture/uniformity comparisons. Uncheck in
+    // Proposed mode to use the native SMD curve and thermal droop model.
+    match_system_ppe: isOurSystem ? values.matchSystemPpe : false,
     sp_ppf: conventionalFixturePpf,
     sp_z_m: values.mountHeightM,
     sp_ppe: conventionalFixturePpe,
@@ -219,6 +220,7 @@ export function runKeyForPayload(payload) {
     width: payload.width,
     target: payload.target,
     peakCappingEnabled: payload.peakCappingEnabled,
+    matchSystemPpe: payload.matchSystemPpe,
     hpsCoverage: payload.hpsCoverage,
     hpsVariant: payload.hpsVariant,
     competitorLayout: payload.competitorLayout,
@@ -336,6 +338,16 @@ export function syncModeControls({ resetMountHeight = false } = {}) {
       els.radPeakCapping.title = "";
     }
   }
+  if (els.radMatchSystemPpeField) {
+    els.radMatchSystemPpeField.hidden = !isOurSystem;
+    els.radMatchSystemPpeField.classList.toggle("radiance-field--inactive", !isOurSystem);
+  }
+  if (els.radMatchSystemPpe) {
+    els.radMatchSystemPpe.disabled = !isOurSystem;
+    els.radMatchSystemPpe.title = isOurSystem
+      ? "Checked: match Proposed LED System source efficacy to the Conventional LED comparator. Unchecked: use native SMD curve and thermal droop model."
+      : "PPE matching applies only to Proposed LED System mode.";
+  }
   syncDimensionWarnings();
   if (els.radVisualNote) {
     els.radVisualNote.textContent = "";
@@ -375,6 +387,7 @@ export function parseElectricalPayload() {
     width_ft: payload.width,
     target_ppfd: payload.target,
     peak_capping_enabled: payload.peakCappingEnabled,
+    match_system_ppe: payload.mode === "SMD" ? payload.matchSystemPpe : false,
     basis_backend: payload.basisBackend,
     competitor_layout: payload.competitorLayout,
     hps_coverage_ft: payload.hpsCoverage,

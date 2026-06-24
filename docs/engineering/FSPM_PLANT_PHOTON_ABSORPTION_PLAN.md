@@ -2,12 +2,14 @@
 
 ## Status Header
 
-- Feature: Functional Structural Plant Modeling for leafy-green / lettuce-style plant geometry and plant photon absorption groundwork.
-- Current phase: Phase 08 in progress; Phase 06 is intentionally skipped/deferred.
+- Feature: Functional Structural Plant Modeling for leafy-green / lettuce-style plant geometry, plant photon absorption, spectral response, photosynthetic response potential, and photomorphogenic response potential groundwork.
+- Current phase: Phase 16C complete. Phase 17 growth-cycle/state updates are deferred until the Phase 15 and Phase 16 biological response models are scientifically hardened.
 - Last updated: 2026-06-24.
 - Branch: `feat/fspm-plant-modeling`.
 - Worktree: `/home/austin/Desktop/hls-fspm`.
 - Public main worktree: `/home/austin/Desktop/horticulture-lighting-simulator` is out of scope and must stay untouched.
+- Current implementation status: live FSPM artifacts run for the final solved lighting field, not SMD basis-column extraction; baseline PPFD/heatmaps remain room-plus-emitters only; plant receiver, spectral, photosynthetic, and photomorphogenic artifacts are separate analysis layers.
+- Current science status: Phase 15 and Phase 16 outputs are response-potential scaffolds for relative lighting analysis only. They are not validated crop-growth, biomass, harvest-weight, or yield models.
 
 ## Scientific Goal
 
@@ -737,7 +739,7 @@ Goal:
 
 Status:
 
-- In progress.
+- Complete.
 
 Scientific scope:
 
@@ -763,7 +765,7 @@ Goal:
 
 Status:
 
-- In progress.
+- Complete.
 
 Scientific scope:
 
@@ -789,6 +791,15 @@ Next handoff:
 | 06 | Deferred comparison metrics | Not part of the current implementation sequence |
 | 07 | Photon absorption scaffold | Metric tests; documented assumptions; scientific review evidence |
 | 08 | Private live-mode capability gate | Runtime status tests; backend gate tests; production/public default checks |
+| 09 | Plant surface flux artifact | Surface/leaf/plant aggregation tests; schema and stale-artifact checks |
+| 10 | Absorption-colored plant viewer layer | Assembly viewer plant-color tests; browser smoke where applicable |
+| 12 | Radiance leaf surface receiver sampling | Receiver-sampling artifact tests; no-baseline-occlusion checks |
+| 13 | Spectral leaf optics and fixture spectral input contract | Spectral optics unit tests; curve-data source selection tests |
+| 14 | Plant spectral response artifact | Spectral artifact schema and aggregation tests; real SPD/curve-data checks |
+| 15 | Photosynthetic response potential artifact | Response-potential tests; explicit non-yield scientific-scope checks |
+| 16 | Photomorphogenic response potential artifact | Morphology-response artifact tests; explicit non-yield scientific-scope checks |
+| 16B | Runtime correctness: skip FSPM during SMD basis extraction | Basis-skip tests; final solved-field FSPM preservation tests |
+| 16C | Matched PPE comparison control and artifact authorization consistency | SMD matched-PPE env tests; metrics/images/assembly/scatter/photometric-layer authorization tests |
 
 General command sequence:
 
@@ -969,7 +980,7 @@ Goal:
 
 Status:
 
-- In progress.
+- Complete.
 
 Scientific scope:
 
@@ -994,7 +1005,7 @@ Goal:
 
 Status:
 
-- In progress.
+- Complete.
 
 Scientific scope:
 
@@ -1019,7 +1030,7 @@ Goal:
 
 Status:
 
-- In progress.
+- Complete.
 
 Implementation rule:
 
@@ -1040,3 +1051,59 @@ Phase 16B correction 2:
 - Stale shell variables such as `SMD_BASIS_MODE`, `SMD_BASIS_RING`, or `BASIS_MODE` do not disable FSPM by themselves.
 - The SMD basis extraction loop sets `FSPM_SKIP_DURING_BASIS=1` only for internally launched basis-column simulations.
 - The final solved SMD simulation strips all basis selectors and the FSPM skip flag before launching, so final FSPM receiver analysis still runs.
+
+
+### Phase 16C - Matched PPE Comparison Control And Artifact Authorization Consistency
+
+Goal:
+
+- Add a checked-by-default Proposed LED comparison control that matches the Proposed source/system efficacy path to the Conventional LED comparator PPE.
+- Keep unchecked mode available for native Proposed SMD curve and thermal-droop behavior.
+- Preserve request-fingerprint consistency across every artifact route that can refresh or load outputs from a completed run.
+
+Status:
+
+- Complete.
+
+Completed checklist:
+
+- Added a compact `Match PPE` simulator checkbox for Proposed LED comparisons.
+- Kept the control scoped to the Proposed LED System and hidden/disabled for non-SMD modes.
+- Routed checked Proposed runs through `match_system_ppe=true`.
+- Updated the matched-PPE backend env path to use the Conventional LED comparator PPE value rather than the older hard-coded `2.700` value.
+- Preserved unchecked Proposed runs as native SMD curve / thermal-droop runs.
+- Added `match_system_ppe` to the request key/run-key path so toggling the checkbox invalidates stale completed-run state.
+- Propagated `match_system_ppe` through artifact query params used by metrics refresh, image refresh, PPFD CSV, 3D assembly, 3D scatter, and assembly photometric heatmap loading.
+- Updated backend artifact routes so reconstructed authorization requests preserve `match_system_ppe` consistently.
+- Updated artifact routes that also depend on plant fields so plant-enabled matched-PPE runs authorize against the same fingerprint used when the job created the artifact token.
+- Added regression coverage for matched-PPE env behavior and artifact-route authorization drift.
+
+Important implementation lesson:
+
+- `match_system_ppe` is not just a UI option; it is part of the run identity for live Proposed runs.
+- Any route that reconstructs a `RadianceRunRequest` from query parameters must preserve the same fingerprint-affecting fields used by `/radiance/run`.
+- Missing request fields can make the run succeed but later artifact refreshes fail with `Request forbidden`.
+- The artifact paths that needed consistency were metrics, images, direct image loads, PPFD CSV, 3D assembly scene, 3D scatter, and assembly photometric layer metadata/binary requests.
+- Future fingerprint-affecting controls should be added through a shared artifact-query/request helper where practical, rather than one route at a time.
+
+Manual validation notes:
+
+- Live Proposed LED with FSPM enabled and `Match PPE` checked runs successfully.
+- The run uses the expected Conventional comparator PPE value of `2.80`.
+- Metrics refresh works after completion.
+- PPFD image refresh works after completion.
+- 3D assembly viewer loads.
+- 3D scatter plot loads.
+- Assembly-viewer PPFD heatmap toggle loads the photometric layer.
+- Checkbox-off Proposed runs remain available for native Proposed-system behavior.
+- Non-SMD systems receive `match_system_ppe=false` from the UI path.
+
+Recommended next handoff:
+
+- Do not move directly into geometry state updates or growth-cycle simulation.
+- First harden the Phase 15 photosynthetic response potential model and Phase 16 photomorphogenic response potential model.
+- Review primary scientific literature for photosynthetic light-response curves, absorbed PAR/APAR usage, red/far-red signaling, blue-light effects, far-red transmission, shade-avoidance framing, and lettuce/leafy-green applicability.
+- Replace or constrain heuristic thresholds with documented model parameters, units, assumptions, and validation limits.
+- Add uncertainty/caveat fields to artifacts where parameters remain provisional.
+- Prefer relative response-potential language over biological outcome language.
+- Continue to avoid biomass, yield, harvest-weight, or crop-output claims.

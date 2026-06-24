@@ -110,6 +110,8 @@ export const appState = {
  * @property {HTMLElement} radTargetField
  * @property {HTMLElement} radPeakCappingField
  * @property {HTMLInputElement} radPeakCapping
+ * @property {HTMLElement} radMatchSystemPpeField
+ * @property {HTMLInputElement} radMatchSystemPpe
  * @property {HTMLFieldSetElement} radFspmFieldset
  * @property {HTMLInputElement} radPlantsEnabled
  * @property {HTMLInputElement} radPlantSeed
@@ -224,6 +226,8 @@ export const els = /** @type {Els} */ ({
   radTargetField: byId("rad-target-field"),
   radPeakCappingField: byId("rad-peak-capping-field"),
   radPeakCapping: byId("rad-peak-capping"),
+  radMatchSystemPpeField: byId("rad-match-system-ppe-field"),
+  radMatchSystemPpe: byId("rad-match-system-ppe"),
   radFspmFieldset: byId("rad-fspm-fieldset"),
   radPlantsEnabled: byId("rad-plants-enabled"),
   radPlantSeed: byId("rad-plant-seed"),

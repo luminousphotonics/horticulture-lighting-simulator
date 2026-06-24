@@ -82,6 +82,7 @@ def radiance_assembly_scene(
     sim_mode: str = "standard",
     target_ppfd: float = 1000.0,
     peak_capping_enabled: bool = False,
+    match_system_ppe: bool = False,
     length_ft: float = float(PUBLIC_DEFAULT_LENGTH_FT),
     width_ft: float = float(PUBLIC_DEFAULT_WIDTH_FT),
     w_min: float | None = None,
@@ -109,6 +110,7 @@ def radiance_assembly_scene(
     maybe_cleanup_runtime_state()
     mode = _normalize_mode(mode)
     peak_capping_enabled = request_bool_query_param(request, "peak_capping_enabled", peak_capping_enabled)
+    match_system_ppe = request_bool_query_param(request, "match_system_ppe", match_system_ppe)
     plants_enabled = request_bool_query_param(request, "plants_enabled", plants_enabled)
     try:
         basis_backend = validate_basis_backend_request(mode, basis_backend, variable_mode="rings")
@@ -123,6 +125,7 @@ def radiance_assembly_scene(
             sim_mode=sim_mode,
             target_ppfd=target_ppfd,
             peak_capping_enabled=peak_capping_enabled,
+            match_system_ppe=match_system_ppe,
             length_ft=length_ft,
             width_ft=width_ft,
             w_min=_artifact_w_min(mode, w_min),

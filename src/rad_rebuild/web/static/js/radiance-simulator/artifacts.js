@@ -103,6 +103,7 @@ export function artifactQueryParams(payload, extras = {}) {
     sim_mode: payload.qualityPreset,
     target_ppfd: String(payload.target),
     peak_capping_enabled: String(payload.peakCappingEnabled),
+    match_system_ppe: String(payload.mode === "SMD" ? payload.matchSystemPpe : false),
     length_ft: String(payload.length),
     width_ft: String(payload.width),
     w_min: String(wMin),

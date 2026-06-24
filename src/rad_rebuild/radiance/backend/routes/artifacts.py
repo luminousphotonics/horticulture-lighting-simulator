@@ -221,6 +221,7 @@ def radiance_images(
     sim_mode: str = "standard",
     target_ppfd: float = 1000.0,
     peak_capping_enabled: bool = False,
+    match_system_ppe: bool = False,
     length_ft: float = float(PUBLIC_DEFAULT_LENGTH_FT),
     width_ft: float = float(PUBLIC_DEFAULT_WIDTH_FT),
     w_min: float | None = None,
@@ -236,6 +237,7 @@ def radiance_images(
     maybe_cleanup_runtime_state()
     mode = _normalize_mode(mode)
     peak_capping_enabled = request_bool_query_param(request, "peak_capping_enabled", peak_capping_enabled)
+    match_system_ppe = request_bool_query_param(request, "match_system_ppe", match_system_ppe)
     try:
         basis_backend = validate_basis_backend_request(mode, basis_backend, variable_mode="rings")
     except ValueError as exc:
@@ -250,6 +252,7 @@ def radiance_images(
             sim_mode=sim_mode,
             target_ppfd=target_ppfd,
             peak_capping_enabled=peak_capping_enabled,
+            match_system_ppe=match_system_ppe,
             length_ft=length_ft,
             width_ft=width_ft,
             w_min=_artifact_w_min(mode, w_min),
@@ -283,6 +286,7 @@ def radiance_images(
         return (
             f"/radiance/image?mode={req.mode}&execution_mode={req.execution_mode}&sim_mode={req.sim_mode}&name={name}&session_id={session_id}"
             f"&length_ft={req.length_ft:g}&width_ft={req.width_ft:g}&target_ppfd={req.target_ppfd:g}&peak_capping_enabled={str(req.peak_capping_enabled).lower()}"
+f"&match_system_ppe={str(req.match_system_ppe).lower()}"
             f"&w_min={req.w_min:g}&w_max={req.w_max:g}"
             f"&hps_coverage_ft={req.hps_coverage_ft:g}&competitor_layout={req.competitor_layout}"
             f"&hps_ies_variant={req.hps_ies_variant}"
@@ -311,6 +315,7 @@ def radiance_image(
     sim_mode: str = "standard",
     target_ppfd: float = 1000.0,
     peak_capping_enabled: bool = False,
+    match_system_ppe: bool = False,
     length_ft: float = float(PUBLIC_DEFAULT_LENGTH_FT),
     width_ft: float = float(PUBLIC_DEFAULT_WIDTH_FT),
     w_min: float | None = None,
@@ -326,6 +331,7 @@ def radiance_image(
     maybe_cleanup_runtime_state()
     mode = _normalize_mode(mode)
     peak_capping_enabled = request_bool_query_param(request, "peak_capping_enabled", peak_capping_enabled)
+    match_system_ppe = request_bool_query_param(request, "match_system_ppe", match_system_ppe)
     try:
         basis_backend = validate_basis_backend_request(mode, basis_backend, variable_mode="rings")
     except ValueError as exc:
@@ -339,6 +345,7 @@ def radiance_image(
             sim_mode=sim_mode,
             target_ppfd=target_ppfd,
             peak_capping_enabled=peak_capping_enabled,
+            match_system_ppe=match_system_ppe,
             length_ft=length_ft,
             width_ft=width_ft,
             w_min=_artifact_w_min(mode, w_min),
@@ -392,6 +399,7 @@ def radiance_ppfd_csv(
     sim_mode: str = "standard",
     target_ppfd: float = 1000.0,
     peak_capping_enabled: bool = False,
+    match_system_ppe: bool = False,
     length_ft: float = float(PUBLIC_DEFAULT_LENGTH_FT),
     width_ft: float = float(PUBLIC_DEFAULT_WIDTH_FT),
     w_min: float | None = None,
@@ -407,6 +415,7 @@ def radiance_ppfd_csv(
     maybe_cleanup_runtime_state()
     mode = _normalize_mode(mode)
     peak_capping_enabled = request_bool_query_param(request, "peak_capping_enabled", peak_capping_enabled)
+    match_system_ppe = request_bool_query_param(request, "match_system_ppe", match_system_ppe)
     try:
         basis_backend = validate_basis_backend_request(mode, basis_backend, variable_mode="rings")
     except ValueError as exc:
@@ -420,6 +429,7 @@ def radiance_ppfd_csv(
             sim_mode=sim_mode,
             target_ppfd=target_ppfd,
             peak_capping_enabled=peak_capping_enabled,
+            match_system_ppe=match_system_ppe,
             length_ft=length_ft,
             width_ft=width_ft,
             w_min=_artifact_w_min(mode, w_min),
@@ -469,6 +479,7 @@ def radiance_scatter(
     sim_mode: str = "standard",
     target_ppfd: float = 1000.0,
     peak_capping_enabled: bool = False,
+    match_system_ppe: bool = False,
     length_ft: float = float(PUBLIC_DEFAULT_LENGTH_FT),
     width_ft: float = float(PUBLIC_DEFAULT_WIDTH_FT),
     w_min: float | None = None,
@@ -484,6 +495,7 @@ def radiance_scatter(
     maybe_cleanup_runtime_state()
     mode = _normalize_mode(mode)
     peak_capping_enabled = request_bool_query_param(request, "peak_capping_enabled", peak_capping_enabled)
+    match_system_ppe = request_bool_query_param(request, "match_system_ppe", match_system_ppe)
     req = _canonicalize_mode_request(
         _route_radiance_request(
             action="visualize",
@@ -492,6 +504,7 @@ def radiance_scatter(
             sim_mode=sim_mode,
             target_ppfd=target_ppfd,
             peak_capping_enabled=peak_capping_enabled,
+            match_system_ppe=match_system_ppe,
             length_ft=length_ft,
             width_ft=width_ft,
             w_min=_artifact_w_min(mode, w_min),
@@ -505,6 +518,8 @@ def radiance_scatter(
             basis_backend=basis_backend,
         )
     )
+    req = _apply_artifact_plant_query_overrides(req, request)
+    req = _canonicalize_mode_request(req)
     matched_req = precomputed_request_for_available_bundle(req) if _request_uses_precomputed(req) else None
     if matched_req is not None:
         req = matched_req

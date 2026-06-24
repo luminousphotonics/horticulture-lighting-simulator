@@ -59,6 +59,9 @@ async function boot() {
   if (els.radPeakCapping) {
     els.radPeakCapping.checked = false;
   }
+  if (els.radMatchSystemPpe) {
+    els.radMatchSystemPpe.checked = true;
+  }
   syncModeControls();
   syncFspmControls();
   await ensureBackend();
@@ -126,6 +129,11 @@ export function initRadianceSimulator() {
   }
   if (els.radPeakCapping) {
     els.radPeakCapping.addEventListener("change", () => {
+      invalidateRenderedRunAndSyncActions();
+    });
+  }
+  if (els.radMatchSystemPpe) {
+    els.radMatchSystemPpe.addEventListener("change", () => {
       invalidateRenderedRunAndSyncActions();
     });
   }

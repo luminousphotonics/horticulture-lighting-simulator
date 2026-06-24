@@ -496,9 +496,10 @@ def _env_smd(req: Any) -> dict[str, str]:
     if req.match_system_ppe:
         env["SMD_MODEL"] = "legacy"
         env["PPE_IS_SYSTEM"] = "1"
-        env["SMD_TARGET_PPE_UMOL_PER_J"] = "2.700"
+        env["SMD_TARGET_PPE_UMOL_PER_J"] = f"{float(getattr(req, 'sp_ppe', COMPETITOR_FIXTURE_PPE_UMOL_PER_J)):.15g}"
         env["EFF_SCALE"] = "1.0"
         env["DROOP_K"] = "0.0"
+        env["SMD_PPE_REFERENCE_MODE"] = "matched_conventional_fixture_ppe"
     return env
 
 

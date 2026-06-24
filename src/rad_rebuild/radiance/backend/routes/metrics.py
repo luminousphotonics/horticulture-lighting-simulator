@@ -148,6 +148,7 @@ def radiance_metrics(
     sim_mode: str = "standard",
     target_ppfd: float | None = None,
     peak_capping_enabled: bool = False,
+    match_system_ppe: bool = False,
     length_ft: float | None = None,
     width_ft: float | None = None,
     w_min: float | None = None,
@@ -163,6 +164,7 @@ def radiance_metrics(
     maybe_cleanup_runtime_state()
     mode = _normalize_mode(mode)
     peak_capping_enabled = request_bool_query_param(request, "peak_capping_enabled", peak_capping_enabled)
+    match_system_ppe = request_bool_query_param(request, "match_system_ppe", match_system_ppe)
 
     req_length = length_ft if length_ft is not None else float(PUBLIC_DEFAULT_LENGTH_FT)
     req_width = width_ft if width_ft is not None else float(PUBLIC_DEFAULT_WIDTH_FT)
@@ -180,6 +182,7 @@ def radiance_metrics(
             w_max=w_max,
             target_ppfd=req_target,
             peak_capping_enabled=peak_capping_enabled,
+            match_system_ppe=match_system_ppe,
             competitor_layout=competitor_layout,
             hps_coverage_ft=hps_coverage_ft,
             hps_ies_variant=hps_ies_variant,
