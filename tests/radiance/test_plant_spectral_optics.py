@@ -17,6 +17,7 @@ from rad_rebuild.radiance.engine.plants.spectral import (  # noqa: E402
     PLANT_SPECTRAL_RESPONSE_SCHEMA,
     build_plant_spectral_response_payload,
     default_fixture_spectral_distribution,
+    fixture_spectral_distribution_from_curve_data,
     parse_spectral_photon_fraction_overrides,
     write_plant_spectral_response_artifact,
     default_leafy_green_spectral_bands,
@@ -227,3 +228,67 @@ def test_plant_spectral_response_artifact_export_is_deterministic(tmp_path) -> N
     payload = json.loads(first)
     assert payload["source_artifact"] == "runtime_state/plant_surface_flux.json"
     assert payload["outputs_do_not_predict"] == ["yield", "biomass", "growth", "crop_output"]
+
+
+
+def test_fixture_spectral_distribution_loads_mode_curve_data(tmp_path) -> None:
+    curve_root = tmp_path / "curve_data"
+    smd = curve_root / "smd"
+    conventional = curve_root / "conventional"
+    hps = curve_root / "hps"
+    smd.mkdir(parents=True)
+    conventional.mkdir(parents=True)
+    hps.mkdir(parents=True)
+
+    (smd / "smd_combined_spd.csv").write_text(
+        "wavelength_nm,relative_power\n450,1\n660,3\n720,0.2\n",
+        encoding="utf-8",
+    )
+    (conventional / "conventional_spd.csv").write_text(
+        "wavelength_nm,relative_power\n450,1\n660,1\n720,1\n",
+        encoding="utf-8",
+    )
+    (hps / "hps_spd.csv").write_text(
+        "wavelength_nm,relative_power\n450,0.1\n590,1\n660,2\n720,2\n",
+        encoding="utf-8",
+    )
+
+    smd_distribution = fixture_spectral_distribution_from_curve_data(curve_root, "smd")
+    conventional_distribution = fixture_spectral_distribution_from_curve_data(curve_root, "conventional")
+    hps_distribution = fixture_spectral_distribution_from_curve_data(curve_root, "1000W HPS")
+
+    assert smd_distribution.distribution_id == "curve_data_smd"
+    assert conventional_distribution.distribution_id == "curve_data_conventional"
+    assert hps_distribution.distribution_id == "curve_data_hps"
+    assert smd_distribution.source.startswith("curve_data_spd:")
+    assert hps_distribution.fraction_map()["far_red"] > smd_distribution.fraction_map()["far_red"]
+
+
+def test_fixture_spectral_distribution_ignores_non_spectral_curve_rows(tmp_path) -> None:
+    curve_root = tmp_path / "curve_data"
+    smd = curve_root / "smd"
+    smd.mkdir(parents=True)
+
+    (smd / "white_ppe_vs_fC.csv").write_text(
+        "fC,ppe\n0.5,2.7\n1.0,2.8\n",
+        encoding="utf-8",
+    )
+    (smd / "real_spd.csv").write_text(
+        "wavelength_nm,relative_power\n450,1\n660,1\n",
+        encoding="utf-8",
+    )
+
+    distribution = fixture_spectral_distribution_from_curve_data(curve_root, "smd")
+
+    assert distribution.distribution_id == "curve_data_smd"
+    assert "real_spd.csv" in distribution.source
+    assert "white_ppe_vs_fC.csv" not in distribution.source
+
+
+def test_fixture_spectral_distribution_falls_back_when_curve_data_missing(tmp_path) -> None:
+    distribution = fixture_spectral_distribution_from_curve_data(
+        tmp_path / "missing_curve_data",
+        "1000W HPS",
+    )
+
+    assert distribution.distribution_id == "development_default_hps"

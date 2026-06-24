@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import math
+import re
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -20,6 +21,14 @@ SPECTRAL_ABSORPTION_METHOD = "band_weighted_leaf_absorptance_v1"
 NO_CROP_OUTPUT_TERMS = ["yield", "biomass", "growth", "crop_output"]
 
 PAR_BAND_IDS = frozenset({"blue", "green", "red"})
+SPECTRAL_BAND_RANGES_NM: tuple[tuple[str, float, float], ...] = (
+    ("uv_a", 315.0, 400.0),
+    ("blue", 400.0, 500.0),
+    ("green", 500.0, 600.0),
+    ("red", 600.0, 700.0),
+    ("far_red", 700.0, 750.0),
+)
+_NUMERIC_TOKEN_RE = re.compile(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?")
 
 
 def _finite_fraction(name: str, value: object) -> float:
@@ -376,6 +385,198 @@ def parse_spectral_photon_fraction_overrides(
         source="environment_override",
     )
 
+
+
+def _spectral_mode_dir_name(mode: str | None) -> str:
+    label = (mode or "").strip().lower().replace("_", " ")
+    if "hps" in label or "gavita" in label:
+        return "hps"
+    if (
+        "conventional" in label
+        or "competitor" in label
+        or "spydr" in label
+        or "qube" in label
+    ):
+        return "conventional"
+    return "smd"
+
+
+def _band_id_for_wavelength_nm(wavelength_nm: float) -> str | None:
+    for band_id, low_nm, high_nm in SPECTRAL_BAND_RANGES_NM:
+        if low_nm <= wavelength_nm < high_nm:
+            return band_id
+    if math.isclose(wavelength_nm, 750.0):
+        return "far_red"
+    return None
+
+
+def _candidate_spd_files(mode_dir: Path) -> list[Path]:
+    if not mode_dir.is_dir():
+        return []
+    candidates = sorted(
+        path
+        for path in mode_dir.rglob("*")
+        if path.is_file() and path.suffix.lower() in {".csv", ".txt", ".tsv", ".dat"}
+    )
+    preferred_tokens = ("combined", "system", "total", "aggregate", "weighted")
+    preferred = [
+        path
+        for path in candidates
+        if any(token in path.stem.lower() for token in preferred_tokens)
+    ]
+    if preferred:
+        return preferred
+    spectral_tokens = ("spd", "spectrum", "spectral", "wavelength", "nm")
+    spectral_named = [
+        path
+        for path in candidates
+        if any(token in path.stem.lower() for token in spectral_tokens)
+    ]
+    return spectral_named or candidates
+
+
+def _curve_file_weight(path: Path, env: Mapping[str, str] | None) -> float:
+    """Approximate SMD channel weighting when raw channel SPDs are present."""
+
+    if env is None:
+        return 1.0
+    name = path.stem.lower()
+    if any(token in name for token in ("combined", "system", "total", "aggregate", "weighted")):
+        return 1.0
+
+    def env_float(key: str, default: float) -> float:
+        try:
+            return float(env.get(key, "") or default)
+        except ValueError:
+            return default
+
+    def env_count(key: str, default: float) -> float:
+        try:
+            return float(env.get(key, "") or default)
+        except ValueError:
+            return default
+
+    if "red" in name and "far" not in name:
+        return (
+            env_count("SMD_RED_COUNT", 41.0)
+            * env_float("SMD_RED_NOMINAL_W", 0.44)
+            * env_float("SMD_RED_NOMINAL_PPE", 4.13)
+        )
+    if any(token in name for token in ("cw", "cool")):
+        return (
+            env_count("SMD_CW_COUNT", 52.0)
+            * env_float("SMD_CW_NOMINAL_W", 0.68)
+            * env_float("SMD_CW_NOMINAL_PPE", 2.81)
+        )
+    if any(token in name for token in ("ww", "warm")):
+        return (
+            env_count("SMD_WW_COUNT", 52.0)
+            * env_float("SMD_WW_NOMINAL_W", 0.68)
+            * env_float("SMD_WW_NOMINAL_PPE", 2.73)
+        )
+    if "white" in name:
+        warm = (
+            env_count("SMD_WW_COUNT", 52.0)
+            * env_float("SMD_WW_NOMINAL_W", 0.68)
+            * env_float("SMD_WW_NOMINAL_PPE", 2.73)
+        )
+        cool = (
+            env_count("SMD_CW_COUNT", 52.0)
+            * env_float("SMD_CW_NOMINAL_W", 0.68)
+            * env_float("SMD_CW_NOMINAL_PPE", 2.81)
+        )
+        return warm + cool
+    return 1.0
+
+
+def _parse_spd_samples(path: Path) -> list[tuple[float, float]]:
+    samples: list[tuple[float, float]] = []
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return samples
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        tokens = _NUMERIC_TOKEN_RE.findall(stripped)
+        if len(tokens) < 2:
+            continue
+        try:
+            wavelength_nm = float(tokens[0])
+            value = float(tokens[-1])
+        except ValueError:
+            continue
+        if not math.isfinite(wavelength_nm) or not math.isfinite(value):
+            continue
+        if value <= 0.0:
+            continue
+        if _band_id_for_wavelength_nm(wavelength_nm) is None:
+            continue
+        samples.append((wavelength_nm, value))
+    return samples
+
+
+def _samples_to_photon_fractions(samples: list[tuple[float, float]]) -> dict[str, float]:
+    totals = {band_id: 0.0 for band_id, _low, _high in SPECTRAL_BAND_RANGES_NM}
+    for wavelength_nm, relative_power in samples:
+        band_id = _band_id_for_wavelength_nm(wavelength_nm)
+        if band_id is None:
+            continue
+        # For relative spectral power data, photon count is proportional to power * wavelength.
+        totals[band_id] += relative_power * wavelength_nm
+
+    total = sum(totals.values())
+    if total <= 0.0:
+        raise ValueError("SPD samples did not contain positive in-band energy.")
+    return {
+        band_id: value / total
+        for band_id, value in totals.items()
+        if value > 0.0
+    }
+
+
+def fixture_spectral_distribution_from_curve_data(
+    curve_data_root: str | Path,
+    mode: str | None,
+    *,
+    env: Mapping[str, str] | None = None,
+    fallback_to_defaults: bool = True,
+) -> SpectralPhotonDistribution:
+    """Build fixture spectral photon fractions from mode-specific curve-data SPDs."""
+
+    mode_dir_name = _spectral_mode_dir_name(mode)
+    mode_dir = Path(curve_data_root) / mode_dir_name
+    files = _candidate_spd_files(mode_dir)
+    weighted_samples: list[tuple[float, float]] = []
+    source_files: list[str] = []
+
+    for file_path in files:
+        samples = _parse_spd_samples(file_path)
+        if not samples:
+            continue
+        source_files.append(str(file_path))
+        weight = _curve_file_weight(file_path, env)
+        weighted_samples.extend(
+            (wavelength_nm, value * weight)
+            for wavelength_nm, value in samples
+        )
+
+    if not weighted_samples:
+        if fallback_to_defaults:
+            return default_fixture_spectral_distribution(mode)
+        raise ValueError(f"No usable SPD samples found under {mode_dir}")
+
+    fractions = _samples_to_photon_fractions(weighted_samples)
+    return SpectralPhotonDistribution(
+        f"curve_data_{mode_dir_name}",
+        tuple(
+            SpectralPhotonFraction(band_id, fractions[band_id])
+            for band_id in sorted(fractions)
+        ),
+        source="curve_data_spd:" + "|".join(source_files),
+    )
 
 def _surface_flux_rows(surface_flux_payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     if surface_flux_payload.get("schema") != PLANT_SURFACE_FLUX_SCHEMA:

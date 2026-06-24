@@ -947,3 +947,11 @@ Phase 11 proxy upgrade decision:
 - Public precomputed behavior: plant-enabled behavior must not accidentally bypass or mutate precomputed-first public playback.
 - Scene defaults: no-plant must remain the default for every existing request.
 - Artifact leakage: generated plant files must not expose local paths, secrets, or runtime-only state in public JSON.
+
+
+Phase 14 correction:
+
+- Spectral response should use existing mode-specific SPD/curve data from `data/radiance/curve_data/{smd,conventional,hps}` whenever available.
+- Development default spectral distributions are fallbacks only.
+- The spectral artifact records the selected `distribution_id` and `source` so manual runs can confirm whether real curve-data SPDs or fallbacks were used.
+- Proposed LED spectral aggregation may combine multiple SMD emitter/channel curves; when raw channel curves are detected, SMD channel weighting uses existing SMD count, nominal watt, and nominal PPE environment defaults.

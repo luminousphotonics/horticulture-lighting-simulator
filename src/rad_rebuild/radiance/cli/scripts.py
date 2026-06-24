@@ -44,7 +44,7 @@ from rad_rebuild.radiance.engine.plants.config import (
 )
 from rad_rebuild.radiance.engine.plants.generator import generate_plant_scene
 from rad_rebuild.radiance.engine.plants.spectral import (
-    default_fixture_spectral_distribution,
+    fixture_spectral_distribution_from_curve_data,
     default_leafy_green_spectral_bands,
     parse_spectral_photon_fraction_overrides,
     write_plant_spectral_response_artifact,
@@ -1083,10 +1083,44 @@ def _trace_plant_surface_receivers(
 
 
 
+def _infer_fixture_spectral_mode(
+    env: Mapping[str, str],
+    *,
+    octree: Path,
+    mode: str,
+) -> str:
+    explicit = (
+        env.get("FSPM_SPECTRAL_MODE")
+        or env.get("RADIANCE_SYSTEM_MODE")
+        or env.get("SYSTEM_MODE")
+        or ""
+    ).strip()
+    if explicit:
+        return explicit
+
+    haystack = " ".join(
+        [
+            mode,
+            octree.name,
+            str(octree.parent),
+            env.get("RADIANCE_MODE", ""),
+            env.get("MODE", ""),
+        ]
+    ).lower()
+    if "hps" in haystack:
+        return "hps"
+    if "spydr" in haystack or "competitor" in haystack or "conventional" in haystack:
+        return "conventional"
+    if "smd" in haystack or "proposed" in haystack:
+        return "smd"
+    return mode
+
+
 def _spectral_distribution_from_env(
     env: Mapping[str, str],
     *,
     mode: str,
+    curve_data_root: Path,
 ):
     raw = (env.get("FSPM_SPECTRAL_PHOTON_FRACTIONS") or "").strip()
     if raw:
@@ -1094,7 +1128,11 @@ def _spectral_distribution_from_env(
             raw,
             distribution_id=f"env_override_{mode.lower().replace(' ', '_')}",
         )
-    return default_fixture_spectral_distribution(mode)
+    return fixture_spectral_distribution_from_curve_data(
+        curve_data_root,
+        mode,
+        env=env,
+    )
 
 
 
@@ -1143,11 +1181,17 @@ def _write_optional_plant_surface_flux_artifact(
             receiver_scale_multiplier=receiver_scale_multiplier,
             source_octree=str(octree),
         )
+        spectral_mode = _infer_fixture_spectral_mode(config.env, octree=octree, mode=mode)
+        spectral_distribution = _spectral_distribution_from_env(
+            config.env,
+            mode=spectral_mode,
+            curve_data_root=config.curve_data_root,
+        )
         spectral_path = write_plant_spectral_response_artifact(
             config.runtime_state_root,
             json.loads(path.read_text(encoding="utf-8")),
             default_leafy_green_spectral_bands(),
-            _spectral_distribution_from_env(config.env, mode=mode),
+            spectral_distribution,
         )
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"ERROR: failed to write FSPM plant receiver surface flux: {exc}", file=sys.stderr)
@@ -1163,6 +1207,8 @@ def _write_optional_plant_surface_flux_artifact(
     print("FSPM plant spectral-response artifact:")
     print(f"  • {spectral_path}")
     print("  method: surface_flux_band_weighted_leaf_absorptance_v1")
+    print(f"  distribution: {spectral_distribution.distribution_id}")
+    print(f"  source: {spectral_distribution.source}")
     print("  note: band-level absorption uses explicit spectral photon fractions and leaf optics assumptions.")
     return int(RadianceScriptExit.OK)
 
