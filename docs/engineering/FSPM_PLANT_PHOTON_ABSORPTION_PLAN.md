@@ -1006,3 +1006,37 @@ Scientific scope:
 Next handoff:
 
 - Phase 17 should use photosynthetic and photomorphogenic response artifacts to drive deterministic FSPM state updates across a growth-cycle series.
+
+
+### Phase 16B - Runtime Correctness: Skip FSPM During SMD Basis Extraction
+
+Goal:
+
+- Prevent FSPM plant artifact generation and plant receiver tracing during SMD basis-column simulations.
+- Keep FSPM receiver, spectral, photosynthesis, and photomorphogenesis artifacts enabled for the final solved SMD simulation.
+- Avoid treating `RUN_BASIS=1` alone as a skip condition, because a full uniformity run can rebuild the basis and then run the final solved simulation in the same environment.
+- Reduce Proposed LED System runtime when FSPM is enabled.
+
+Status:
+
+- In progress.
+
+Implementation rule:
+
+- Skip FSPM only when `SMD_BASIS_MODE=1`, `BASIS_MODE=1`, or specific SMD basis-column selectors are present.
+- Do not skip FSPM for the final solved SMD simulation.
+
+
+Phase 16B correction:
+
+- Basis-column SMD simulations must not generate or preserve stale FSPM runtime artifacts.
+- When FSPM is disabled or skipped during basis extraction, existing `runtime_state/plant_*` artifacts are removed so later metrics cannot mix PPFD maps from one mode with plant artifacts from another mode.
+- Final solved SMD simulation strips SMD basis environment keys before launching `run_simulation_smd.sh`, preserving FSPM analysis for the final solved field.
+
+
+Phase 16B correction 2:
+
+- FSPM basis skipping now depends on an explicit internal `FSPM_SKIP_DURING_BASIS=1` flag.
+- Stale shell variables such as `SMD_BASIS_MODE`, `SMD_BASIS_RING`, or `BASIS_MODE` do not disable FSPM by themselves.
+- The SMD basis extraction loop sets `FSPM_SKIP_DURING_BASIS=1` only for internally launched basis-column simulations.
+- The final solved SMD simulation strips all basis selectors and the FSPM skip flag before launching, so final FSPM receiver analysis still runs.

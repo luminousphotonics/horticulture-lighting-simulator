@@ -532,6 +532,15 @@ def _run_basis(config: UniformityConfig) -> int:
 
 def _run_smd_simulation(config: UniformityConfig) -> int:
     env = dict(config.env)
+    for key in (
+        "FSPM_SKIP_DURING_BASIS",
+        "SMD_BASIS_MODE",
+        "BASIS_MODE",
+        "SMD_BASIS_RING",
+        "SMD_BASIS_MODULE_IDX",
+        "SMD_BASIS_OUTER_MODULE_IDX",
+    ):
+        env.pop(key, None)
     env.update(
         {
             "USE_RING_POWERS_JSON": "1",
@@ -885,6 +894,40 @@ def _float_range_env(
     )
 
 
+
+def _fspm_basis_extraction_active(env: Mapping[str, str]) -> bool:
+    """Return true only for internally launched SMD basis-column passes.
+
+    Stale SMD_BASIS_* shell variables must not disable FSPM for Conventional,
+    HPS, or final solved SMD runs. The basis extraction loop sets the explicit
+    internal FSPM_SKIP_DURING_BASIS flag when it launches basis-column passes.
+    """
+
+    return _bool_env(env, "FSPM_SKIP_DURING_BASIS")
+
+
+
+
+
+PLANT_RUNTIME_ARTIFACT_NAMES = (
+    "plant_geometry.json",
+    "plant_geometry.rad",
+    "plant_absorption_surfaces.json",
+    "plant_surface_flux.json",
+    "plant_spectral_response.json",
+    "plant_photosynthesis_response.json",
+    "plant_photomorphogenesis_response.json",
+)
+
+
+def _clear_fspm_runtime_artifacts(runtime_state_root: Path) -> None:
+    """Remove stale plant artifacts so metrics never mix modes/runs."""
+
+    for name in PLANT_RUNTIME_ARTIFACT_NAMES:
+        (runtime_state_root / name).unlink(missing_ok=True)
+
+
+
 def _fspm_plants_enabled(env: Mapping[str, str]) -> bool:
     return _bool_env(env, "FSPM_PLANTS_ENABLED")
 
@@ -971,7 +1014,12 @@ def _fspm_plant_config_from_env(env: Mapping[str, str]) -> PlantGeometryConfig:
 def _prepare_optional_plant_artifacts(
     config: RuntimeConfig,
 ) -> PlantArtifactPaths | None:
+    if _fspm_basis_extraction_active(config.env):
+        _clear_fspm_runtime_artifacts(config.runtime_state_root)
+        print("FSPM plant artifacts skipped during SMD basis extraction.")
+        return None
     if not _fspm_plants_enabled(config.env):
+        _clear_fspm_runtime_artifacts(config.runtime_state_root)
         return None
     plant_config = _fspm_plant_config_from_env(config.env)
     return write_plant_artifacts(
@@ -1225,7 +1273,12 @@ def _write_optional_plant_surface_flux_artifact(
     nthreads: int,
     receiver_scale_multiplier: float = 1.0,
 ) -> int:
+    if _fspm_basis_extraction_active(config.env):
+        _clear_fspm_runtime_artifacts(config.runtime_state_root)
+        print("FSPM plant receiver analysis skipped during SMD basis extraction.")
+        return int(RadianceScriptExit.OK)
     if plant_artifacts is None:
+        _clear_fspm_runtime_artifacts(config.runtime_state_root)
         return int(RadianceScriptExit.OK)
 
     plant_config = _fspm_plant_config_from_env(config.env)
@@ -2478,6 +2531,8 @@ def run_basis_extraction(raw_env: Mapping[str, str] | None = None) -> int:
             "MODE": mode,
             "SYM": "0",
             "NTHREADS": str(nthreads),
+            "FSPM_PLANTS_ENABLED": "0",
+            "FSPM_SKIP_DURING_BASIS": "1",
         }
         col = 0
         if smd_all == "1":
