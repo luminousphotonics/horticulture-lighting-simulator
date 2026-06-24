@@ -881,6 +881,99 @@
             "title": "Peak Capping Enabled",
             "type": "boolean"
           },
+          "plant_canopy_radius_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Canopy Radius M"
+          },
+          "plant_columns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Columns"
+          },
+          "plant_growth_stage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Growth Stage"
+          },
+          "plant_height_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Height M"
+          },
+          "plant_leaf_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Leaf Count"
+          },
+          "plant_rows": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Rows"
+          },
+          "plant_seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Seed"
+          },
+          "plant_spacing_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Spacing M"
+          },
+          "plants_enabled": {
+            "default": false,
+            "title": "Plants Enabled",
+            "type": "boolean"
+          },
           "run_basis": {
             "default": true,
             "title": "Run Basis",
@@ -1629,6 +1722,99 @@
           "peak_capping_enabled": {
             "default": false,
             "title": "Peak Capping Enabled",
+            "type": "boolean"
+          },
+          "plant_canopy_radius_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Canopy Radius M"
+          },
+          "plant_columns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Columns"
+          },
+          "plant_growth_stage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Growth Stage"
+          },
+          "plant_height_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Height M"
+          },
+          "plant_leaf_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Leaf Count"
+          },
+          "plant_rows": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Rows"
+          },
+          "plant_seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Seed"
+          },
+          "plant_spacing_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Spacing M"
+          },
+          "plants_enabled": {
+            "default": false,
+            "title": "Plants Enabled",
             "type": "boolean"
           },
           "run_basis": {

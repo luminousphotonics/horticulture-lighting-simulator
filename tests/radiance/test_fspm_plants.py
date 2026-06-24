@@ -5,6 +5,7 @@ import json
 import math
 import pkgutil
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -55,7 +56,7 @@ def test_default_config_is_valid() -> None:
         {"plant_height_m": math.inf},
     ],
 )
-def test_invalid_dimensions_fail(kwargs: dict[str, object]) -> None:
+def test_invalid_dimensions_fail(kwargs: dict[str, Any]) -> None:
     with pytest.raises(ValueError):
         PlantGeometryConfig(**kwargs)
 

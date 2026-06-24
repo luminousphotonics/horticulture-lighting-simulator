@@ -443,6 +443,84 @@ Validation:
 - `PYTHONPATH=src ./.venv/bin/python scripts/dev/export_openapi.py --check` if OpenAPI is affected.
 - `git diff --check`.
 
+Completed checklist:
+
+- Added additive optional plant controls to the backend request contract with default no-plant behavior.
+- Reused the Phase 01 `PlantGeometryConfig` validator when `plants_enabled` is true.
+- Mapped enabled backend request controls into the Phase 03 `FSPM_PLANTS_*` environment gate.
+- Cleared inherited plant env vars for disabled requests so server process env cannot accidentally enable plants.
+- Kept `REQUEST_FINGERPRINT_SCHEMA_VERSION = 1` and preserved no-plant/default fingerprint payloads.
+- Added plant fingerprint fields only when `plants_enabled` is true.
+- Regenerated deterministic OpenAPI after request schema changes.
+
+Exact request fields added:
+
+- `plants_enabled: bool = False`
+- `plant_seed: int | None = None`
+- `plant_rows: int | None = None`
+- `plant_columns: int | None = None`
+- `plant_spacing_m: float | None = None`
+- `plant_height_m: float | None = None`
+- `plant_canopy_radius_m: float | None = None`
+- `plant_leaf_count: int | None = None`
+- `plant_growth_stage: float | None = None`
+
+Validation behavior:
+
+- Optional plant integer and float fields reject non-JSON-number values, NaN, infinity, and negative zero at the boundary.
+- When `plants_enabled` is false, valid plant fields are accepted but ignored for runtime env and fingerprinting.
+- When `plants_enabled` is true, fields are resolved through Phase 01 defaults and validated by `PlantGeometryConfig`.
+- Invalid enabled plant geometry, including nonpositive rows/spacing and growth stages outside `0..1`, is rejected during request validation.
+
+Runtime env behavior:
+
+- Enabled requests set `FSPM_PLANTS_ENABLED=1`.
+- Enabled requests set `FSPM_PLANT_SEED`, `FSPM_PLANT_ROWS`, `FSPM_PLANT_COLUMNS`, `FSPM_PLANT_SPACING_M`, `FSPM_PLANT_HEIGHT_M`, `FSPM_PLANT_CANOPY_RADIUS_M`, `FSPM_PLANT_LEAF_COUNT`, `FSPM_PLANT_GROWTH_STAGE`, and default Phase 01 leaf/optical env values.
+- Disabled requests remove all known `FSPM_PLANTS_*` / `FSPM_PLANT_*` keys from the child env.
+
+Fingerprint behavior:
+
+- No-plant/default requests keep the existing schema version and field set.
+- Supplying plant fields while `plants_enabled=false` does not alter the request fingerprint or artifact key.
+- Plant-enabled requests add `plants_enabled`, `plant_seed`, `plant_rows`, `plant_columns`, `plant_spacing_m`, `plant_height_m`, `plant_canopy_radius_m`, `plant_leaf_count`, and `plant_growth_stage` to the canonical fingerprint payload.
+- Changing any enabled plant fingerprint field changes the workspace fingerprint.
+
+Public-mode safety notes:
+
+- Existing public defaults remain precomputed and no-plant.
+- Plant controls do not force live execution or bypass precomputed-first routing.
+- No plant geometry was added to public precomputed bundles.
+- Existing SMD, Conventional LED, and 1000W HPS request fields and route response models remain compatible.
+
+Validation results:
+
+- `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_fspm_plants.py` -> 42 passed.
+- `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_config_contracts.py` -> 9 passed, 6 subtests passed.
+- `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_workspace_keys.py` -> 12 passed, 38 subtests passed.
+- `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_import_boundaries.py` -> 6 passed, 33 subtests passed, existing matplotlib/pyparsing warnings.
+- `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_phase05_contracts.py` -> 13 passed, 12 subtests passed.
+- `PYTHONPATH=src ./.venv/bin/python scripts/dev/export_openapi.py --check` initially reported stale schema after adding request fields; regenerated with `PYTHONPATH=src ./.venv/bin/python scripts/dev/export_openapi.py`; final check passed.
+- `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance` -> 482 passed, 1 skipped, 119 subtests passed, existing matplotlib/pyparsing warnings.
+- `PYTHONPATH=src ./.venv/bin/python -m mypy --show-error-codes app.py src tests scripts` -> success, no issues.
+- `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance tests/radiance` -> passed.
+- `PYTHONPATH=src ./.venv/bin/python scripts/dev/baseline.py` -> pass; TypeScript, ESLint, and HTML validation reported missing local Node binaries as optional tools.
+- `git diff --check` -> passed.
+- `git diff --stat` -> 8 files changed, 600 insertions, 2 deletions.
+- `git status --short` -> expected modified source, tests, OpenAPI, and plan files only.
+
+Risks/open questions:
+
+- Plant controls are visible in inherited request schemas such as electrical cost estimates, but they do not affect non-Radiance execution paths.
+- Plant-enabled precomputed requests remain precomputed-first and do not include plant geometry because no plant precomputed bundles exist.
+- Phase 05 should decide whether public UI controls are shown only for live execution modes or are labeled as live-only.
+
+Recommended Phase 05 handoff:
+
+- Add a viewer-only plant toggle that is off by default and consumes `plants_viewer.json` only when present in the authorized workspace.
+- Preserve existing fixture, heatmap, camera, and manifest behavior when no plant artifact exists.
+- Include plant controls in viewer requests only after deciding whether controls are live-only or allowed as inert precomputed metadata.
+- Add browser and route tests that prove hidden/off plant UI preserves current public precomputed behavior.
+
 ### Phase 05 - Viewer Plant Rendering And Toggle
 
 Goal:

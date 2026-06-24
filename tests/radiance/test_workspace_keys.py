@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import unittest
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from fastapi import HTTPException
 from tests.radiance.runtime_env import configure_test_runtime
@@ -20,8 +20,10 @@ from rad_rebuild.radiance.config import (  # noqa: E402
 from rad_rebuild.radiance.backend.models import RadianceRunRequest  # noqa: E402
 from rad_rebuild.radiance.backend.workspace import (  # noqa: E402
     LEGACY_WORKSPACE_KEY_POLICY,
+    PLANT_REQUEST_FINGERPRINT_FIELDS,
     REQUEST_FINGERPRINT_FIELDS,
     artifact_key_from_request,
+    canonical_request_fingerprint_payload,
     canonical_request_fingerprint_json,
     legacy_artifact_key_from_request,
     request_fingerprint,
@@ -188,6 +190,69 @@ class RadianceWorkspaceKeyTests(unittest.TestCase):
         for field, value in changes.items():
             with self.subTest(field=field):
                 changed = self._base_request(**{field: value})
+                self.assertNotEqual(request_fingerprint(changed), base_fingerprint)
+
+    def test_disabled_plant_fields_do_not_change_default_fingerprint(self) -> None:
+        base = self._base_request()
+        disabled = self._base_request(
+            plants_enabled=False,
+            plant_seed=99,
+            plant_rows=1,
+            plant_columns=1,
+            plant_spacing_m=0.4,
+            plant_height_m=0.2,
+            plant_canopy_radius_m=0.21,
+            plant_leaf_count=8,
+            plant_growth_stage=0.7,
+        )
+        payload = canonical_request_fingerprint_payload(disabled)
+        fields = cast(dict[str, object], payload["fields"])
+        self.assertIsInstance(fields, dict)
+
+        self.assertEqual(request_fingerprint(disabled), request_fingerprint(base))
+        for field in PLANT_REQUEST_FINGERPRINT_FIELDS:
+            self.assertNotIn(field, fields)
+
+    def test_enabled_plant_fields_participate_in_fingerprint(self) -> None:
+        self.assertEqual(
+            set(PLANT_REQUEST_FINGERPRINT_FIELDS),
+            {
+                "plants_enabled",
+                "plant_seed",
+                "plant_rows",
+                "plant_columns",
+                "plant_spacing_m",
+                "plant_height_m",
+                "plant_canopy_radius_m",
+                "plant_leaf_count",
+                "plant_growth_stage",
+            },
+        )
+        base = self._base_request(plants_enabled=True)
+        payload = canonical_request_fingerprint_payload(base)
+        fields = cast(dict[str, object], payload["fields"])
+        self.assertIsInstance(fields, dict)
+        for field in PLANT_REQUEST_FINGERPRINT_FIELDS:
+            self.assertIn(field, fields)
+
+        base_fingerprint = request_fingerprint(base)
+        changes = {
+            "plants_enabled": False,
+            "plant_seed": 42,
+            "plant_rows": 1,
+            "plant_columns": 3,
+            "plant_spacing_m": 0.4,
+            "plant_height_m": 0.2,
+            "plant_canopy_radius_m": 0.24,
+            "plant_leaf_count": 8,
+            "plant_growth_stage": 0.5,
+        }
+        for field, value in changes.items():
+            with self.subTest(field=field):
+                overrides = {field: value}
+                if field != "plants_enabled":
+                    overrides["plants_enabled"] = True
+                changed = self._base_request(**overrides)
                 self.assertNotEqual(request_fingerprint(changed), base_fingerprint)
 
     def test_equivalent_normalized_requests_share_fingerprint(self) -> None:

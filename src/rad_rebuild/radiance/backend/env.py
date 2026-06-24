@@ -25,6 +25,7 @@ from rad_rebuild.radiance.config import (
     output_dir_for_mode as _config_output_dir_for_mode,
     overlay_for_mode as _config_overlay_for_mode,
 )
+from rad_rebuild.radiance.domain import plant_geometry_config_from_request
 from rad_rebuild.radiance.paths import (
     RADIANCE_CURVE_DATA_ROOT,
     RADIANCE_DATA_ROOT,
@@ -85,6 +86,27 @@ LOCAL_RADIANCE_BIN = Path("/opt/radiance/bin")
 LOCAL_RADIANCE_LIB = Path("/opt/radiance/lib")
 HPS_MODE_LABEL = MODE_HPS
 DISABLE_RADIANCE_AUTODETECT_ENV = "RAD_REBUILD_DISABLE_RADIANCE_AUTODETECT"
+PLANT_ENV_KEYS = (
+    "FSPM_PLANTS_ENABLED",
+    "FSPM_PLANT_SEED",
+    "FSPM_PLANT_ROWS",
+    "FSPM_PLANT_COLUMNS",
+    "FSPM_PLANT_SPACING_M",
+    "FSPM_PLANT_HEIGHT_M",
+    "FSPM_PLANT_CANOPY_RADIUS_M",
+    "FSPM_PLANT_LEAF_COUNT",
+    "FSPM_PLANT_LEAF_LENGTH_MIN_M",
+    "FSPM_PLANT_LEAF_LENGTH_MAX_M",
+    "FSPM_PLANT_LEAF_WIDTH_MIN_M",
+    "FSPM_PLANT_LEAF_WIDTH_MAX_M",
+    "FSPM_PLANT_LEAF_TILT_MIN_DEG",
+    "FSPM_PLANT_LEAF_TILT_MAX_DEG",
+    "FSPM_PLANT_CURVATURE_M",
+    "FSPM_PLANT_GROWTH_STAGE",
+    "FSPM_PLANT_REFLECTANCE",
+    "FSPM_PLANT_TRANSMITTANCE",
+    "FSPM_PLANT_ABSORPTANCE",
+)
 
 
 def _canonicalize_execution_mode(raw: str | None) -> str:
@@ -364,7 +386,44 @@ def _make_env_base(req: Any) -> dict[str, str]:
             env["CANOPY_AREA_M2"] = f"{area_m2:.6f}"
     except Exception:
         pass
+    _apply_plant_request_env(env, req)
     return env
+
+
+def _apply_plant_request_env(env: dict[str, str], req: Any) -> None:
+    for key in PLANT_ENV_KEYS:
+        env.pop(key, None)
+    if not bool(getattr(req, "plants_enabled", False)):
+        return
+
+    config = plant_geometry_config_from_request(req)
+    optical = config.optical
+    leaf_length_min, leaf_length_max = config.leaf_length_range_m
+    leaf_width_min, leaf_width_max = config.leaf_width_range_m
+    leaf_tilt_min, leaf_tilt_max = config.leaf_tilt_range_deg
+    env.update(
+        {
+            "FSPM_PLANTS_ENABLED": "1",
+            "FSPM_PLANT_SEED": str(config.seed),
+            "FSPM_PLANT_ROWS": str(config.plant_grid_rows),
+            "FSPM_PLANT_COLUMNS": str(config.plant_grid_columns),
+            "FSPM_PLANT_SPACING_M": f"{config.plant_spacing_m:g}",
+            "FSPM_PLANT_HEIGHT_M": f"{config.plant_height_m:g}",
+            "FSPM_PLANT_CANOPY_RADIUS_M": f"{config.canopy_radius_m:g}",
+            "FSPM_PLANT_LEAF_COUNT": str(config.leaf_count_per_plant),
+            "FSPM_PLANT_LEAF_LENGTH_MIN_M": f"{leaf_length_min:g}",
+            "FSPM_PLANT_LEAF_LENGTH_MAX_M": f"{leaf_length_max:g}",
+            "FSPM_PLANT_LEAF_WIDTH_MIN_M": f"{leaf_width_min:g}",
+            "FSPM_PLANT_LEAF_WIDTH_MAX_M": f"{leaf_width_max:g}",
+            "FSPM_PLANT_LEAF_TILT_MIN_DEG": f"{leaf_tilt_min:g}",
+            "FSPM_PLANT_LEAF_TILT_MAX_DEG": f"{leaf_tilt_max:g}",
+            "FSPM_PLANT_CURVATURE_M": f"{config.leaf_curvature_m:g}",
+            "FSPM_PLANT_GROWTH_STAGE": f"{config.growth_stage:g}",
+            "FSPM_PLANT_REFLECTANCE": f"{optical.reflectance:g}",
+            "FSPM_PLANT_TRANSMITTANCE": f"{optical.transmittance:g}",
+            "FSPM_PLANT_ABSORPTANCE": f"{optical.absorptance:g}",
+        }
+    )
 
 
 def _env_smd(req: Any) -> dict[str, str]:

@@ -19,6 +19,7 @@ from typing import Any, Iterator
 
 from fastapi import HTTPException
 
+from rad_rebuild.radiance.domain import plant_geometry_config_from_request
 from rad_rebuild.radiance.config import (
     COMPETITOR_FIXTURE_PPE_UMOL_PER_J,
     COMPETITOR_FIXTURE_PPF_UMOL_S,
@@ -123,6 +124,17 @@ REQUEST_FINGERPRINT_FIELDS = (
     "hps_input_watts",
     "hps_ies_variant",
     "dialux_sensor_grid",
+)
+PLANT_REQUEST_FINGERPRINT_FIELDS = (
+    "plants_enabled",
+    "plant_seed",
+    "plant_rows",
+    "plant_columns",
+    "plant_spacing_m",
+    "plant_height_m",
+    "plant_canopy_radius_m",
+    "plant_leaf_count",
+    "plant_growth_stage",
 )
 
 
@@ -400,6 +412,33 @@ def canonical_request_fingerprint_payload(source: Any) -> dict[str, object]:
     missing = set(REQUEST_FINGERPRINT_FIELDS) - set(fields)
     if missing:
         raise RuntimeError(f"Request fingerprint payload missing fields: {sorted(missing)}")
+    if _canonical_bool(getter("plants_enabled", False)):
+        plant_config = plant_geometry_config_from_request(source)
+        fields.update(
+            {
+                "plants_enabled": True,
+                "plant_seed": plant_config.seed,
+                "plant_rows": plant_config.plant_grid_rows,
+                "plant_columns": plant_config.plant_grid_columns,
+                "plant_spacing_m": _canonical_number(
+                    "plant_spacing_m",
+                    plant_config.plant_spacing_m,
+                ),
+                "plant_height_m": _canonical_number(
+                    "plant_height_m",
+                    plant_config.plant_height_m,
+                ),
+                "plant_canopy_radius_m": _canonical_number(
+                    "plant_canopy_radius_m",
+                    plant_config.canopy_radius_m,
+                ),
+                "plant_leaf_count": plant_config.leaf_count_per_plant,
+                "plant_growth_stage": _canonical_number(
+                    "plant_growth_stage",
+                    plant_config.growth_stage,
+                ),
+            }
+        )
     return payload
 
 
