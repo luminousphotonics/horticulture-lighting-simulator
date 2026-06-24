@@ -955,3 +955,28 @@ Phase 14 correction:
 - Development default spectral distributions are fallbacks only.
 - The spectral artifact records the selected `distribution_id` and `source` so manual runs can confirm whether real curve-data SPDs or fallbacks were used.
 - Proposed LED spectral aggregation may combine multiple SMD emitter/channel curves; when raw channel curves are detected, SMD channel weighting uses existing SMD count, nominal watt, and nominal PPE environment defaults.
+
+
+### Phase 15 - Photosynthetic Response Potential Artifact
+
+Goal:
+
+- Consume `plant_spectral_response.json` and produce `plant_photosynthesis_response.json`.
+- Use absorbed PAR photon flux density as the driver for a leaf-level photosynthetic light-response potential model.
+- Start with a non-rectangular hyperbola response curve using explicit parameters for initial quantum yield, maximum gross assimilation, dark respiration, curvature, and photoperiod.
+- Aggregate response potential at leaf and plant levels.
+- Expose photosynthetic response indices and plant-to-plant response variation for later visualization and growth-cycle modeling.
+
+Status:
+
+- In progress.
+
+Scientific scope:
+
+- This phase models photosynthetic response potential from absorbed PAR.
+- It does not model stomatal conductance, CO2 concentration, temperature, water stress, nutrient stress, cultivar calibration, biomass, yield, harvest weight, or crop output.
+- The output is intended for relative lighting-analysis comparisons and as an input to later FSPM state updates.
+
+Next handoff:
+
+- Phase 16 should consume spectral response and photosynthesis response artifacts to produce photomorphogenic response metrics.

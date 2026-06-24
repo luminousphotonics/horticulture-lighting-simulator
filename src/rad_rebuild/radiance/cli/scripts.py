@@ -43,6 +43,10 @@ from rad_rebuild.radiance.engine.plants.config import (
     PlantOpticalAssumptions,
 )
 from rad_rebuild.radiance.engine.plants.generator import generate_plant_scene
+from rad_rebuild.radiance.engine.plants.photosynthesis import (
+    PhotosynthesisResponseParameters,
+    write_plant_photosynthesis_response_artifact,
+)
 from rad_rebuild.radiance.engine.plants.spectral import (
     fixture_spectral_distribution_from_curve_data,
     default_leafy_green_spectral_bands,
@@ -1116,6 +1120,39 @@ def _infer_fixture_spectral_mode(
     return mode
 
 
+
+def _photosynthesis_parameters_from_env(env: Mapping[str, str]) -> PhotosynthesisResponseParameters:
+    defaults = PhotosynthesisResponseParameters()
+    return PhotosynthesisResponseParameters(
+        initial_quantum_yield_mol_co2_per_mol_photons=_float_env(
+            env,
+            "FSPM_PHOTOSYNTHESIS_QUANTUM_YIELD",
+            str(defaults.initial_quantum_yield_mol_co2_per_mol_photons),
+        ),
+        max_gross_assimilation_umol_co2_m2_s=_float_env(
+            env,
+            "FSPM_PHOTOSYNTHESIS_AMAX_UMOL_CO2_M2_S",
+            str(defaults.max_gross_assimilation_umol_co2_m2_s),
+        ),
+        dark_respiration_umol_co2_m2_s=_float_env(
+            env,
+            "FSPM_PHOTOSYNTHESIS_DARK_RESPIRATION_UMOL_CO2_M2_S",
+            str(defaults.dark_respiration_umol_co2_m2_s),
+        ),
+        curvature_factor=_float_env(
+            env,
+            "FSPM_PHOTOSYNTHESIS_CURVATURE",
+            str(defaults.curvature_factor),
+        ),
+        photoperiod_hours=_float_env(
+            env,
+            "FSPM_PHOTOSYNTHESIS_PHOTOPERIOD_HOURS",
+            str(defaults.photoperiod_hours),
+        ),
+    )
+
+
+
 def _spectral_distribution_from_env(
     env: Mapping[str, str],
     *,
@@ -1193,6 +1230,11 @@ def _write_optional_plant_surface_flux_artifact(
             default_leafy_green_spectral_bands(),
             spectral_distribution,
         )
+        photosynthesis_path = write_plant_photosynthesis_response_artifact(
+            config.runtime_state_root,
+            json.loads(spectral_path.read_text(encoding="utf-8")),
+            _photosynthesis_parameters_from_env(config.env),
+        )
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"ERROR: failed to write FSPM plant receiver surface flux: {exc}", file=sys.stderr)
         return int(RadianceScriptExit.VALIDATION)
@@ -1210,6 +1252,10 @@ def _write_optional_plant_surface_flux_artifact(
     print(f"  distribution: {spectral_distribution.distribution_id}")
     print(f"  source: {spectral_distribution.source}")
     print("  note: band-level absorption uses explicit spectral photon fractions and leaf optics assumptions.")
+    print("FSPM plant photosynthesis-response artifact:")
+    print(f"  • {photosynthesis_path}")
+    print("  method: absorbed_par_non_rectangular_hyperbola_v1")
+    print("  note: photosynthetic response potential is based on absorbed PAR and does not predict crop output.")
     return int(RadianceScriptExit.OK)
 
 

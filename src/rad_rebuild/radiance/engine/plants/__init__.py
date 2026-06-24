@@ -21,6 +21,17 @@ from rad_rebuild.radiance.engine.plants.config import (
     PlantOpticalAssumptions,
 )
 from rad_rebuild.radiance.engine.plants.generator import generate_plant_scene
+from rad_rebuild.radiance.engine.plants.photosynthesis import (
+    PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME,
+    PLANT_PHOTOSYNTHESIS_RESPONSE_METHOD,
+    PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA,
+    PhotosynthesisResponseParameters,
+    build_plant_photosynthesis_response_payload,
+    default_photosynthesis_response_parameters,
+    photosynthetic_gross_rate_umol_co2_m2_s,
+    photosynthetic_net_rate_umol_co2_m2_s,
+    write_plant_photosynthesis_response_artifact,
+)
 from rad_rebuild.radiance.engine.plants.models import (
     LeafGeometry,
     LeafMesh,
@@ -74,6 +85,15 @@ __all__ = [
     "PHOTON_ABSORPTION_METRICS_SCHEMA",
     "PHOTON_ABSORPTION_SCAFFOLD_SCHEMA",
     "PHOTON_ABSORPTION_SCHEMA_VERSION",
+    "PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME",
+    "PLANT_PHOTOSYNTHESIS_RESPONSE_METHOD",
+    "PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA",
+    "PhotosynthesisResponseParameters",
+    "build_plant_photosynthesis_response_payload",
+    "default_photosynthesis_response_parameters",
+    "photosynthetic_gross_rate_umol_co2_m2_s",
+    "photosynthetic_net_rate_umol_co2_m2_s",
+    "write_plant_photosynthesis_response_artifact",
     "PlantArtifactPaths",
     "PlantGeometry",
     "PlantGeometryConfig",

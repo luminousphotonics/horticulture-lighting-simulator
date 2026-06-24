@@ -9,6 +9,10 @@ from fastapi import HTTPException
 from rad_rebuild.radiance.config import MODE_COMPETITOR, MODE_SMD
 from rad_rebuild.radiance.engine.plants.absorption import PHOTON_ABSORPTION_SCAFFOLD_SCHEMA
 from rad_rebuild.radiance.engine.plants.artifacts import PLANT_ABSORPTION_SURFACES_FILENAME
+from rad_rebuild.radiance.engine.plants.photosynthesis import (
+    PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME,
+    PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA,
+)
 from rad_rebuild.radiance.engine.plants.surface_flux import (
     PLANT_SURFACE_FLUX_FILENAME,
     PLANT_SURFACE_FLUX_SCHEMA,
@@ -92,6 +96,7 @@ def _metrics_dependencies(workspace_root: Path | None = None) -> list[Path | Non
         work_root / "runtime_state" / PLANT_ABSORPTION_SURFACES_FILENAME,
         work_root / "runtime_state" / PLANT_SURFACE_FLUX_FILENAME,
         work_root / "runtime_state" / PLANT_SPECTRAL_RESPONSE_FILENAME,
+        work_root / "runtime_state" / PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME,
     ]
 
 
@@ -162,6 +167,57 @@ def _load_plant_surface_flux_summary(workspace_root: Path) -> dict[str, object] 
         "warnings": payload.get("warnings", []),
         "limitations": payload.get("limitations", []),
         "note": note,
+    }
+
+
+
+
+def _load_plant_photosynthesis_response_summary(workspace_root: Path) -> dict[str, object] | None:
+    path = workspace_root / "runtime_state" / PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("schema") != PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA:
+        return None
+
+    return {
+        "schema": payload.get("schema"),
+        "schema_version": payload.get("schema_version"),
+        "status": payload.get("status"),
+        "method": payload.get("method"),
+        "source_artifact": f"runtime_state/{PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME}",
+        "source_spectral_response_method": payload.get("source_spectral_response_method"),
+        "source_spectral_distribution": payload.get("source_spectral_distribution"),
+        "parameters": payload.get("parameters"),
+        "plant_count": payload.get("plant_count"),
+        "leaf_count": payload.get("leaf_count"),
+        "surface_count": payload.get("surface_count"),
+        "total_absorbed_par_photon_flux_umol_s": payload.get("total_absorbed_par_photon_flux_umol_s"),
+        "total_gross_photosynthetic_potential_umol_co2_s": payload.get("total_gross_photosynthetic_potential_umol_co2_s"),
+        "total_clipped_net_photosynthetic_potential_umol_co2_s": payload.get("total_clipped_net_photosynthetic_potential_umol_co2_s"),
+        "daily_clipped_net_photosynthetic_potential_mol_co2": payload.get("daily_clipped_net_photosynthetic_potential_mol_co2"),
+        "mean_leaf_photosynthetic_response_index_0_1": payload.get("mean_leaf_photosynthetic_response_index_0_1"),
+        "plant_to_plant_photosynthetic_response_cv": payload.get("plant_to_plant_photosynthetic_response_cv"),
+        "light_limited_leaf_count": payload.get("light_limited_leaf_count"),
+        "near_saturation_leaf_count": payload.get("near_saturation_leaf_count"),
+        "plant_summaries": payload.get("plant_summaries", []),
+        "leaf_summaries": payload.get("leaf_summaries", []),
+        "visualization": payload.get("visualization"),
+        "outputs_do_not_predict": payload.get(
+            "outputs_do_not_predict",
+            ["yield", "biomass", "growth", "crop_output"],
+        ),
+        "warnings": payload.get("warnings", []),
+        "limitations": payload.get("limitations", []),
+        "note": (
+            "Photosynthesis response artifact present. Values are absorbed-PAR "
+            "response potentials and do not predict crop output."
+        ),
     }
 
 
@@ -329,6 +385,10 @@ def _metrics_payload_for_request(req: RadianceRunRequest, workspace_root: Path) 
     plant_spectral_response = _load_plant_spectral_response_summary(workspace_root)
     if plant_spectral_response is not None:
         metrics["plant_spectral_response"] = plant_spectral_response
+
+    plant_photosynthesis_response = _load_plant_photosynthesis_response_summary(workspace_root)
+    if plant_photosynthesis_response is not None:
+        metrics["plant_photosynthesis_response"] = plant_photosynthesis_response
 
     cost_estimate = None
     try:
