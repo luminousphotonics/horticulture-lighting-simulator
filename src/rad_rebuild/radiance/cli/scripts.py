@@ -44,8 +44,11 @@ from rad_rebuild.radiance.engine.plants.config import (
 )
 from rad_rebuild.radiance.engine.plants.generator import generate_plant_scene
 from rad_rebuild.radiance.engine.plants.surface_flux import (
-    SPATIAL_PPFD_PROXY_METHOD,
-    write_spatial_proxy_plant_surface_flux_artifact,
+    RADIANCE_RECEIVER_METHOD,
+    build_radiance_receiver_samples,
+    parse_rtrace_receiver_output,
+    receiver_sample_input_text,
+    write_radiance_receiver_plant_surface_flux_artifact,
 )
 from rad_rebuild.radiance.engine.simulation.basis_backends import canonicalize_basis_backend
 from rad_rebuild.radiance.paths import REPO_ROOT
@@ -983,26 +986,153 @@ def _print_optional_plant_artifact_note(plant_artifacts: PlantArtifactPaths | No
     print("  note: excluded from baseline PPFD octree; used by viewer/absorption scaffold.")
 
 
+
+def _trace_plant_surface_receivers(
+    config: RuntimeConfig,
+    *,
+    receiver_input_path: Path,
+    receiver_rgb_path: Path,
+    octree: Path,
+    options: Sequence[str],
+    nthreads: int,
+) -> int:
+    if not octree.is_file():
+        print(f"ERROR: plant receiver octree not found at {octree}", file=sys.stderr)
+        return int(RadianceScriptExit.VALIDATION)
+
+    rtrace_bin = shutil.which("rtrace")
+    if rtrace_bin is None:
+        _print_event(
+            ScriptEvent(
+                "error",
+                "command.missing",
+                "required command not found",
+                {"command": "rtrace"},
+            )
+        )
+        return int(RadianceScriptExit.VALIDATION)
+
+    _print_event(
+        ScriptEvent(
+            "info",
+            "radiance.plant_receivers",
+            "tracing plant surface receivers",
+            {"octree": str(octree), "receivers": str(receiver_input_path)},
+        )
+    )
+
+    try:
+        with receiver_input_path.open("r", encoding="utf-8") as stdin_handle, receiver_rgb_path.open(
+            "w",
+            encoding="utf-8",
+        ) as stdout_handle:
+            result = subprocess.run(  # nosec B603
+                [rtrace_bin, "-h", "-I+", "-n", str(nthreads), *options, str(octree)],
+                cwd=config.repo_root,
+                env=dict(config.env),
+                stdin=stdin_handle,
+                stdout=stdout_handle,
+                check=False,
+            )
+    except FileNotFoundError:
+        _print_event(
+            ScriptEvent(
+                "error",
+                "command.missing",
+                "required command not found",
+                {"command": "rtrace"},
+            )
+        )
+        return int(RadianceScriptExit.VALIDATION)
+
+    if result.returncode != 0:
+        propagated = _propagated_return_code(result.returncode)
+        _print_event(
+            ScriptEvent(
+                "error",
+                "command.failed",
+                "plant receiver rtrace failed",
+                {
+                    "command": "rtrace",
+                    "exit_code": result.returncode,
+                    "propagated_exit_code": propagated,
+                },
+            )
+        )
+        return propagated
+
+    _print_event(
+        ScriptEvent(
+            "info",
+            "command.succeeded",
+            "plant receiver rtrace succeeded",
+            {
+                "command": "rtrace",
+                "stdout": str(receiver_rgb_path),
+                "exit_code": 0,
+            },
+        )
+    )
+    return int(RadianceScriptExit.OK)
+
+
 def _write_optional_plant_surface_flux_artifact(
     config: RuntimeConfig,
     plant_artifacts: PlantArtifactPaths | None,
     ppfd_map: Path,
-) -> Path | None:
+    *,
+    octree: Path,
+    mode: str,
+    nthreads: int,
+    receiver_scale_multiplier: float = 1.0,
+) -> int:
     if plant_artifacts is None:
-        return None
+        return int(RadianceScriptExit.OK)
+
     plant_config = _fspm_plant_config_from_env(config.env)
     scene = generate_plant_scene(plant_config)
-    path = write_spatial_proxy_plant_surface_flux_artifact(
-        config.runtime_state_root,
-        scene,
-        ppfd_map_path=ppfd_map,
-        source_ppfd_map=ppfd_map.name,
+    samples = build_radiance_receiver_samples(scene, two_sided=True)
+
+    receiver_input = config.cache_root / f"plant_surface_receivers_{os.getpid()}_{secrets.token_hex(6)}.pts"
+    receiver_rgb = config.cache_root / f"plant_surface_receivers_{os.getpid()}_{secrets.token_hex(6)}.rgb"
+    receiver_input.write_text(receiver_sample_input_text(samples), encoding="utf-8")
+
+    trace_exit = _trace_plant_surface_receivers(
+        config,
+        receiver_input_path=receiver_input,
+        receiver_rgb_path=receiver_rgb,
+        octree=octree,
+        options=_radiance_options(
+            mode,
+            _fresh_ambient_cache(config, "amb_plant_receivers"),
+        ),
+        nthreads=nthreads,
     )
+    if trace_exit != 0:
+        return trace_exit
+
+    try:
+        receiver_densities = parse_rtrace_receiver_output(receiver_rgb.read_text(encoding="utf-8"))
+        path = write_radiance_receiver_plant_surface_flux_artifact(
+            config.runtime_state_root,
+            scene,
+            samples,
+            receiver_densities,
+            receiver_scale_multiplier=receiver_scale_multiplier,
+            source_octree=str(octree),
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"ERROR: failed to write FSPM plant receiver surface flux: {exc}", file=sys.stderr)
+        return int(RadianceScriptExit.VALIDATION)
+    finally:
+        receiver_input.unlink(missing_ok=True)
+        receiver_rgb.unlink(missing_ok=True)
+
     print("FSPM plant surface-flux artifact:")
     print(f"  • {path}")
-    print(f"  method: {SPATIAL_PPFD_PROXY_METHOD}")
-    print("  note: proxy values spatially sample the unblocked baseline PPFD field and do not alter heatmap uniformity.")
-    return path
+    print(f"  method: {RADIANCE_RECEIVER_METHOD}")
+    print("  note: Radiance receiver sampling uses leaf surface centroids/normals and does not alter heatmap uniformity.")
+    return int(RadianceScriptExit.OK)
 
 
 def _octree_scene_inputs(
@@ -1551,7 +1681,16 @@ def run_simulation_smd(raw_env: Mapping[str, str] | None = None) -> int:
         return sym_exit
     if _bool_env(config.env, "LOG_CAP_METRICS", "1"):
         _print_cap_metrics(config, cap=config.env.get("SETPOINT_PPFD") or config.env.get("TARGET_PPFD", ""), watts=None, emitted_ppf=None)
-    _write_optional_plant_surface_flux_artifact(config, plant_artifacts, ppfd_map)
+    surface_flux_exit = _write_optional_plant_surface_flux_artifact(
+        config,
+        plant_artifacts,
+        ppfd_map,
+        octree=octree,
+        mode=mode,
+        nthreads=nthreads,
+    )
+    if surface_flux_exit != 0:
+        return surface_flux_exit
     return int(RadianceScriptExit.OK)
 
 
@@ -1726,7 +1865,16 @@ def run_simulation_hps(raw_env: Mapping[str, str] | None = None) -> int:
     )
     if _bool_env(config.env, "LOG_CAP_METRICS", "1"):
         _print_cap_metrics(config, cap=config.env.get("SETPOINT_PPFD") or target, watts=total_watts, emitted_ppf=total_ppf)
-    _write_optional_plant_surface_flux_artifact(config, plant_artifacts, ppfd_map)
+    surface_flux_exit = _write_optional_plant_surface_flux_artifact(
+        config,
+        plant_artifacts,
+        ppfd_map,
+        octree=octree,
+        mode=mode,
+        nthreads=nthreads,
+    )
+    if surface_flux_exit != 0:
+        return surface_flux_exit
     return int(RadianceScriptExit.OK)
 
 
@@ -1922,6 +2070,7 @@ def run_simulation_spydr3(raw_env: Mapping[str, str] | None = None) -> int:
     print(f"Pass 1 mean PPFD: {mean1:.6f}")
     print(f"Pass 1 peak PPFD: {peak1:.6f}")
     final_eff = eff_scale
+    receiver_scale_multiplier = 1.0
     if _bool_env(config.env, "AUTO_DIM") and target:
         reference = peak1 if config.env["AUTO_DIM_TARGET"] == "peak" else mean1
         label = "peak-cap" if config.env["AUTO_DIM_TARGET"] == "peak" else "mean-target"
@@ -1933,6 +2082,7 @@ def run_simulation_spydr3(raw_env: Mapping[str, str] | None = None) -> int:
             if abs(final_eff - eff_scale) > 1e-9:
                 if config.env["AUTO_DIM_MODE"] == "scale" and eff_scale > 0:
                     scale_multiplier = final_eff / eff_scale
+                    receiver_scale_multiplier = scale_multiplier
                     print(f"Scale-only {label}: multiplier={scale_multiplier:.8f} (no second Radiance pass)")
                     _scale_ppfd_map(pass1, ppfd_map, scale_multiplier)
                     print(f"Scaled mean PPFD: {_ppfd_mean(ppfd_map):.6f}")
@@ -2008,7 +2158,17 @@ def run_simulation_spydr3(raw_env: Mapping[str, str] | None = None) -> int:
     )
     if _bool_env(config.env, "LOG_CAP_METRICS", "1"):
         _print_cap_metrics(config, cap=config.env.get("SETPOINT_PPFD") or target, watts=total_watts, emitted_ppf=total_ppf)
-    _write_optional_plant_surface_flux_artifact(config, plant_artifacts, ppfd_map)
+    surface_flux_exit = _write_optional_plant_surface_flux_artifact(
+        config,
+        plant_artifacts,
+        ppfd_map,
+        octree=config.cache_root / "spydr_scene.oct",
+        mode=mode,
+        nthreads=nthreads,
+        receiver_scale_multiplier=receiver_scale_multiplier,
+    )
+    if surface_flux_exit != 0:
+        return surface_flux_exit
     print("Done.")
     return int(RadianceScriptExit.OK)
 

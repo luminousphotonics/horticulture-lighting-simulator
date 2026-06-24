@@ -12,6 +12,7 @@ from rad_rebuild.radiance.engine.plants.artifacts import PLANT_ABSORPTION_SURFAC
 from rad_rebuild.radiance.engine.plants.surface_flux import (
     PLANT_SURFACE_FLUX_FILENAME,
     PLANT_SURFACE_FLUX_SCHEMA,
+    RADIANCE_RECEIVER_METHOD,
 )
 
 from .artifacts import BACKEND_SERVER_FILE, _cache_fresh, _layout_file_for_mode
@@ -116,11 +117,23 @@ def _load_plant_surface_flux_summary(workspace_root: Path) -> dict[str, object] 
     if payload.get("schema") != PLANT_SURFACE_FLUX_SCHEMA:
         return _plant_absorption_unavailable("unsupported_surface_flux_schema")
 
+    method = payload.get("method")
+    status = payload.get("status", "proxy")
+    note = (
+        "Radiance receiver sampling present. Values are sampled at leaf surface "
+        "centroids/normals against the unblocked baseline lighting field."
+        if status == "computed" and method == RADIANCE_RECEIVER_METHOD
+        else (
+            "Surface flux artifact present. Current values are proxy values until "
+            "the Radiance per-surface receiver method is reviewed."
+        )
+    )
+
     return {
         "schema": payload.get("schema"),
         "schema_version": payload.get("schema_version"),
-        "status": payload.get("status", "proxy"),
-        "method": payload.get("method"),
+        "status": status,
+        "method": method,
         "source_artifact": f"runtime_state/{PLANT_SURFACE_FLUX_FILENAME}",
         "source_ppfd_map": payload.get("source_ppfd_map"),
         "plant_count": payload.get("plant_count"),
@@ -143,10 +156,7 @@ def _load_plant_surface_flux_summary(workspace_root: Path) -> dict[str, object] 
         ),
         "warnings": payload.get("warnings", []),
         "limitations": payload.get("limitations", []),
-        "note": (
-            "Surface flux artifact present. Current values are proxy values until "
-            "the Radiance per-surface receiver method is reviewed."
-        ),
+        "note": note,
     }
 
 

@@ -12,11 +12,17 @@ from rad_rebuild.radiance.engine.plants import PlantGeometryConfig, generate_pla
 from rad_rebuild.radiance.engine.plants.surface_flux import (  # noqa: E402
     BASELINE_PPFD_PROXY_METHOD,
     SPATIAL_PPFD_PROXY_METHOD,
+    RADIANCE_RECEIVER_METHOD,
     PLANT_SURFACE_FLUX_SCHEMA,
     build_baseline_proxy_surface_flux_rows,
+    build_radiance_receiver_samples,
+    build_radiance_receiver_surface_flux_rows,
     build_spatial_proxy_surface_flux_rows,
     build_plant_surface_flux_payload,
+    parse_rtrace_receiver_output,
     read_ppfd_map_field,
+    receiver_sample_input_text,
+    write_radiance_receiver_plant_surface_flux_artifact,
     write_baseline_proxy_plant_surface_flux_artifact,
     write_spatial_proxy_plant_surface_flux_artifact,
 )
@@ -197,3 +203,53 @@ def test_spatial_proxy_artifact_export_is_deterministic(tmp_path) -> None:
 
     assert first_path == second_path
     assert first == second
+
+
+def test_radiance_receiver_samples_are_two_sided_and_traceable() -> None:
+    scene = _scene()
+    samples = build_radiance_receiver_samples(scene, two_sided=True)
+
+    surface_ids = {sample["surface_id"] for sample in samples}
+
+    assert len(samples) == len(surface_ids) * 2
+    assert {sample["side"] for sample in samples} == {"front", "back"}
+    assert receiver_sample_input_text(samples).count("\n") == len(samples)
+
+
+def test_receiver_output_parser_uses_rgb_mean_density() -> None:
+    values = parse_rtrace_receiver_output("1 2 3\n4 5 6\n")
+
+    assert values == pytest.approx([2.0, 5.0])
+
+
+def test_radiance_receiver_surface_flux_rows_sum_two_sided_density() -> None:
+    scene = _scene()
+    samples = build_radiance_receiver_samples(scene, two_sided=True)
+    densities = [100.0 if sample["side"] == "front" else 25.0 for sample in samples]
+
+    rows = build_radiance_receiver_surface_flux_rows(scene, samples, densities)
+
+    assert len(rows) * 2 == len(samples)
+    assert all(row["receiver_sample_count"] == 2 for row in rows)
+    assert all(set(row["receiver_sides"]) == {"front", "back"} for row in rows)
+    assert all(row["incident_photon_flux_density_umol_m2_s"] == pytest.approx(125.0) for row in rows)
+
+
+def test_radiance_receiver_surface_flux_payload_is_computed(tmp_path) -> None:
+    scene = _scene()
+    samples = build_radiance_receiver_samples(scene, two_sided=True)
+    densities = [100.0 if sample["side"] == "front" else 25.0 for sample in samples]
+
+    path = write_radiance_receiver_plant_surface_flux_artifact(
+        tmp_path,
+        scene,
+        samples,
+        densities,
+        source_octree="test.oct",
+    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert payload["status"] == "computed"
+    assert payload["method"] == RADIANCE_RECEIVER_METHOD
+    assert payload["ppfd_field_summary"]["two_sided"] is True
+    assert payload["total_absorbed_photon_flux_umol_s"] > 0

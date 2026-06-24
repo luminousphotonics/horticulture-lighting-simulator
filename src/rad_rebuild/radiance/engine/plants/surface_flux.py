@@ -29,6 +29,7 @@ PLANT_SURFACE_FLUX_SCHEMA_VERSION = 1
 PLANT_SURFACE_FLUX_FILENAME = "plant_surface_flux.json"
 BASELINE_PPFD_PROXY_METHOD = "baseline_ppfd_mean_orientation_proxy_v1"
 SPATIAL_PPFD_PROXY_METHOD = "baseline_ppfd_spatial_interpolation_orientation_proxy_v1"
+RADIANCE_RECEIVER_METHOD = "radiance_leaf_surface_receiver_sampling_v1"
 NO_CROP_OUTPUT_TERMS = ["yield", "biomass", "growth", "crop_output"]
 
 
@@ -292,6 +293,197 @@ def build_baseline_proxy_surface_flux_rows(
         )
     return rows
 
+
+
+def build_radiance_receiver_samples(
+    scene: PlantScene,
+    *,
+    two_sided: bool = True,
+    offset_m: float = 0.0005,
+) -> list[dict[str, Any]]:
+    """Build rtrace -I+ receiver samples at deterministic plant surface centroids.
+
+    Plant geometry remains excluded from the lighting octree. These samples read
+    the unblocked lighting field at leaf-face centroids and normals.
+    """
+
+    if offset_m < 0.0 or not math.isfinite(offset_m):
+        raise ValueError("offset_m must be finite and non-negative.")
+
+    geometry = _surface_geometry_by_id(scene)
+    samples: list[dict[str, Any]] = []
+
+    for surface_id in sorted(geometry):
+        item = geometry[surface_id]
+        surface = item["surface"]
+        if not isinstance(surface, LeafAbsorptionSurface):
+            raise ValueError(f"Invalid surface registry entry for {surface_id}.")
+        centroid = item["centroid_m"]
+        normal = item["normal"]
+
+        directions: list[tuple[str, Vector3]] = [("front", normal)]
+        if two_sided:
+            directions.append(("back", (-normal[0], -normal[1], -normal[2])))
+
+        for side, direction in directions:
+            origin = (
+                centroid[0] + direction[0] * offset_m,
+                centroid[1] + direction[1] * offset_m,
+                centroid[2] + direction[2] * offset_m,
+            )
+            samples.append(
+                {
+                    "sample_id": f"{surface_id}_{side}",
+                    "surface_id": surface.surface_id,
+                    "plant_id": surface.plant_id,
+                    "leaf_id": surface.leaf_id,
+                    "leaf_index": surface.leaf_index,
+                    "face_index": surface.face_index,
+                    "side": side,
+                    "origin_m": [float(value) for value in origin],
+                    "direction": [float(value) for value in direction],
+                    "area_m2": surface.area_m2,
+                }
+            )
+
+    return samples
+
+
+def receiver_sample_input_text(samples: Iterable[Mapping[str, Any]]) -> str:
+    lines: list[str] = []
+    for sample in samples:
+        origin = sample.get("origin_m")
+        direction = sample.get("direction")
+        if not isinstance(origin, list) or len(origin) != 3:
+            raise ValueError("Receiver sample origin_m must contain three values.")
+        if not isinstance(direction, list) or len(direction) != 3:
+            raise ValueError("Receiver sample direction must contain three values.")
+        values = [*origin, *direction]
+        if any(not isinstance(value, int | float) or not math.isfinite(float(value)) for value in values):
+            raise ValueError("Receiver sample input contains a non-finite value.")
+        lines.append(
+            f"{float(origin[0]):.6f} {float(origin[1]):.6f} {float(origin[2]):.6f} "
+            f"{float(direction[0]):.8f} {float(direction[1]):.8f} {float(direction[2]):.8f}\n"
+        )
+    return "".join(lines)
+
+
+def parse_rtrace_receiver_output(text: str) -> list[float]:
+    densities: list[float] = []
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        parts = stripped.split()
+        if len(parts) < 3:
+            raise ValueError(f"Malformed rtrace receiver output row {line_number}: {line!r}")
+        try:
+            channels = [float(parts[-3]), float(parts[-2]), float(parts[-1])]
+        except ValueError as exc:
+            raise ValueError(f"Malformed rtrace receiver output row {line_number}: {line!r}") from exc
+        if any(not math.isfinite(channel) or channel < 0.0 for channel in channels):
+            raise ValueError(f"Invalid rtrace receiver output row {line_number}: {line!r}")
+        densities.append(sum(channels) / 3.0)
+    return densities
+
+
+def build_radiance_receiver_surface_flux_rows(
+    scene: PlantScene,
+    receiver_samples: Iterable[Mapping[str, Any]],
+    receiver_flux_density_umol_m2_s: Iterable[float],
+    *,
+    receiver_scale_multiplier: float = 1.0,
+) -> list[dict[str, Any]]:
+    """Aggregate rtrace receiver samples into surface flux rows."""
+
+    scale = _finite_non_negative("receiver_scale_multiplier", receiver_scale_multiplier)
+    samples = list(receiver_samples)
+    densities = [
+        _finite_non_negative(f"receiver_flux_density_umol_m2_s[{index}]", value)
+        for index, value in enumerate(receiver_flux_density_umol_m2_s)
+    ]
+    if len(samples) != len(densities):
+        raise ValueError(
+            f"Receiver sample count {len(samples)} does not match rtrace output count {len(densities)}."
+        )
+
+    geometry = _surface_geometry_by_id(scene)
+    expected_ids = set(geometry)
+    grouped: dict[str, list[tuple[Mapping[str, Any], float]]] = {}
+
+    for sample, density in zip(samples, densities, strict=True):
+        surface_id = sample.get("surface_id")
+        if not isinstance(surface_id, str) or surface_id not in expected_ids:
+            raise ValueError(f"Unknown receiver sample surface_id: {surface_id!r}.")
+        grouped.setdefault(surface_id, []).append((sample, density * scale))
+
+    missing = sorted(expected_ids - set(grouped))
+    if missing:
+        raise ValueError(f"Missing receiver samples for {len(missing)} plant surfaces.")
+
+    rows: list[dict[str, Any]] = []
+    for surface_id in sorted(grouped):
+        item = geometry[surface_id]
+        surface = item["surface"]
+        if not isinstance(surface, LeafAbsorptionSurface):
+            raise ValueError(f"Invalid surface registry entry for {surface_id}.")
+        sample_items = grouped[surface_id]
+        incident_density = sum(density for _sample, density in sample_items)
+        centroid = item["centroid_m"]
+        normal = item["normal"]
+        rows.append(
+            {
+                "surface_id": surface.surface_id,
+                "plant_id": surface.plant_id,
+                "leaf_id": surface.leaf_id,
+                "leaf_index": surface.leaf_index,
+                "face_index": surface.face_index,
+                "area_m2": surface.area_m2,
+                "centroid_m": [float(value) for value in centroid],
+                "normal": [float(value) for value in normal],
+                "receiver_sample_count": len(sample_items),
+                "receiver_sides": [
+                    str(sample.get("side") or "unknown")
+                    for sample, _density in sample_items
+                ],
+                "incident_photon_flux_density_umol_m2_s": incident_density,
+                "incident_photon_flux_umol_s": incident_density * surface.area_m2,
+                "source": "radiance_two_sided_leaf_surface_receiver",
+            }
+        )
+
+    return rows
+
+
+def write_radiance_receiver_plant_surface_flux_artifact(
+    target_dir: str | Path,
+    scene: PlantScene,
+    receiver_samples: Iterable[Mapping[str, Any]],
+    receiver_flux_density_umol_m2_s: Iterable[float],
+    *,
+    receiver_scale_multiplier: float = 1.0,
+    source_octree: str | None = None,
+) -> Path:
+    samples = list(receiver_samples)
+    rows = build_radiance_receiver_surface_flux_rows(
+        scene,
+        samples,
+        receiver_flux_density_umol_m2_s,
+        receiver_scale_multiplier=receiver_scale_multiplier,
+    )
+    payload = build_plant_surface_flux_payload(
+        scene,
+        rows,
+        method=RADIANCE_RECEIVER_METHOD,
+        source_ppfd_map=None,
+        ppfd_field_summary={
+            "receiver_sample_count": len(samples),
+            "two_sided": any(sample.get("side") == "back" for sample in samples),
+            "source_octree": source_octree,
+            "receiver_scale_multiplier": receiver_scale_multiplier,
+        },
+    )
+    return write_plant_surface_flux_artifact(target_dir, payload)
 
 def _surface_rows_by_id(
     scene: PlantScene,

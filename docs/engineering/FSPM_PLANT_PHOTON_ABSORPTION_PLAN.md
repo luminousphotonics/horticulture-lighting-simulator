@@ -706,6 +706,24 @@ Validation:
 - Viewer coloring reads deterministic `leaf_id` values and ignores leaves without matching visualization data.
 
 
+
+### Phase 12 - Radiance Leaf Surface Receiver Sampling
+
+Goal:
+
+- Replace the spatial PPFD interpolation proxy during live runs with Radiance receiver sampling.
+- Generate deterministic receiver samples at every leaf-face centroid.
+- Sample both the face normal and the opposite normal so the current thin-leaf model is treated as a two-sided receiver.
+- Keep plant geometry excluded from the lighting octree so baseline PPFD, DOU, CV, and heatmaps remain unblocked fixture-output metrics.
+- Write the same `plant_surface_flux.json` schema with `method = radiance_leaf_surface_receiver_sampling_v1` and `status = computed`.
+
+Scientific scope:
+
+- This is a Radiance-computed incident photon flux estimate at leaf surface receiver points/normals.
+- Absorbed photon flux is still computed by multiplying incident flux by explicit optical absorptance assumptions.
+- It does not include plant self-shadowing, leaf-to-leaf occlusion, photosynthesis, growth, biomass, or yield prediction.
+
+
 ## Validation Matrix
 
 | Phase | Primary checks | Required commands |
