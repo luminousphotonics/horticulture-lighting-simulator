@@ -140,6 +140,51 @@
               <option value="practical" selected>Practical Coverage</option>
             </select>
           </label>
+          <fieldset id="rad-fspm-fieldset" class="radiance-fieldset radiance-fieldset--span" hidden>
+            <legend>FSPM Plant Geometry</legend>
+            <p class="radiance-fieldset__note">
+              Live Proposed LED System only. Adds deterministic lettuce-style plant geometry and scaffold-only photon absorption metrics.
+            </p>
+            <label class="radiance-field radiance-field--toggle" id="rad-plants-enabled-field">
+              <span>Enable Plants</span>
+              <span class="radiance-toggle">
+                <input id="rad-plants-enabled" type="checkbox" data-fspm-control>
+                <span>Generate deterministic plant geometry for this live run</span>
+              </span>
+            </label>
+            <label class="radiance-field">
+              <span>Plant Seed</span>
+              <input id="rad-plant-seed" type="number" step="1" value="42" data-fspm-control>
+            </label>
+            <label class="radiance-field">
+              <span>Rows</span>
+              <input id="rad-plant-rows" type="number" min="1" max="9" step="1" value="2" data-fspm-control>
+            </label>
+            <label class="radiance-field">
+              <span>Columns</span>
+              <input id="rad-plant-columns" type="number" min="1" max="9" step="1" value="2" data-fspm-control>
+            </label>
+            <label class="radiance-field">
+              <span>Spacing (m)</span>
+              <input id="rad-plant-spacing-m" type="number" min="0.05" max="2" step="0.01" value="0.30" data-fspm-control>
+            </label>
+            <label class="radiance-field">
+              <span>Plant Height (m)</span>
+              <input id="rad-plant-height-m" type="number" min="0.01" max="2" step="0.01" value="0.16" data-fspm-control>
+            </label>
+            <label class="radiance-field">
+              <span>Canopy Radius (m)</span>
+              <input id="rad-plant-canopy-radius-m" type="number" min="0.01" max="2" step="0.01" value="0.18" data-fspm-control>
+            </label>
+            <label class="radiance-field">
+              <span>Leaves / Plant</span>
+              <input id="rad-plant-leaf-count" type="number" min="1" max="48" step="1" value="12" data-fspm-control>
+            </label>
+            <label class="radiance-field">
+              <span>Growth Stage</span>
+              <input id="rad-plant-growth-stage" type="number" min="0.05" max="1" step="0.05" value="1.0" data-fspm-control>
+            </label>
+          </fieldset>
           <label class="radiance-field radiance-field--dimension" id="rad-length-field">
             <span>Length (ft)</span>
             <input id="rad-length" type="number" min="{{ radiance_public_min_ft }}" max="{{ radiance_public_max_ft }}" step="1" value="{{ radiance_default_length_ft }}" required aria-describedby="rad-length-tooltip">

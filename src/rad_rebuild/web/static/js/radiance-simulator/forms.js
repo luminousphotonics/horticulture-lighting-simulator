@@ -53,6 +53,78 @@ export function syncDimensionWarnings() {
   return lengthOk && widthOk;
 }
 
+
+function parseFinite(el, fallback) {
+  const value = Number.parseFloat(el?.value || "");
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function parseInteger(el, fallback) {
+  const value = Number.parseInt(el?.value || "", 10);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function plantsAvailable(mode, executionMode) {
+  return mode === "SMD" && executionMode !== "precomputed";
+}
+
+export function syncFspmControls() {
+  const mode = els.radMode?.value || "";
+  const executionMode = (els.radSimMode?.value || defaultExecutionMode || "precomputed").trim();
+  const fspmAvailable = plantsAvailable(mode, executionMode);
+  const fspmControls = [
+    els.radPlantsEnabled,
+    els.radPlantSeed,
+    els.radPlantRows,
+    els.radPlantColumns,
+    els.radPlantSpacingM,
+    els.radPlantHeightM,
+    els.radPlantCanopyRadiusM,
+    els.radPlantLeafCount,
+    els.radPlantGrowthStage,
+  ].filter(Boolean);
+
+  if (els.radFspmFieldset) {
+    els.radFspmFieldset.hidden = !fspmAvailable;
+  }
+
+  fspmControls.forEach((control) => {
+    control.disabled = !fspmAvailable;
+    control.title = fspmAvailable
+      ? ""
+      : "FSPM plant geometry is available only for live Proposed LED System runs.";
+  });
+
+  if (!fspmAvailable && els.radPlantsEnabled) {
+    els.radPlantsEnabled.checked = false;
+  }
+
+  return fspmAvailable;
+}
+
+function parsePlantPayload(mode, executionMode) {
+  const enabled = Boolean(
+    plantsAvailable(mode, executionMode)
+      && els.radPlantsEnabled
+      && !els.radPlantsEnabled.disabled
+      && els.radPlantsEnabled.checked,
+  );
+  if (!enabled) {
+    return { plantsEnabled: false };
+  }
+  return {
+    plantsEnabled: true,
+    plantSeed: parseInteger(els.radPlantSeed, 42),
+    plantRows: parseInteger(els.radPlantRows, 2),
+    plantColumns: parseInteger(els.radPlantColumns, 2),
+    plantSpacingM: parseFinite(els.radPlantSpacingM, 0.30),
+    plantHeightM: parseFinite(els.radPlantHeightM, 0.16),
+    plantCanopyRadiusM: parseFinite(els.radPlantCanopyRadiusM, 0.18),
+    plantLeafCount: parseInteger(els.radPlantLeafCount, 12),
+    plantGrowthStage: parseFinite(els.radPlantGrowthStage, 1.0),
+  };
+}
+
 export function parsePayload() {
   const dimsOk = syncDimensionWarnings();
   if (!dimsOk) {
@@ -75,6 +147,7 @@ export function parsePayload() {
     target: parsePositive(els.radTarget, 1000),
     peakCappingEnabled: Boolean(els.radPeakCapping && !els.radPeakCapping.disabled && els.radPeakCapping.checked),
     basisBackend,
+    ...parsePlantPayload(mode, executionMode),
   };
 }
 
@@ -86,7 +159,7 @@ export function radiancePayload(action) {
   const hpsMountHeightM = isHps && values.executionMode === "precomputed"
     ? HPS_DEFAULT_MOUNT_Z_M
     : values.mountHeightM;
-  return {
+  const payload = {
     action,
     mode: values.mode,
     execution_mode: values.executionMode,
@@ -115,7 +188,21 @@ export function radiancePayload(action) {
     hps_fixture_ppf: hpsDefaults.fixturePpf,
     hps_input_watts: hpsDefaults.inputWatts,
     hps_ies_variant: "karma",
+    plants_enabled: values.plantsEnabled,
   };
+  if (values.plantsEnabled) {
+    Object.assign(payload, {
+      plant_seed: values.plantSeed,
+      plant_rows: values.plantRows,
+      plant_columns: values.plantColumns,
+      plant_spacing_m: values.plantSpacingM,
+      plant_height_m: values.plantHeightM,
+      plant_canopy_radius_m: values.plantCanopyRadiusM,
+      plant_leaf_count: values.plantLeafCount,
+      plant_growth_stage: values.plantGrowthStage,
+    });
+  }
+  return payload;
 }
 
 export function runKeyForPayload(payload) {
@@ -132,6 +219,15 @@ export function runKeyForPayload(payload) {
     hpsVariant: payload.hpsVariant,
     competitorLayout: payload.competitorLayout,
     basisBackend: payload.basisBackend,
+    plantsEnabled: payload.plantsEnabled,
+    plantSeed: payload.plantSeed,
+    plantRows: payload.plantRows,
+    plantColumns: payload.plantColumns,
+    plantSpacingM: payload.plantSpacingM,
+    plantHeightM: payload.plantHeightM,
+    plantCanopyRadiusM: payload.plantCanopyRadiusM,
+    plantLeafCount: payload.plantLeafCount,
+    plantGrowthStage: payload.plantGrowthStage,
   });
 }
 
@@ -163,6 +259,7 @@ export function syncModeControls({ resetMountHeight = false } = {}) {
   const isHps = els.radMode?.value === "1000W HPS";
   const isCompetitor = els.radMode?.value === "Competitor";
   const isDimmableLed = isOurSystem || isCompetitor;
+  syncFspmControls();
   syncMountHeightForMode({ resetToDefault: resetMountHeight });
   const activeMountHeightM = Number.parseFloat(els.radMountHeight?.value || `${defaultMountHeightForMode(els.radMode?.value)}`);
   const activeMountHeightLabel = formatMountHeightLabel(activeMountHeightM);

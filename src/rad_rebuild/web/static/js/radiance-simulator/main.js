@@ -13,6 +13,7 @@ import { openAssemblyViewer } from "./assembly.js";
 import {
   invalidateRenderedRunState,
   syncDimensionWarnings,
+  syncFspmControls,
   syncModeControls,
 } from "./forms.js";
 import { runRadiance } from "./jobs.js";
@@ -58,6 +59,8 @@ async function boot() {
   if (els.radPeakCapping) {
     els.radPeakCapping.checked = false;
   }
+  syncModeControls();
+  syncFspmControls();
   await ensureBackend();
   syncPpfdCsvButtonState();
   if (appState.backendUrl) {
@@ -126,6 +129,15 @@ export function initRadianceSimulator() {
       invalidateRenderedRunAndSyncActions();
     });
   }
+  document.querySelectorAll("[data-fspm-control]").forEach((control) => {
+    control.addEventListener("input", () => {
+      invalidateRenderedRunAndSyncActions();
+    });
+    control.addEventListener("change", () => {
+      syncModeControls();
+      invalidateRenderedRunAndSyncActions();
+    });
+  });
   if (els.btnRadExplainMetrics) {
     els.btnRadExplainMetrics.addEventListener("click", openMetricsGuide);
   }
@@ -139,15 +151,21 @@ export function initRadianceSimulator() {
   if (els.radSimMode) {
     els.radSimMode.addEventListener("change", async () => {
       const selectedExecutionMode = els.radSimMode.value;
+      syncModeControls();
+      syncFspmControls();
+      invalidateRenderedRunAndSyncActions();
+
       const ready = await ensureLiveRuntimeReady({ executionMode: selectedExecutionMode });
+      syncModeControls();
+      syncFspmControls();
+      invalidateRenderedRunAndSyncActions();
+
       if (!ready) {
-        invalidateRenderedRunAndSyncActions();
         await refreshRadianceImages(false);
         clearRenderedOutputs();
         return;
       }
-      syncModeControls();
-      invalidateRenderedRunAndSyncActions();
+
       await refreshRadianceImages(false);
       clearRenderedOutputs();
       const selectedMode = els.radSimMode?.selectedOptions?.[0]?.textContent || "Precomputed";

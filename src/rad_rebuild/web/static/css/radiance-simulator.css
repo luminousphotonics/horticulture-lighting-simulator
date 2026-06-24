@@ -1336,3 +1336,42 @@ html[data-theme="dark"] {
         height: 260px;
     }
 }
+
+.radiance-fieldset {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.95rem;
+    margin: 0;
+    padding: 1rem;
+    border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--radiance-panel-border));
+    border-radius: 20px;
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent 68%),
+        color-mix(in srgb, var(--surface) 90%, transparent);
+}
+
+.radiance-fieldset[hidden] {
+    display: none;
+}
+
+.radiance-fieldset legend {
+    padding: 0 0.35rem;
+    color: var(--heading);
+    font-family: var(--ff-heading);
+    font-weight: 700;
+}
+
+.radiance-fieldset__note {
+    grid-column: 1 / -1;
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+    .radiance-fieldset {
+        grid-template-columns: 1fr;
+    }
+}

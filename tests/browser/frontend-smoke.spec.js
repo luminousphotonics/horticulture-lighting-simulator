@@ -372,6 +372,73 @@ test("live mode selection explains unsupported public lighting systems", async (
 });
 
 
+
+test("live SMD FSPM controls feed plant fields through payload and artifact params", async ({ page }) => {
+  await page.addInitScript((key) => {
+    window.localStorage.setItem(key, "dismissed");
+  }, DEMO_GUIDE_STORAGE_KEY);
+
+  await routeLiveSimulatorPage(page);
+  await routeBasicRadianceBackend(page, () => runtimeStatus());
+
+  await page.goto("/radiance-simulator");
+
+  await expect(page.locator("#rad-fspm-fieldset")).toBeHidden();
+
+  await page.evaluate(async () => {
+    const forms = await import("/static/js/radiance-simulator/forms.js");
+    const mode = document.querySelector("#rad-mode");
+    const simMode = document.querySelector("#rad-sim-mode");
+    if (!(mode instanceof HTMLSelectElement) || !(simMode instanceof HTMLSelectElement)) {
+      throw new Error("Expected simulator controls were not found.");
+    }
+    mode.value = "SMD";
+    simMode.value = "live_local";
+    forms.syncFspmControls();
+  });
+
+  await expect(page.locator("#rad-sim-mode")).toHaveValue("live_local");
+  await expect(page.locator("#rad-fspm-fieldset")).toBeVisible();
+  await expect(page.locator("#rad-plants-enabled")).toBeEnabled();
+
+  await page.locator("#rad-plants-enabled").setChecked(true);
+  await page.locator("#rad-plant-seed").fill("77");
+  await page.locator("#rad-plant-rows").fill("1");
+  await page.locator("#rad-plant-columns").fill("2");
+  await page.locator("#rad-plant-leaf-count").fill("5");
+  await page.locator("#rad-plant-spacing-m").fill("0.34");
+
+  const result = await page.evaluate(async () => {
+    const forms = await import("/static/js/radiance-simulator/forms.js");
+    const artifacts = await import("/static/js/radiance-simulator/artifacts.js");
+    const parsed = forms.parsePayload();
+    const runPayload = forms.radiancePayload("all");
+    const artifactParams = artifacts.artifactQueryParams(parsed).toString();
+    return { parsed, runPayload, artifactParams };
+  });
+
+  expect(result.parsed.plantsEnabled).toBe(true);
+  expect(result.parsed.plantSeed).toBe(77);
+  expect(result.parsed.plantRows).toBe(1);
+  expect(result.parsed.plantColumns).toBe(2);
+  expect(result.parsed.plantLeafCount).toBe(5);
+  expect(result.parsed.plantSpacingM).toBe(0.34);
+
+  expect(result.runPayload.plants_enabled).toBe(true);
+  expect(result.runPayload.plant_seed).toBe(77);
+  expect(result.runPayload.plant_rows).toBe(1);
+  expect(result.runPayload.plant_columns).toBe(2);
+  expect(result.runPayload.plant_leaf_count).toBe(5);
+  expect(result.runPayload.plant_spacing_m).toBe(0.34);
+
+  expect(result.artifactParams).toContain("plants_enabled=true");
+  expect(result.artifactParams).toContain("plant_seed=77");
+  expect(result.artifactParams).toContain("plant_rows=1");
+  expect(result.artifactParams).toContain("plant_columns=2");
+  expect(result.artifactParams).toContain("plant_leaf_count=5");
+  expect(result.artifactParams).toContain("plant_spacing_m=0.34");
+});
+
 test("metrics panel formats plant absorption scaffold without object dumps", async ({ page }) => {
   await routeLiveSimulatorPage(page);
   await page.route("**/radiance-api/health**", async (route) => {

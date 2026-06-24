@@ -636,6 +636,7 @@ Validation:
 
 Implementation notes:
 
+- Add live-only simulator controls for SMD FSPM plant geometry. The controls remain hidden for precomputed playback and non-SMD modes, and send plant request fields through live run payloads and artifact/metrics query params.
 - Format the scaffold-only `plant_photon_absorption` block in the browser metrics panel so users see plant/leaf/surface counts, one-sided leaf area, optical assumptions, and a clear `absorbed_flux: not computed` note instead of a raw object dump.
 
 ## Validation Matrix

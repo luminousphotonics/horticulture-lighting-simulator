@@ -110,6 +110,16 @@ export const appState = {
  * @property {HTMLElement} radTargetField
  * @property {HTMLElement} radPeakCappingField
  * @property {HTMLInputElement} radPeakCapping
+ * @property {HTMLFieldSetElement} radFspmFieldset
+ * @property {HTMLInputElement} radPlantsEnabled
+ * @property {HTMLInputElement} radPlantSeed
+ * @property {HTMLInputElement} radPlantRows
+ * @property {HTMLInputElement} radPlantColumns
+ * @property {HTMLInputElement} radPlantSpacingM
+ * @property {HTMLInputElement} radPlantHeightM
+ * @property {HTMLInputElement} radPlantCanopyRadiusM
+ * @property {HTMLInputElement} radPlantLeafCount
+ * @property {HTMLInputElement} radPlantGrowthStage
  * @property {HTMLElement} radVisualNote
  * @property {HTMLImageElement} radImgOverlay
  * @property {HTMLImageElement} radImgAnnot
@@ -214,6 +224,16 @@ export const els = /** @type {Els} */ ({
   radTargetField: byId("rad-target-field"),
   radPeakCappingField: byId("rad-peak-capping-field"),
   radPeakCapping: byId("rad-peak-capping"),
+  radFspmFieldset: byId("rad-fspm-fieldset"),
+  radPlantsEnabled: byId("rad-plants-enabled"),
+  radPlantSeed: byId("rad-plant-seed"),
+  radPlantRows: byId("rad-plant-rows"),
+  radPlantColumns: byId("rad-plant-columns"),
+  radPlantSpacingM: byId("rad-plant-spacing-m"),
+  radPlantHeightM: byId("rad-plant-height-m"),
+  radPlantCanopyRadiusM: byId("rad-plant-canopy-radius-m"),
+  radPlantLeafCount: byId("rad-plant-leaf-count"),
+  radPlantGrowthStage: byId("rad-plant-growth-stage"),
   radVisualNote: byId("rad-visual-note"),
   radImgOverlay: byId("rad-img-overlay"),
   radImgAnnot: byId("rad-img-annot"),
