@@ -749,6 +749,33 @@ Next handoff:
 
 - Phase 14 should combine `plant_surface_flux.json` with spectral photon distributions to produce plant/leaf/surface absorbed photon flux by spectral band.
 
+
+### Phase 14 - Plant Spectral Response Artifact
+
+Goal:
+
+- Connect `plant_surface_flux.json` to the spectral leaf-optics contract from Phase 13.
+- Convert Radiance-computed total receiver flux into band-level incident, absorbed, reflected, and transmitted photon flux.
+- Write `plant_spectral_response.json` under runtime state.
+- Aggregate spectral absorption at surface, leaf, and plant levels.
+- Expose response-input fields for PAR absorption, blue absorption, red/far-red absorption ratio, far-red transmission, and absorbed blue/PAR fraction.
+- Keep this phase as spectral-response inputs only; no photosynthesis, photomorphogenesis, growth, biomass, or yield prediction yet.
+
+Status:
+
+- In progress.
+
+Scientific scope:
+
+- The artifact uses Radiance receiver flux as the physical incident flux input.
+- Spectral allocation comes from explicit fixture spectral photon fractions.
+- Leaf absorption comes from explicit reflectance/transmittance/absorptance assumptions by wavelength band.
+- Default fixture spectral distributions are development defaults until replaced by measured SPD-derived fractions.
+
+Next handoff:
+
+- Phase 15 should consume `plant_spectral_response.json` and produce photosynthetic response potential metrics.
+
 ## Validation Matrix
 
 | Phase | Primary checks | Required commands |

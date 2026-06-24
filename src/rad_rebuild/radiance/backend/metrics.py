@@ -14,6 +14,10 @@ from rad_rebuild.radiance.engine.plants.surface_flux import (
     PLANT_SURFACE_FLUX_SCHEMA,
     RADIANCE_RECEIVER_METHOD,
 )
+from rad_rebuild.radiance.engine.plants.spectral import (
+    PLANT_SPECTRAL_RESPONSE_FILENAME,
+    PLANT_SPECTRAL_RESPONSE_SCHEMA,
+)
 
 from .artifacts import BACKEND_SERVER_FILE, _cache_fresh, _layout_file_for_mode
 from .costs import build_cost_estimate
@@ -87,6 +91,7 @@ def _metrics_dependencies(workspace_root: Path | None = None) -> list[Path | Non
         work_root / "runtime_state" / "last_run.json",
         work_root / "runtime_state" / PLANT_ABSORPTION_SURFACES_FILENAME,
         work_root / "runtime_state" / PLANT_SURFACE_FLUX_FILENAME,
+        work_root / "runtime_state" / PLANT_SPECTRAL_RESPONSE_FILENAME,
     ]
 
 
@@ -158,6 +163,52 @@ def _load_plant_surface_flux_summary(workspace_root: Path) -> dict[str, object] 
         "limitations": payload.get("limitations", []),
         "note": note,
     }
+
+
+
+def _load_plant_spectral_response_summary(workspace_root: Path) -> dict[str, object] | None:
+    path = workspace_root / "runtime_state" / PLANT_SPECTRAL_RESPONSE_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("schema") != PLANT_SPECTRAL_RESPONSE_SCHEMA:
+        return None
+
+    return {
+        "schema": payload.get("schema"),
+        "schema_version": payload.get("schema_version"),
+        "status": payload.get("status"),
+        "method": payload.get("method"),
+        "source_artifact": f"runtime_state/{PLANT_SPECTRAL_RESPONSE_FILENAME}",
+        "source_surface_flux_method": payload.get("source_surface_flux_method"),
+        "spectral_distribution": payload.get("spectral_distribution"),
+        "plant_count": payload.get("plant_count"),
+        "leaf_count": payload.get("leaf_count"),
+        "surface_count": payload.get("surface_count"),
+        "total_absorbed_photon_flux_umol_s": payload.get("total_absorbed_photon_flux_umol_s"),
+        "total_absorbed_par_photon_flux_umol_s": payload.get("total_absorbed_par_photon_flux_umol_s"),
+        "band_totals": payload.get("band_totals"),
+        "plant_summaries": payload.get("plant_summaries", []),
+        "leaf_summaries": payload.get("leaf_summaries", []),
+        "visualization": payload.get("visualization"),
+        "outputs_do_not_predict": payload.get(
+            "outputs_do_not_predict",
+            ["yield", "biomass", "growth", "crop_output"],
+        ),
+        "warnings": payload.get("warnings", []),
+        "limitations": payload.get("limitations", []),
+        "note": (
+            "Spectral response artifact present. Values split Radiance receiver "
+            "flux into band-level absorbed photon estimates using explicit "
+            "spectral photon fractions and leaf optical assumptions."
+        ),
+    }
+
 
 
 def _load_plant_photon_absorption_scaffold(workspace_root: Path) -> dict[str, object] | None:
@@ -274,6 +325,10 @@ def _metrics_payload_for_request(req: RadianceRunRequest, workspace_root: Path) 
     )
     if plant_photon_absorption is not None:
         metrics["plant_photon_absorption"] = plant_photon_absorption
+
+    plant_spectral_response = _load_plant_spectral_response_summary(workspace_root)
+    if plant_spectral_response is not None:
+        metrics["plant_spectral_response"] = plant_spectral_response
 
     cost_estimate = None
     try:

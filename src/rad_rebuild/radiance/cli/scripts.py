@@ -43,6 +43,12 @@ from rad_rebuild.radiance.engine.plants.config import (
     PlantOpticalAssumptions,
 )
 from rad_rebuild.radiance.engine.plants.generator import generate_plant_scene
+from rad_rebuild.radiance.engine.plants.spectral import (
+    default_fixture_spectral_distribution,
+    default_leafy_green_spectral_bands,
+    parse_spectral_photon_fraction_overrides,
+    write_plant_spectral_response_artifact,
+)
 from rad_rebuild.radiance.engine.plants.surface_flux import (
     RADIANCE_RECEIVER_METHOD,
     build_radiance_receiver_samples,
@@ -1076,6 +1082,22 @@ def _trace_plant_surface_receivers(
     return int(RadianceScriptExit.OK)
 
 
+
+def _spectral_distribution_from_env(
+    env: Mapping[str, str],
+    *,
+    mode: str,
+):
+    raw = (env.get("FSPM_SPECTRAL_PHOTON_FRACTIONS") or "").strip()
+    if raw:
+        return parse_spectral_photon_fraction_overrides(
+            raw,
+            distribution_id=f"env_override_{mode.lower().replace(' ', '_')}",
+        )
+    return default_fixture_spectral_distribution(mode)
+
+
+
 def _write_optional_plant_surface_flux_artifact(
     config: RuntimeConfig,
     plant_artifacts: PlantArtifactPaths | None,
@@ -1121,6 +1143,12 @@ def _write_optional_plant_surface_flux_artifact(
             receiver_scale_multiplier=receiver_scale_multiplier,
             source_octree=str(octree),
         )
+        spectral_path = write_plant_spectral_response_artifact(
+            config.runtime_state_root,
+            json.loads(path.read_text(encoding="utf-8")),
+            default_leafy_green_spectral_bands(),
+            _spectral_distribution_from_env(config.env, mode=mode),
+        )
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"ERROR: failed to write FSPM plant receiver surface flux: {exc}", file=sys.stderr)
         return int(RadianceScriptExit.VALIDATION)
@@ -1132,6 +1160,10 @@ def _write_optional_plant_surface_flux_artifact(
     print(f"  • {path}")
     print(f"  method: {RADIANCE_RECEIVER_METHOD}")
     print("  note: Radiance receiver sampling uses leaf surface centroids/normals and does not alter heatmap uniformity.")
+    print("FSPM plant spectral-response artifact:")
+    print(f"  • {spectral_path}")
+    print("  method: surface_flux_band_weighted_leaf_absorptance_v1")
+    print("  note: band-level absorption uses explicit spectral photon fractions and leaf optics assumptions.")
     return int(RadianceScriptExit.OK)
 
 
