@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import threading
 import time
@@ -88,8 +89,8 @@ def live_execution_enabled() -> bool:
 def assert_live_execution_allowed(req: RadianceRunRequest, session_id: str) -> None:
     if _request_uses_precomputed(req):
         return
-    if not live_mode_supported(req.mode):
-        raise HTTPException(status_code=422, detail=unsupported_live_mode_detail(req.mode))
+    if not live_mode_supported(req.mode, os.environ):
+        raise HTTPException(status_code=422, detail=unsupported_live_mode_detail(req.mode, os.environ))
     if not live_execution_enabled():
         raise HTTPException(
             status_code=403,

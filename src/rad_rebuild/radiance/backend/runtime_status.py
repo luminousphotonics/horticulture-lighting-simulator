@@ -9,6 +9,8 @@ from rad_rebuild.radiance.config import (
     DEFAULT_DOCKER_IMAGE,
     PUBLIC_LIVE_SUPPORTED_MODES,
     PUBLIC_LIVE_UNSUPPORTED_MODE_MESSAGE,
+    MODE_COMPETITOR,
+    MODE_HPS,
     RADIANCE_MODE_LABELS,
     canonicalize_radiance_mode,
     is_production_deployment,
@@ -22,30 +24,118 @@ REQUIRED_PUBLIC_LOCAL_RADIANCE_EXECUTABLES = ("oconv", "rtrace", "rcontrib")
 FORCE_LOCAL_UNAVAILABLE_ENV = "RAD_REBUILD_FORCE_LOCAL_RADIANCE_UNAVAILABLE"
 FORCE_DOCKER_UNAVAILABLE_ENV = "RAD_REBUILD_FORCE_DOCKER_UNAVAILABLE"
 DISABLE_RADIANCE_AUTODETECT_ENV = "RAD_REBUILD_DISABLE_RADIANCE_AUTODETECT"
+ENABLE_PRIVATE_LIVE_MODES_ENV = "RAD_REBUILD_ENABLE_PRIVATE_LIVE_MODES"
+PRIVATE_CONVENTIONAL_IES_ENV = "RAD_REBUILD_PRIVATE_CONVENTIONAL_IES"
+PRIVATE_HPS_IES_ENV = "RAD_REBUILD_PRIVATE_HPS_IES"
+PRIVATE_LIVE_MODES = (MODE_COMPETITOR, MODE_HPS)
 
 
-def live_supported_modes() -> tuple[str, ...]:
-    return PUBLIC_LIVE_SUPPORTED_MODES
+def _source_env(env: Mapping[str, str] | None = None) -> dict[str, str]:
+    return dict(os.environ if env is None else env)
+
+
+def _private_ies_requirements(env: Mapping[str, str]) -> dict[str, Path | None]:
+    conventional_raw = env.get(PRIVATE_CONVENTIONAL_IES_ENV, "").strip()
+    hps_raw = env.get(PRIVATE_HPS_IES_ENV, "").strip()
+    return {
+        MODE_COMPETITOR: Path(conventional_raw).expanduser() if conventional_raw else None,
+        MODE_HPS: Path(hps_raw).expanduser() if hps_raw else None,
+    }
+
+
+def private_photometry_status(env: Mapping[str, str] | None = None) -> dict[str, Any]:
+    source = _source_env(env)
+    requested = _truthy(source, ENABLE_PRIVATE_LIVE_MODES_ENV)
+
+    if is_production_deployment(source):
+        return {
+            "enabled": False,
+            "available": False,
+            "reason": "production_precomputed_only",
+            "supported_private_modes": [],
+            "missing_env_vars": [],
+            "missing_files": [],
+        }
+
+    if not requested:
+        return {
+            "enabled": False,
+            "available": False,
+            "reason": "not_enabled",
+            "supported_private_modes": [],
+            "missing_env_vars": [],
+            "missing_files": [],
+        }
+
+    requirements = _private_ies_requirements(source)
+    missing_env_vars = [
+        PRIVATE_CONVENTIONAL_IES_ENV
+        if requirements[MODE_COMPETITOR] is None
+        else "",
+        PRIVATE_HPS_IES_ENV if requirements[MODE_HPS] is None else "",
+    ]
+    missing_env_vars = [name for name in missing_env_vars if name]
+
+    missing_files = [
+        mode
+        for mode, candidate in requirements.items()
+        if candidate is not None and not candidate.is_file()
+    ]
+
+    if missing_env_vars or missing_files:
+        return {
+            "enabled": True,
+            "available": False,
+            "reason": "private_photometry_assets_missing",
+            "supported_private_modes": [],
+            "missing_env_vars": missing_env_vars,
+            "missing_files": missing_files,
+        }
+
+    return {
+        "enabled": True,
+        "available": True,
+        "reason": None,
+        "supported_private_modes": list(PRIVATE_LIVE_MODES),
+        "missing_env_vars": [],
+        "missing_files": [],
+    }
+
+
+def live_supported_modes(env: Mapping[str, str] | None = None) -> tuple[str, ...]:
+    source = _source_env(env)
+    if is_production_deployment(source):
+        return ()
+    modes = list(PUBLIC_LIVE_SUPPORTED_MODES)
+    if private_photometry_status(source)["available"]:
+        modes.extend(PRIVATE_LIVE_MODES)
+    return tuple(modes)
 
 
 def live_unsupported_mode_message() -> str:
     return PUBLIC_LIVE_UNSUPPORTED_MODE_MESSAGE
 
 
-def live_mode_supported(mode: str | None) -> bool:
-    return canonicalize_radiance_mode(mode) in PUBLIC_LIVE_SUPPORTED_MODES
+def live_mode_supported(mode: str | None, env: Mapping[str, str] | None = None) -> bool:
+    return canonicalize_radiance_mode(mode) in live_supported_modes(env)
 
 
-def unsupported_live_mode_detail(mode: str | None) -> dict[str, object]:
+def unsupported_live_mode_detail(mode: str | None, env: Mapping[str, str] | None = None) -> dict[str, object]:
     canonical = canonicalize_radiance_mode(mode)
-    return {
+    private_status = private_photometry_status(env)
+    detail: dict[str, object] = {
         "error": "live_mode_unsupported",
         "message": PUBLIC_LIVE_UNSUPPORTED_MODE_MESSAGE,
         "mode": canonical,
         "mode_label": RADIANCE_MODE_LABELS.get(canonical, canonical),
-        "supported_lighting_modes": list(PUBLIC_LIVE_SUPPORTED_MODES),
+        "supported_lighting_modes": list(live_supported_modes(env)),
         "precomputed_available": True,
     }
+    if canonical in PRIVATE_LIVE_MODES and private_status["enabled"] and not private_status["available"]:
+        detail["private_live_mode_reason"] = private_status["reason"]
+        detail["missing_env_vars"] = private_status["missing_env_vars"]
+        detail["missing_private_modes"] = private_status["missing_files"]
+    return detail
 
 
 def _truthy(env: Mapping[str, str], name: str) -> bool:
@@ -142,7 +232,7 @@ def _first_existing_lib(env: Mapping[str, str]) -> str | None:
 
 def local_radiance_status(env: Mapping[str, str] | None = None) -> dict[str, Any]:
     source = dict(os.environ if env is None else env)
-    supported = list(PUBLIC_LIVE_SUPPORTED_MODES)
+    supported = list(live_supported_modes(source))
     detected = _detect_public_local_executables(source)
     missing = [
         name
@@ -240,7 +330,7 @@ def _classify_docker_error(message: str) -> str:
 def docker_runtime_status(env: Mapping[str, str] | None = None) -> dict[str, Any]:
     source = dict(os.environ if env is None else env)
     settings = load_settings(source)
-    supported = list(PUBLIC_LIVE_SUPPORTED_MODES)
+    supported = list(live_supported_modes(source))
     reason: str | None = None
     docker_cli: str | None = None
     daemon_available = False
@@ -289,6 +379,7 @@ def runtime_status_payload(env: Mapping[str, str] | None = None) -> dict[str, An
             "live_execution_enabled": False,
             "live_supported_modes": [],
             "live_unsupported_mode_message": "Hosted production is precomputed-only.",
+            "private_photometry": private_photometry_status(source),
             "modes": {
                 "precomputed": {
                     "available": True,
@@ -319,8 +410,9 @@ def runtime_status_payload(env: Mapping[str, str] | None = None) -> dict[str, An
         }
     return {
         "live_execution_enabled": settings.live_execution_enabled,
-        "live_supported_modes": list(PUBLIC_LIVE_SUPPORTED_MODES),
+        "live_supported_modes": list(live_supported_modes(source)),
         "live_unsupported_mode_message": PUBLIC_LIVE_UNSUPPORTED_MODE_MESSAGE,
+        "private_photometry": private_photometry_status(source),
         "modes": {
             "precomputed": {
                 "available": True,

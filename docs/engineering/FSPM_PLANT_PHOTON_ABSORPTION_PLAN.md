@@ -3,7 +3,7 @@
 ## Status Header
 
 - Feature: Functional Structural Plant Modeling for leafy-green / lettuce-style plant geometry and plant photon absorption groundwork.
-- Current phase: Phase 07 in progress; Phase 06 is intentionally skipped/deferred.
+- Current phase: Phase 08 in progress; Phase 06 is intentionally skipped/deferred.
 - Last updated: 2026-06-24.
 - Branch: `feat/fspm-plant-modeling`.
 - Worktree: `/home/austin/Desktop/hls-fspm`.
@@ -639,6 +639,30 @@ Implementation notes:
 - Add live-only simulator controls for SMD FSPM plant geometry. The controls remain hidden for precomputed playback and non-SMD modes, and send plant request fields through live run payloads and artifact/metrics query params.
 - Format the scaffold-only `plant_photon_absorption` block in the browser metrics panel so users see plant/leaf/surface counts, one-sided leaf area, optical assumptions, and a clear `absorbed_flux: not computed` note instead of a raw object dump.
 
+
+### Phase 08 - Private Live Mode Capability Gate
+
+Goal:
+
+- Keep public live execution limited to the Proposed LED System by default.
+- Allow private local Conventional LED and 1000W HPS live runs only when an explicit private capability flag is set and required private IES source files exist locally.
+- Support internal FSPM precompute generation without committing protected IES assets or exposing public live capability for private photometry systems.
+
+Implementation notes:
+
+- Public default remains `PUBLIC_LIVE_SUPPORTED_MODES = ("SMD",)`.
+- Private live mode opt-in uses `RAD_REBUILD_ENABLE_PRIVATE_LIVE_MODES=1`.
+- Private IES paths are provided through `RAD_REBUILD_PRIVATE_CONVENTIONAL_IES` and `RAD_REBUILD_PRIVATE_HPS_IES`.
+- Production deployment ignores the private override and remains precomputed-only.
+- Runtime status and backend live-run enforcement use the same effective supported-mode calculation.
+
+Validation:
+
+- Runtime status tests for public default, missing private assets, private assets present, and production override.
+- Backend live-run gate test proving private assets can authorize Conventional/HPS only under the private gate.
+- No protected IES files, absolute private paths, or generated runtime outputs committed.
+
+
 ## Validation Matrix
 
 | Phase | Primary checks | Required commands |
@@ -651,6 +675,7 @@ Implementation notes:
 | 05 | Viewer rendering and toggle | Assembly viewer tests; browser smoke; Node parse checks; `npm run test:browser` |
 | 06 | Deferred comparison metrics | Not part of the current implementation sequence |
 | 07 | Photon absorption scaffold | Metric tests; documented assumptions; scientific review evidence |
+| 08 | Private live-mode capability gate | Runtime status tests; backend gate tests; production/public default checks |
 
 General command sequence:
 
@@ -763,6 +788,16 @@ Each later phase must:
 - Whether plant-enabled requests require a new fingerprint field or a separate artifact namespace.
 - Whether viewer plant geometry should be procedural browser geometry, JSON mesh payloads, or static assets.
 - How plant absorption metrics should represent units, surfaces, transmittance, reflectance, and uncertainty.
+
+
+### Phase 08 Private Live Mode Gate Decisions
+
+- The private live gate is an explicit local capability gate, not a secret security boundary.
+- Conventional LED and 1000W HPS remain unavailable to public live execution by default.
+- Private live unlock requires both `RAD_REBUILD_ENABLE_PRIVATE_LIVE_MODES=1` and local IES path env vars.
+- The source code must not commit private IES assets or Austin-local absolute paths.
+- Public precomputed bundles may later include derived FSPM artifacts, but not protected photometry inputs.
+
 
 ## Open Questions And Risk Register
 
