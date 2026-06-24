@@ -192,6 +192,16 @@ def _configured_radiance_lib() -> Path | None:
     return None
 
 
+def _apply_private_photometry_paths(env: dict[str, str]) -> None:
+    conventional_ies = env.get("RAD_REBUILD_PRIVATE_CONVENTIONAL_IES", "").strip()
+    hps_ies = env.get("RAD_REBUILD_PRIVATE_HPS_IES", "").strip()
+
+    if conventional_ies:
+        env["SPYDR_IES_PATH"] = conventional_ies
+    if hps_ies:
+        env["HPS_IES_PATH"] = hps_ies
+
+
 def _base_env() -> dict[str, str]:
     env = os.environ.copy()
     env.setdefault("PATH", "")
@@ -239,6 +249,7 @@ def _base_env() -> dict[str, str]:
     env["RADIANCE_CACHE_ROOT"] = str(CACHE_ROOT)
     env[PRECOMPUTED_ROOT_ENV] = str(resolve_precomputed_root())
     env["PYTHONPATH"] = f"{REPO_ROOT / 'src'}{os.pathsep}{env.get('PYTHONPATH', '')}".rstrip(os.pathsep)
+    _apply_private_photometry_paths(env)
     return env
 
 

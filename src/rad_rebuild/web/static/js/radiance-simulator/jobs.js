@@ -106,6 +106,12 @@ export async function runRadiance(action) {
   clearCompletedRunState();
   startRadianceProgress("Starting simulation...");
   appendOutput(els.radLog, `Starting ${action}...`);
+  appendOutput(
+    els.radLog,
+    requestBody.plants_enabled
+      ? `FSPM plants enabled: seed=${requestBody.plant_seed ?? "default"} rows=${requestBody.plant_rows ?? "default"} columns=${requestBody.plant_columns ?? "default"} leaves=${requestBody.plant_leaf_count ?? "default"}`
+      : "FSPM plants disabled for this run.",
+  );
   setRadianceButtonsEnabled(false);
   try {
     const res = await apiFetch("/radiance/run", {

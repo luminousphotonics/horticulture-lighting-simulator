@@ -431,6 +431,7 @@ test("live-supported FSPM controls feed plant fields through payload and artifac
   expect(result.parsed.plantSpacingM).toBe(0.34);
 
   expect(result.runPayload.mode).toBe("Competitor");
+  expect(result.runPayload.execution_mode).toBe("live_local");
   expect(result.runPayload.plants_enabled).toBe(true);
   expect(result.runPayload.plant_seed).toBe(77);
   expect(result.runPayload.plant_rows).toBe(1);

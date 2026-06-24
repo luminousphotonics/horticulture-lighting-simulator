@@ -79,6 +79,7 @@ _ENV_PREFIX_ALLOWLIST = (
     "BOARD_",
     "GRID_",
     "COMPETITOR_",
+    "FSPM_",
     "DRIVER_",
     "DOCKER_",
     "DROOP_",

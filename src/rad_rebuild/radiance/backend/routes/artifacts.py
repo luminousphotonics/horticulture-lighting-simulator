@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import urlencode
 from typing import Any, cast
 
 from fastapi import APIRouter, HTTPException, Request
@@ -32,6 +33,7 @@ from rad_rebuild.radiance.backend.models import (
     RadianceImagesResponse,
     RadianceManifestResponse,
     RadianceRunRequest,
+    request_with_updates,
 )
 from rad_rebuild.radiance.backend.routes.contracts import PUBLIC_ERROR_RESPONSES
 from rad_rebuild.radiance.backend.runtime import (
@@ -74,6 +76,106 @@ def _route_radiance_request(**kwargs: object) -> RadianceRunRequest:
         return RadianceRunRequest.model_validate(kwargs)
     except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+_INT_PLANT_QUERY_FIELDS = {
+    "plant_seed",
+    "plant_rows",
+    "plant_columns",
+    "plant_leaf_count",
+}
+
+_FLOAT_PLANT_QUERY_FIELDS = {
+    "plant_spacing_m",
+    "plant_height_m",
+    "plant_canopy_radius_m",
+    "plant_growth_stage",
+}
+
+
+def _query_text(request: Request, name: str) -> str | None:
+    raw = request.query_params.get(name)
+    if raw is None:
+        return None
+    value = raw.strip()
+    return value if value else None
+
+
+def _query_int(request: Request, name: str) -> int | None:
+    raw = _query_text(request, name)
+    if raw is None:
+        return None
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"{name} must be an integer.") from exc
+
+
+def _query_float(request: Request, name: str) -> float | None:
+    raw = _query_text(request, name)
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"{name} must be a number.") from exc
+
+
+def _apply_artifact_plant_query_overrides(
+    req: RadianceRunRequest,
+    request: Request,
+) -> RadianceRunRequest:
+    updates: dict[str, object] = {}
+
+    if request.query_params.get("plants_enabled") is not None:
+        updates["plants_enabled"] = request_bool_query_param(
+            request,
+            "plants_enabled",
+            req.plants_enabled,
+        )
+
+    for field_name in _INT_PLANT_QUERY_FIELDS:
+        value = _query_int(request, field_name)
+        if value is not None:
+            updates[field_name] = value
+
+    for field_name in _FLOAT_PLANT_QUERY_FIELDS:
+        value = _query_float(request, field_name)
+        if value is not None:
+            updates[field_name] = value
+
+    if not updates:
+        return req
+
+    try:
+        return request_with_updates(req, **updates)
+    except (TypeError, ValueError, ValidationError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid plant query parameter: {exc}",
+        ) from exc
+
+
+def _plant_query_fragment(req: RadianceRunRequest) -> str:
+    if not req.plants_enabled:
+        return ""
+
+    params: dict[str, str] = {"plants_enabled": "true"}
+    for field_name in (
+        "plant_seed",
+        "plant_rows",
+        "plant_columns",
+        "plant_spacing_m",
+        "plant_height_m",
+        "plant_canopy_radius_m",
+        "plant_leaf_count",
+        "plant_growth_stage",
+    ):
+        value = getattr(req, field_name, None)
+        if value is not None:
+            params[field_name] = f"{value:g}" if isinstance(value, float) else str(value)
+
+    return "&" + urlencode(params)
 
 
 @router.post(
@@ -161,6 +263,8 @@ def radiance_images(
             basis_backend=basis_backend,
         )
     )
+    req = _apply_artifact_plant_query_overrides(req, request)
+    req = _canonicalize_mode_request(req)
     matched_req = precomputed_request_for_available_bundle(req) if _request_uses_precomputed(req) else None
     if matched_req is not None:
         req = matched_req
@@ -183,7 +287,7 @@ def radiance_images(
             f"&hps_coverage_ft={req.hps_coverage_ft:g}&competitor_layout={req.competitor_layout}"
             f"&hps_ies_variant={req.hps_ies_variant}"
             f"&mount_z_m={req.mount_z_m:g}&sp_z_m={req.sp_z_m:g}&hps_z_m={req.hps_z_m:g}"
-            f"&basis_backend={req.basis_backend}{token_query}&v={mtime_ns}"
+            f"&basis_backend={req.basis_backend}{_plant_query_fragment(req)}{token_query}&v={mtime_ns}"
         )
 
     return {
@@ -248,6 +352,8 @@ def radiance_image(
             basis_backend=basis_backend,
         )
     )
+    req = _apply_artifact_plant_query_overrides(req, request)
+    req = _canonicalize_mode_request(req)
     matched_req = precomputed_request_for_available_bundle(req) if _request_uses_precomputed(req) else None
     if matched_req is not None:
         req = matched_req

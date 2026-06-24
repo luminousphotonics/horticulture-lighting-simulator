@@ -2230,6 +2230,70 @@
         "title": "RuntimePrecomputedModeStatusResponse",
         "type": "object"
       },
+      "RuntimePrivatePhotometryStatusResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "missing_env_vars": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Env Vars",
+            "type": "array"
+          },
+          "missing_files": {
+            "items": {
+              "enum": [
+                "SMD",
+                "Competitor",
+                "1000W HPS"
+              ],
+              "type": "string"
+            },
+            "title": "Missing Files",
+            "type": "array"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "supported_private_modes": {
+            "items": {
+              "enum": [
+                "SMD",
+                "Competitor",
+                "1000W HPS"
+              ],
+              "type": "string"
+            },
+            "title": "Supported Private Modes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled",
+          "available",
+          "supported_private_modes",
+          "missing_env_vars",
+          "missing_files"
+        ],
+        "title": "RuntimePrivatePhotometryStatusResponse",
+        "type": "object"
+      },
       "RuntimeSetupCommandResponse": {
         "additionalProperties": false,
         "properties": {
@@ -2274,12 +2338,16 @@
           },
           "modes": {
             "$ref": "#/components/schemas/RuntimeModesStatusResponse"
+          },
+          "private_photometry": {
+            "$ref": "#/components/schemas/RuntimePrivatePhotometryStatusResponse"
           }
         },
         "required": [
           "live_execution_enabled",
           "live_supported_modes",
           "live_unsupported_mode_message",
+          "private_photometry",
           "modes"
         ],
         "title": "RuntimeStatusResponse",

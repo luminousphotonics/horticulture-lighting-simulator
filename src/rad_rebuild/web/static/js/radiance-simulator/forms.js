@@ -107,11 +107,10 @@ export function syncFspmControls() {
   return fspmAvailable;
 }
 
-function parsePlantPayload(mode, executionMode) {
+function parsePlantPayload(_mode, executionMode) {
   const enabled = Boolean(
-    plantsAvailable(mode, executionMode)
+    executionMode !== "precomputed"
       && els.radPlantsEnabled
-      && !els.radPlantsEnabled.disabled
       && els.radPlantsEnabled.checked,
   );
   if (!enabled) {

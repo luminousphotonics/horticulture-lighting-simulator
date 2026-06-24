@@ -17,7 +17,7 @@ configure_test_runtime()
 
 from rad_rebuild.radiance.backend import runtime as backend_runtime  # noqa: E402
 from rad_rebuild.radiance.backend import runtime_status  # noqa: E402
-from rad_rebuild.radiance.backend.models import RadianceRunRequest  # noqa: E402
+from rad_rebuild.radiance.backend.models import RadianceRunRequest, RuntimeStatusResponse  # noqa: E402
 from rad_rebuild.radiance.settings import load_settings  # noqa: E402
 from rad_rebuild.radiance.config import (  # noqa: E402
     EXECUTION_MODE_LIVE_DOCKER,
@@ -170,6 +170,7 @@ def test_private_live_modes_require_flag_and_private_ies_files(tmp_path: Path) -
     assert enabled["live_supported_modes"] == [MODE_SMD, MODE_COMPETITOR, MODE_HPS]
     assert runtime_status.live_mode_supported(MODE_COMPETITOR, enabled_env) is True
     assert runtime_status.live_mode_supported(MODE_HPS, enabled_env) is True
+    RuntimeStatusResponse.model_validate(enabled)
 
 
 def test_private_live_modes_are_ignored_in_production(tmp_path: Path) -> None:

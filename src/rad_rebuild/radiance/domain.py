@@ -849,6 +849,16 @@ class RuntimeLocalModeStatusResponse(StrictBoundaryModel):
     setup_commands: list[RuntimeSetupCommandResponse]
 
 
+
+class RuntimePrivatePhotometryStatusResponse(StrictBoundaryModel):
+    enabled: bool
+    available: bool
+    reason: str | None = None
+    supported_private_modes: list[SystemModeValue]
+    missing_env_vars: list[str]
+    missing_files: list[SystemModeValue]
+
+
 class RuntimeModesStatusResponse(StrictBoundaryModel):
     precomputed: RuntimePrecomputedModeStatusResponse
     live_docker: RuntimeDockerModeStatusResponse
@@ -859,6 +869,7 @@ class RuntimeStatusResponse(StrictBoundaryModel):
     live_execution_enabled: bool
     live_supported_modes: list[SystemModeValue]
     live_unsupported_mode_message: str
+    private_photometry: RuntimePrivatePhotometryStatusResponse
     modes: RuntimeModesStatusResponse
 
 
