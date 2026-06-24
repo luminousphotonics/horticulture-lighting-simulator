@@ -94,9 +94,19 @@ def _photometric_request(
     sp_z_m: float,
     hps_z_m: float,
     basis_backend: str,
+    plants_enabled: bool,
+    plant_seed: int | None,
+    plant_rows: int | None,
+    plant_columns: int | None,
+    plant_spacing_m: float | None,
+    plant_height_m: float | None,
+    plant_canopy_radius_m: float | None,
+    plant_leaf_count: int | None,
+    plant_growth_stage: float | None,
 ) -> RadianceRunRequest:
     mode = _normalize_mode(mode)
     peak_capping_enabled = request_bool_query_param(request, "peak_capping_enabled", peak_capping_enabled)
+    plants_enabled = request_bool_query_param(request, "plants_enabled", plants_enabled)
     try:
         basis_backend = validate_basis_backend_request(mode, basis_backend, variable_mode="rings")
     except ValueError as exc:
@@ -121,6 +131,15 @@ def _photometric_request(
             sp_z_m=sp_z_m,
             hps_z_m=hps_z_m,
             basis_backend=basis_backend,
+            plants_enabled=plants_enabled,
+            plant_seed=plant_seed,
+            plant_rows=plant_rows,
+            plant_columns=plant_columns,
+            plant_spacing_m=plant_spacing_m,
+            plant_height_m=plant_height_m,
+            plant_canopy_radius_m=plant_canopy_radius_m,
+            plant_leaf_count=plant_leaf_count,
+            plant_growth_stage=plant_growth_stage,
         )
     )
     matched_req = precomputed_request_for_available_bundle(req) if _request_uses_precomputed(req) else None
@@ -146,6 +165,15 @@ def _authorized_layer_payload(
     sp_z_m: float,
     hps_z_m: float,
     basis_backend: str,
+    plants_enabled: bool,
+    plant_seed: int | None,
+    plant_rows: int | None,
+    plant_columns: int | None,
+    plant_spacing_m: float | None,
+    plant_height_m: float | None,
+    plant_canopy_radius_m: float | None,
+    plant_leaf_count: int | None,
+    plant_growth_stage: float | None,
 ) -> tuple[dict[str, Any], bytes]:
     req = _photometric_request(
         request,
@@ -165,6 +193,15 @@ def _authorized_layer_payload(
         sp_z_m=sp_z_m,
         hps_z_m=hps_z_m,
         basis_backend=basis_backend,
+        plants_enabled=plants_enabled,
+        plant_seed=plant_seed,
+        plant_rows=plant_rows,
+        plant_columns=plant_columns,
+        plant_spacing_m=plant_spacing_m,
+        plant_height_m=plant_height_m,
+        plant_canopy_radius_m=plant_canopy_radius_m,
+        plant_leaf_count=plant_leaf_count,
+        plant_growth_stage=plant_growth_stage,
     )
     workspace_root = authorize_workspace_from_request(request, req)
     try:
@@ -200,6 +237,15 @@ def radiance_assembly_photometric_layer(
     sp_z_m: float = 0.4572,
     hps_z_m: float = DEFAULT_HPS_MOUNT_Z_M,
     basis_backend: str = DEFAULT_SMD_BASIS_BACKEND,
+    plants_enabled: bool = False,
+    plant_seed: int | None = None,
+    plant_rows: int | None = None,
+    plant_columns: int | None = None,
+    plant_spacing_m: float | None = None,
+    plant_height_m: float | None = None,
+    plant_canopy_radius_m: float | None = None,
+    plant_leaf_count: int | None = None,
+    plant_growth_stage: float | None = None,
     session_id: str | None = None,
     artifact_token: str | None = None,
 ) -> Any:
@@ -223,6 +269,15 @@ def radiance_assembly_photometric_layer(
         sp_z_m=sp_z_m,
         hps_z_m=hps_z_m,
         basis_backend=basis_backend,
+        plants_enabled=plants_enabled,
+        plant_seed=plant_seed,
+        plant_rows=plant_rows,
+        plant_columns=plant_columns,
+        plant_spacing_m=plant_spacing_m,
+        plant_height_m=plant_height_m,
+        plant_canopy_radius_m=plant_canopy_radius_m,
+        plant_leaf_count=plant_leaf_count,
+        plant_growth_stage=plant_growth_stage,
     )
     if request.method == "HEAD":
         return Response(status_code=200, headers=NO_STORE_HEADERS)
@@ -256,6 +311,15 @@ def radiance_assembly_photometric_layer_binary(
     sp_z_m: float = 0.4572,
     hps_z_m: float = DEFAULT_HPS_MOUNT_Z_M,
     basis_backend: str = DEFAULT_SMD_BASIS_BACKEND,
+    plants_enabled: bool = False,
+    plant_seed: int | None = None,
+    plant_rows: int | None = None,
+    plant_columns: int | None = None,
+    plant_spacing_m: float | None = None,
+    plant_height_m: float | None = None,
+    plant_canopy_radius_m: float | None = None,
+    plant_leaf_count: int | None = None,
+    plant_growth_stage: float | None = None,
     session_id: str | None = None,
     artifact_token: str | None = None,
 ) -> Response:
@@ -279,6 +343,15 @@ def radiance_assembly_photometric_layer_binary(
         sp_z_m=sp_z_m,
         hps_z_m=hps_z_m,
         basis_backend=basis_backend,
+        plants_enabled=plants_enabled,
+        plant_seed=plant_seed,
+        plant_rows=plant_rows,
+        plant_columns=plant_columns,
+        plant_spacing_m=plant_spacing_m,
+        plant_height_m=plant_height_m,
+        plant_canopy_radius_m=plant_canopy_radius_m,
+        plant_leaf_count=plant_leaf_count,
+        plant_growth_stage=plant_growth_stage,
     )
     if request.method == "HEAD":
         return Response(status_code=200, headers=NO_STORE_HEADERS, media_type="application/octet-stream")

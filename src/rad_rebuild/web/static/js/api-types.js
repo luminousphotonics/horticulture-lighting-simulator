@@ -97,6 +97,7 @@
  * @property {string} mode_label
  * @property {Record<string, AssemblyModuleAssetResponse>} module_assets
  * @property {"anchor_fit" | "single_fixture_center"=} placement_strategy
+ * @property {Record<string, unknown> | null=} plants
  * @property {AssemblyRoomResponse} room
  * @property {3} schema_version
  * @property {"millimeters"} source_units

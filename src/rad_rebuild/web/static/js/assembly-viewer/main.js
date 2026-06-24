@@ -10,6 +10,7 @@ import {
 } from "./fixture-controls.js";
 import { clampHeatmapOpacity, fetchPhotometricLayer, formatPpfdTooltipValue, lookupPpfdAtUv } from "./heatmap.js";
 import { createPerfOverlay } from "./perf.js";
+import { createPlantVisibilityController } from "./plants.js";
 import { buildAssemblyWorld, createAssemblyScene, createPhotometricHeatmapPlane } from "./renderer.js";
 import { loadAssemblyScene, loadFixtureAssets, sceneUrlFromQuery } from "./scene-loader.js";
 
@@ -29,6 +30,9 @@ const fixturesToggle = document.getElementById("assembly-fixtures-toggle");
 const fixtureHeightInput = document.getElementById("assembly-fixture-height");
 const fixtureHeightValueEl = document.getElementById("assembly-fixture-height-value");
 const fixtureHeightResetButton = document.getElementById("assembly-fixture-height-reset");
+const plantsControlEl = document.getElementById("assembly-plants-control");
+const plantsToggle = document.getElementById("assembly-plants-toggle");
+const plantsStatusEl = document.getElementById("assembly-plants-status");
 const perfEl = document.getElementById("assembly-perf");
 const devPanelEl = document.getElementById("assembly-dev-panel");
 const assetCountsEl = document.getElementById("assembly-asset-counts");
@@ -139,6 +143,46 @@ function wireFixtureControls(fixtureGroup, scenePayload) {
   });
   renderFixtureHeightValue(controller, baseMountZ);
   setFixtureControlsEnabled(true);
+  return controller;
+}
+
+function setPlantControlsEnabled(enabled) {
+  if (plantsControlEl instanceof HTMLElement) {
+    plantsControlEl.hidden = !enabled;
+  }
+  if (plantsToggle instanceof window.HTMLInputElement) {
+    plantsToggle.disabled = !enabled;
+  }
+}
+
+function renderPlantStatus(controller) {
+  if (!(plantsStatusEl instanceof HTMLElement)) {
+    return;
+  }
+  if (!controller) {
+    plantsStatusEl.textContent = "0 leaves";
+    return;
+  }
+  const state = controller.getState();
+  plantsStatusEl.textContent = `${state.leafCount} ${state.leafCount === 1 ? "leaf" : "leaves"}`;
+}
+
+function wirePlantControls(plantGroup) {
+  const hasPlants = Number(plantGroup?.userData?.renderedLeafCount || 0) > 0;
+  if (!hasPlants) {
+    setPlantControlsEnabled(false);
+    renderPlantStatus(null);
+    return null;
+  }
+  const controller = createPlantVisibilityController(plantGroup);
+  if (plantsToggle instanceof window.HTMLInputElement) {
+    plantsToggle.checked = controller.getState().visible;
+    plantsToggle.addEventListener("change", () => {
+      controller.setVisible(plantsToggle.checked);
+    });
+  }
+  setPlantControlsEnabled(true);
+  renderPlantStatus(controller);
   return controller;
 }
 
@@ -491,6 +535,7 @@ async function boot() {
     const buildResult = buildAssemblyWorld(world, scenePayload, fixtureAssets.assetBundles);
     renderSceneBounds(buildResult);
     wireFixtureControls(buildResult.group, scenePayload);
+    wirePlantControls(buildResult.plantGroup);
     wireHeatmapControls(sceneUrl, world);
     window.addEventListener("pagehide", () => {
       hideHeatmapTooltip();

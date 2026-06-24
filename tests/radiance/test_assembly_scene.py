@@ -22,6 +22,7 @@ from rad_rebuild.radiance.backend.workspace import (  # noqa: E402
     commit_staged_workspace,
 )
 from rad_rebuild.radiance.config import EXECUTION_MODE_LIVE_DOCKER, MODE_COMPETITOR, MODE_HPS, MODE_SMD  # noqa: E402
+from rad_rebuild.radiance.engine.plants import PlantGeometryConfig, write_plant_artifacts  # noqa: E402
 
 
 class _FakeRequest:
@@ -260,6 +261,44 @@ def test_builder_returns_schema3_geometry_aware_fixture_instances(tmp_path: Path
     assert scene["missing_asset_keys"] == []
     assert scene["asset_fallbacks_used"] == []
     assert str(tmp_path) not in json.dumps(scene)
+    assert "plants" not in scene
+
+
+def test_builder_attaches_optional_plant_viewer_payload(tmp_path: Path) -> None:
+    _write_layout(tmp_path)
+    write_plant_artifacts(
+        tmp_path / "runtime_state",
+        PlantGeometryConfig(
+            seed=13,
+            plant_grid_rows=1,
+            plant_grid_columns=1,
+            leaf_count_per_plant=4,
+        ),
+    )
+
+    scene = build_assembly_scene(tmp_path, _smd_req(plants_enabled=True, plant_seed=13, plant_rows=1, plant_columns=1, plant_leaf_count=4))
+
+    AssemblySceneResponse.model_validate(scene)
+    assert scene["plants"]["schema"] == "rad_rebuild.fspm.plants.viewer.v1"
+    assert scene["plants"]["config"]["seed"] == 13
+    assert len(scene["plants"]["plants"]) == 1
+    assert len(scene["plants"]["plants"][0]["leaves"]) == 4
+    assert scene["plants"]["plants"][0]["plant_id"] == "plant_r000_c000"
+    assert scene["plants"]["plants"][0]["leaves"][0]["leaf_id"] == "plant_r000_c000_leaf_000"
+    assert str(tmp_path) not in json.dumps(scene)
+
+
+def test_builder_rejects_malformed_plant_viewer_payload(tmp_path: Path) -> None:
+    _write_layout(tmp_path)
+    runtime = tmp_path / "runtime_state"
+    (runtime / "plants_viewer.json").write_text("{not json", encoding="utf-8")
+
+    with pytest.raises(AssemblySceneError) as raised:
+        build_assembly_scene(tmp_path, _smd_req(plants_enabled=True))
+
+    assert raised.value.status_code == 422
+    assert raised.value.error == "invalid_assembly_scene"
+    assert raised.value.message == "Plant viewer payload is malformed."
 
 
 def test_builder_returns_conventional_single_fixture_instances(tmp_path: Path) -> None:
@@ -481,6 +520,41 @@ def test_route_authorizes_committed_workspace_with_artifact_token() -> None:
             target_ppfd=1000,
         )
     assert missing.value.status_code == 403
+
+
+def test_route_authorizes_plant_enabled_workspace_with_matching_query() -> None:
+    session_id = "assembly-plant-token"
+    req = _smd_req(plants_enabled=True, plant_seed=31, plant_rows=1, plant_columns=1, plant_leaf_count=3)
+    lease = allocate_workspace_for_run(session_id, req)
+    _write_minimal_workspace(lease.staging_workspace)
+    write_plant_artifacts(
+        lease.staging_workspace / "runtime_state",
+        PlantGeometryConfig(
+            seed=31,
+            plant_grid_rows=1,
+            plant_grid_columns=1,
+            leaf_count_per_plant=3,
+        ),
+    )
+    commit_staged_workspace(lease, {"runtime": "assembly-plant-test"}, req)
+
+    response = assembly_route.radiance_assembly_scene(
+        _request(session_id=session_id, token=lease.artifact_token),
+        mode=MODE_SMD,
+        execution_mode=EXECUTION_MODE_LIVE_DOCKER,
+        length_ft=10,
+        width_ft=10,
+        target_ppfd=1000,
+        plants_enabled=True,
+        plant_seed=31,
+        plant_rows=1,
+        plant_columns=1,
+        plant_leaf_count=3,
+    )
+
+    assert isinstance(response, dict)
+    assert response["plants"]["config"]["seed"] == 31
+    assert len(response["plants"]["plants"][0]["leaves"]) == 3
 
 
 @pytest.mark.parametrize(

@@ -41,6 +41,13 @@
           <output id="assembly-fixture-height-value" for="assembly-fixture-height">0.00 m</output>
           <button id="assembly-fixture-height-reset" type="button" disabled>Reset Height</button>
         </div>
+        <div id="assembly-plants-control" class="assembly-viewer__plant-controls" aria-label="Plant display controls" hidden>
+          <label class="assembly-viewer__toggle">
+            <input id="assembly-plants-toggle" type="checkbox" checked disabled>
+            <span>Show plants</span>
+          </label>
+          <span id="assembly-plants-status" class="assembly-viewer__plant-status">0 leaves</span>
+        </div>
         <div class="assembly-viewer__actions">
           <button id="assembly-debug-toggle" type="button" aria-controls="assembly-dev-panel" aria-expanded="false">
             Show Diagnostics

@@ -12,6 +12,7 @@ import {
 import { clampHeatmapOpacity, createHeatmapDataTexture } from "./heatmap.js";
 import { createDirectFixtureInstancing, createFixtureInstancing } from "./lod.js";
 import { applySystemMaterialTuning, createCadMaterials, normalizeFixtureMaterials } from "./materials.js";
+import { createPlantGroup } from "./plants.js";
 import { effectiveAssetKey } from "./scene-loader.js";
 import { chooseBestAnchorCandidate } from "./transforms.js";
 
@@ -420,6 +421,10 @@ export function buildAssemblyWorld(world, scenePayload, fixtureAssets) {
   world.instanceCount = instances.length;
   world.lodController = createLodController(lodRecords);
   world.scene.add(group);
+  const plantGroup = createPlantGroup(scenePayload);
+  if (plantGroup.userData.renderedLeafCount > 0) {
+    world.scene.add(plantGroup);
+  }
   const assemblyBounds = computeAssemblySceneBounds(world, scenePayload);
   const shadowCameraBounds = configureDirectionalLightShadow(world.shadowLight, assemblyBounds);
   world.assemblyBounds = assemblyBounds;
@@ -432,8 +437,12 @@ export function buildAssemblyWorld(world, scenePayload, fixtureAssets) {
     assetKeyCount: instancesByAssetKey.size,
     lodRecordCount: lodRecords.length,
     lodController: world.lodController,
+    plantGroup,
+    plantCount: plantGroup.userData.plantCount || 0,
+    plantLeafCount: plantGroup.userData.leafCount || 0,
+    renderedPlantLeafCount: plantGroup.userData.renderedLeafCount || 0,
     diagnostics,
-    warnings,
+    warnings: [...warnings, ...(plantGroup.userData.warnings || [])],
     assemblyBounds,
     assemblyBoundsSummary: world.assemblyBoundsSummary,
     shadowCameraBounds,

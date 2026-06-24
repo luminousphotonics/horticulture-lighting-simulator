@@ -652,6 +652,49 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
           layout_vertical: "z",
         },
         room: { length_m: 3.048, width_m: 3.048, mount_z_m: 0.4572 },
+        plants: {
+          schema: "rad_rebuild.fspm.plants.viewer.v1",
+          units: "meters",
+          config: {
+            seed: 7,
+            plant_grid_rows: 1,
+            plant_grid_columns: 1,
+            plant_spacing_m: 0.4,
+            plant_height_m: 0.2,
+            canopy_radius_m: 0.22,
+            leaf_count_per_plant: 1,
+            growth_stage: 0.7,
+          },
+          material: {
+            id: "plant_leaf_material",
+            reflectance: 0.22,
+            transmittance: 0.08,
+            absorptance: 0.7,
+          },
+          plants: [
+            {
+              plant_id: "plant_r000_c000",
+              row: 0,
+              column: 0,
+              center_m: [0, 0, 0],
+              leaves: [
+                {
+                  plant_id: "plant_r000_c000",
+                  leaf_id: "plant_r000_c000_leaf_000",
+                  radiance_material_id: "plant_leaf_material",
+                  mesh: {
+                    vertices: [
+                      [-0.1, -0.05, 0.02],
+                      [0.1, -0.05, 0.03],
+                      [0.0, 0.16, 0.06],
+                    ],
+                    faces: [[0, 1, 2]],
+                  },
+                },
+              ],
+            },
+          ],
+        },
         assets: {
           manifest: "/static/viewer/proposed_led_system/manifest.json",
           anchors: "/static/viewer/proposed_led_system/anchors.json",
@@ -922,6 +965,7 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
   const heatmapToggle = frame.getByRole("checkbox", { name: "PPFD heatmap" });
   const heatmapOpacity = frame.getByLabel("Opacity");
   const fixturesToggle = frame.getByRole("checkbox", { name: "Show fixtures" });
+  const plantsToggle = frame.getByRole("checkbox", { name: "Show plants" });
   const fixtureHeight = frame.getByLabel("Fixture height");
   const fixtureHeightValue = frame.locator("#assembly-fixture-height-value");
   const fixtureHeightReset = frame.getByRole("button", { name: "Reset Height" });
@@ -930,6 +974,9 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
   await expect(heatmapOpacity).toBeDisabled();
   await expect(fixturesToggle).toBeEnabled();
   await expect(fixturesToggle).toBeChecked();
+  await expect(plantsToggle).toBeEnabled();
+  await expect(plantsToggle).toBeChecked();
+  await expect(frame.locator("#assembly-plants-status")).toHaveText("1 leaf");
   await expect(fixtureHeight).toBeEnabled();
   await expect(fixtureHeightValue).toContainText("Visual mount: 0.46 m (0.00 m)");
   await expect(fixtureHeightReset).toBeEnabled();
@@ -943,6 +990,10 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
     await expect(fixturesToggle).not.toBeChecked();
     await fixturesToggle.check();
     await expect(fixturesToggle).toBeChecked();
+    await plantsToggle.uncheck();
+    await expect(plantsToggle).not.toBeChecked();
+    await plantsToggle.check();
+    await expect(plantsToggle).toBeChecked();
     await fixtureHeight.evaluate((input) => {
       input.value = "0.25";
       input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1033,6 +1084,7 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
     await expect(heatmapToggle).toBeEnabled();
     await expect(frame.locator("#assembly-heatmap-status")).toHaveText("Idle");
     const fixturesToggle = frame.getByRole("checkbox", { name: "Show fixtures" });
+    await expect(frame.locator("#assembly-plants-control")).toBeHidden();
     const fixtureHeight = frame.getByLabel("Fixture height");
     const fixtureHeightValue = frame.locator("#assembly-fixture-height-value");
     const fixtureHeightReset = frame.getByRole("button", { name: "Reset Height" });

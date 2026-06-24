@@ -8,6 +8,7 @@ from typing import Any
 from rad_rebuild.radiance.assembly.classification import PLACEHOLDER_ASSET_KEY, classify_fixture_group
 from rad_rebuild.radiance.backend.models import RadianceRunRequest
 from rad_rebuild.radiance.config import MODE_COMPETITOR, MODE_HPS, MODE_SMD, RADIANCE_MODE_LABELS
+from rad_rebuild.radiance.engine.plants.artifacts import PLANTS_VIEWER_FILENAME
 
 SCENE_SCHEMA_VERSION = 3
 SYSTEM_KEY = "proposed_led_system"
@@ -27,6 +28,7 @@ SIMPLE_SYSTEMS: dict[str, dict[str, str]] = {
         "layout_label": "1000W HPS",
     },
 }
+PLANT_VIEWER_RELATIVE_PATH = Path("runtime_state") / PLANTS_VIEWER_FILENAME
 
 ASSET_URLS: dict[str, str] = {
     "manifest": f"{STATIC_ROOT_URL}/manifest.json",
@@ -524,10 +526,32 @@ def _scene_warnings(instances: list[dict[str, Any]]) -> list[str]:
     return warnings
 
 
+def _optional_plant_viewer_payload(workspace_root: Path) -> dict[str, Any] | None:
+    plant_path = workspace_root / PLANT_VIEWER_RELATIVE_PATH
+    if not plant_path.is_file():
+        return None
+    try:
+        payload = json.loads(plant_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise AssemblySceneError("Plant viewer payload is malformed.") from exc
+    if not isinstance(payload, dict):
+        raise AssemblySceneError("Plant viewer payload is malformed.")
+    if payload.get("schema") != "rad_rebuild.fspm.plants.viewer.v1":
+        raise AssemblySceneError("Plant viewer payload has an unsupported schema.")
+    return payload
+
+
+def _attach_optional_plants(scene: dict[str, Any], workspace_root: Path) -> dict[str, Any]:
+    plant_payload = _optional_plant_viewer_payload(workspace_root)
+    if plant_payload is not None:
+        scene["plants"] = plant_payload
+    return scene
+
+
 def _build_smd_scene(workspace_root: Path, req: RadianceRunRequest) -> dict[str, Any]:
     layout = _load_layout(workspace_root / "runtime_state" / "smd_layout.json")
     instances = _instances_from_fixture_groups(layout) or _instances_from_positions(layout)
-    return {
+    return _attach_optional_plants({
         "schema_version": SCENE_SCHEMA_VERSION,
         "system": SYSTEM_KEY,
         "mode": MODE_SMD,
@@ -547,7 +571,7 @@ def _build_smd_scene(workspace_root: Path, req: RadianceRunRequest) -> dict[str,
         "missing_asset_keys": _scene_missing_asset_keys(instances),
         "asset_fallbacks_used": _scene_asset_fallbacks(instances),
         "warnings": _scene_warnings(instances),
-    }
+    }, workspace_root)
 
 
 def _build_simple_fixture_scene(workspace_root: Path, req: RadianceRunRequest) -> dict[str, Any]:
@@ -568,7 +592,7 @@ def _build_simple_fixture_scene(workspace_root: Path, req: RadianceRunRequest) -
         error_prefix=f"Malformed {layout_label} layout",
     )
     assets = {"manifest": f"{_simple_static_root_url(system_key)}/manifest.json"}
-    return {
+    return _attach_optional_plants({
         "schema_version": SCENE_SCHEMA_VERSION,
         "system": system_key,
         "mode": req.mode,
@@ -596,7 +620,7 @@ def _build_simple_fixture_scene(workspace_root: Path, req: RadianceRunRequest) -
         ),
         "asset_fallbacks_used": [],
         "warnings": _scene_warnings(instances),
-    }
+    }, workspace_root)
 
 
 def build_assembly_scene(workspace_root: Path, req: RadianceRunRequest) -> dict[str, Any]:

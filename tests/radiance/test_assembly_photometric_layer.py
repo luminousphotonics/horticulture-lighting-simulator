@@ -505,7 +505,7 @@ def test_route_query_canonicalization_matches_assembly_scene_for_smd(tmp_path: P
 
         return fake_authorize
 
-    query = {"peak_capping_enabled": "true"}
+    query = {"peak_capping_enabled": "true", "plants_enabled": "true"}
     with patch.object(
         assembly_route,
         "authorize_workspace_from_request",
@@ -520,6 +520,10 @@ def test_route_query_canonicalization_matches_assembly_scene_for_smd(tmp_path: P
             target_ppfd=900,
             peak_capping_enabled=False,
             competitor_layout="Practical Coverage",
+            plant_seed=44,
+            plant_rows=1,
+            plant_columns=2,
+            plant_leaf_count=5,
         )
 
     with patch.object(
@@ -537,11 +541,17 @@ def test_route_query_canonicalization_matches_assembly_scene_for_smd(tmp_path: P
             target_ppfd=900,
             peak_capping_enabled=False,
             competitor_layout="Practical Coverage",
+            plant_seed=44,
+            plant_rows=1,
+            plant_columns=2,
+            plant_leaf_count=5,
         )
 
     assert captured["photometric"].model_dump() == captured["assembly"].model_dump()
     assert captured["photometric"].mode == MODE_SMD
     assert captured["photometric"].peak_capping_enabled is True
+    assert captured["photometric"].plants_enabled is True
+    assert captured["photometric"].plant_seed == 44
     assert captured["photometric"].competitor_layout == "full"
 
 

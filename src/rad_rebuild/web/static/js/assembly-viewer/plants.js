@@ -1,0 +1,190 @@
+// @ts-check
+
+// @ts-ignore Static vendor module is served by Flask.
+import * as THREE from "/static/vendor/three/three.module.js";
+
+const PLANT_VIEWER_SCHEMA = "rad_rebuild.fspm.plants.viewer.v1";
+const DEFAULT_LEAF_COLOR = 0x3fa66f;
+
+function finiteNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function finiteCoordinateTriple(value) {
+  if (!Array.isArray(value) || value.length !== 3) {
+    return null;
+  }
+  const x = finiteNumber(value[0]);
+  const y = finiteNumber(value[1]);
+  const z = finiteNumber(value[2]);
+  return x === null || y === null || z === null ? null : [x, y, z];
+}
+
+function radianceVertexToWorld(vertex) {
+  return [vertex[0], vertex[2], vertex[1]];
+}
+
+function normalizedFaceIndices(face, vertexCount) {
+  if (!Array.isArray(face) || face.length < 3) {
+    return null;
+  }
+  const indices = face.map((value) => Number(value));
+  if (!indices.every((index) => Number.isInteger(index) && index >= 0 && index < vertexCount)) {
+    return null;
+  }
+  return indices;
+}
+
+function triangulateFaces(faces, vertexCount) {
+  const triangles = [];
+  if (!Array.isArray(faces)) {
+    return triangles;
+  }
+  for (const face of faces) {
+    const indices = normalizedFaceIndices(face, vertexCount);
+    if (!indices) {
+      continue;
+    }
+    for (let index = 1; index < indices.length - 1; index += 1) {
+      triangles.push(indices[0], indices[index], indices[index + 1]);
+    }
+  }
+  return triangles;
+}
+
+function leafMaterialOpacity(plantPayload) {
+  const transmittance = finiteNumber(plantPayload?.material?.transmittance);
+  if (transmittance === null) {
+    return 0.88;
+  }
+  return Math.min(0.96, Math.max(0.62, 0.9 - transmittance * 0.4));
+}
+
+function plantCounts(plants) {
+  const plantCount = plants.length;
+  let leafCount = 0;
+  for (const plant of plants) {
+    leafCount += Array.isArray(plant?.leaves) ? plant.leaves.length : 0;
+  }
+  return { plantCount, leafCount };
+}
+
+export function hasPlantPayload(scenePayload) {
+  return scenePayload?.plants?.schema === PLANT_VIEWER_SCHEMA
+    && Array.isArray(scenePayload.plants.plants)
+    && scenePayload.plants.plants.length > 0;
+}
+
+export function summarizePlantPayload(scenePayload) {
+  if (!hasPlantPayload(scenePayload)) {
+    return { plantCount: 0, leafCount: 0 };
+  }
+  return plantCounts(scenePayload.plants.plants);
+}
+
+export function createPlantVisibilityController(plantGroup) {
+  if (!plantGroup || typeof plantGroup !== "object") {
+    throw new TypeError("A plant group object is required.");
+  }
+  plantGroup.visible = plantGroup.visible !== false;
+
+  function setVisible(value) {
+    plantGroup.visible = Boolean(value);
+    return getState();
+  }
+
+  function getState() {
+    return {
+      visible: plantGroup.visible !== false,
+      plantCount: Number(plantGroup.userData?.plantCount || 0),
+      leafCount: Number(plantGroup.userData?.leafCount || 0),
+    };
+  }
+
+  return { setVisible, getState };
+}
+
+export function createLeafGeometry(leaf) {
+  const sourceVertices = Array.isArray(leaf?.mesh?.vertices) ? leaf.mesh.vertices : [];
+  const vertices = sourceVertices.map(finiteCoordinateTriple);
+  if (vertices.some((vertex) => vertex === null)) {
+    return null;
+  }
+  const triangles = triangulateFaces(leaf?.mesh?.faces, vertices.length);
+  if (!vertices.length || triangles.length < 3) {
+    return null;
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(vertices.flatMap((vertex) => radianceVertexToWorld(vertex)), 3),
+  );
+  geometry.setIndex(triangles);
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  return geometry;
+}
+
+export function createPlantGroup(scenePayload) {
+  const group = new THREE.Group();
+  group.name = "plant-geometry";
+  if (!hasPlantPayload(scenePayload)) {
+    group.visible = false;
+    group.userData = { plantCount: 0, leafCount: 0, renderedLeafCount: 0, warnings: [] };
+    return group;
+  }
+
+  const plantPayload = scenePayload.plants;
+  const counts = summarizePlantPayload(scenePayload);
+  const warnings = [];
+  const material = new THREE.MeshStandardMaterial({
+    color: DEFAULT_LEAF_COLOR,
+    roughness: 0.78,
+    metalness: 0.0,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: leafMaterialOpacity(plantPayload),
+  });
+  let renderedLeafCount = 0;
+
+  for (const plant of plantPayload.plants) {
+    const plantGroup = new THREE.Group();
+    plantGroup.name = `plant-${plant?.plant_id || "unknown"}`;
+    plantGroup.userData = {
+      plantId: plant?.plant_id || null,
+      row: plant?.row ?? null,
+      column: plant?.column ?? null,
+      centerM: Array.isArray(plant?.center_m) ? plant.center_m.slice(0, 3) : null,
+    };
+    const leaves = Array.isArray(plant?.leaves) ? plant.leaves : [];
+    for (const leaf of leaves) {
+      const geometry = createLeafGeometry(leaf);
+      if (!geometry) {
+        warnings.push(`${leaf?.leaf_id || "unknown leaf"} has invalid plant mesh data.`);
+        continue;
+      }
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = `plant-leaf-${leaf?.leaf_id || renderedLeafCount}`;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.userData = {
+        plantId: leaf?.plant_id || plant?.plant_id || null,
+        leafId: leaf?.leaf_id || null,
+        radianceMaterialId: leaf?.radiance_material_id || null,
+      };
+      plantGroup.add(mesh);
+      renderedLeafCount += 1;
+    }
+    group.add(plantGroup);
+  }
+
+  group.userData = {
+    plantCount: counts.plantCount,
+    leafCount: counts.leafCount,
+    renderedLeafCount,
+    warnings,
+  };
+  return group;
+}

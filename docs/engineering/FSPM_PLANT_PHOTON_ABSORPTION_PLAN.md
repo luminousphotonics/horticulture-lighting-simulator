@@ -3,8 +3,8 @@
 ## Status Header
 
 - Feature: Functional Structural Plant Modeling for leafy-green / lettuce-style plant geometry and plant photon absorption groundwork.
-- Current phase: Phase 03 complete; next phase is Phase 04.
-- Last updated: 2026-06-23.
+- Current phase: Phase 05 complete; next phase is Phase 06.
+- Last updated: 2026-06-24.
 - Branch: `feat/fspm-plant-modeling`.
 - Worktree: `/home/austin/Desktop/hls-fspm`.
 - Public main worktree: `/home/austin/Desktop/horticulture-lighting-simulator` is out of scope and must stay untouched.
@@ -528,20 +528,64 @@ Goal:
 - Render plant geometry in the 3D assembly viewer behind an explicit toggle.
 - Keep fixture rendering, heatmap behavior, and camera bounds stable.
 
-Expected outputs:
+Completed checklist:
 
-- Plant scene payload shape or extension.
-- Browser modules for plant geometry rendering.
-- UI controls that do not disrupt existing assembly controls.
-- Tests for payload parsing, transforms, bounds, and smoke behavior.
+- Added optional `plants` data to `AssemblySceneResponse` and omitted it from no-plant scene payloads.
+- Loaded `runtime_state/plants_viewer.json` from authorized workspaces only when the artifact exists.
+- Added plant query fields to the assembly scene and assembly photometric layer routes so plant-enabled viewer and heatmap requests resolve the same workspace fingerprint.
+- Added `src/rad_rebuild/web/static/js/assembly-viewer/plants.js` for JSON mesh parsing, Radiance-to-Three coordinate mapping, material creation, and visibility control.
+- Added a compact `Show plants` viewer toggle that is enabled only when plant geometry rendered.
+- Kept fixture visibility, fixture height controls, PPFD heatmap controls, and no-plant Conventional/HPS viewer behavior intact.
+- Regenerated deterministic OpenAPI and frontend API typedefs.
 
-Validation:
+Scene/schema changes:
 
-- `npm run test:browser`.
-- Relevant Node-backed viewer tests.
-- Existing assembly scene tests.
-- Desktop and mobile browser smoke checks if UI changes.
-- `git diff --check`.
+- `AssemblySceneResponse.plants` is optional and contains the Phase 01/02 viewer export payload when present.
+- No-plant scene dictionaries still omit the `plants` key.
+- The assembly route uses response-model unset exclusion so no-plant HTTP responses do not gain `plants: null`.
+- Plant artifact lookup is fixed to `runtime_state/plants_viewer.json`; no caller-supplied path or public file URL is accepted.
+
+Viewer toggle behavior:
+
+- Plant controls are hidden when no plant payload exists or when the payload has no renderable leaves.
+- Plant controls are visible, enabled, and checked by default when plant geometry renders.
+- Toggling plants changes only the plant group visibility and does not touch fixture LOD, fixture height, heatmap loading, or camera controls.
+
+Coordinate alignment notes:
+
+- Plant exporter coordinates remain in meters.
+- Viewer plant vertices use the same mapping as fixture points: Radiance/layout `[x, y, z]` maps to Three `[x, z, y]`.
+- Plant meshes are inserted directly from the deterministic viewer JSON payload; no generated GLB assets are used.
+
+Validation results:
+
+- `npm ci` -> passed, with existing upstream package deprecation warnings.
+- `npm run test:browser` -> initial sandbox run failed to bind the local Flask server; rerun with local-server escalation passed, 44 passed.
+- `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_assembly_scene.py` -> 18 passed.
+- `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_import_boundaries.py` -> 6 passed, 33 subtests passed, existing matplotlib/pyparsing warnings.
+- `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_assembly_viewer_plants.py` -> 2 passed.
+- `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_assembly_photometric_layer.py::test_route_query_canonicalization_matches_assembly_scene_for_smd` -> 1 passed.
+- `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance` -> 487 passed, 1 skipped, 119 subtests passed, existing matplotlib/pyparsing warnings.
+- `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance tests/radiance` -> passed.
+- `PYTHONPATH=src ./.venv/bin/python scripts/dev/export_openapi.py --check` -> passed.
+- `PYTHONPATH=src ./.venv/bin/python scripts/dev/generate_frontend_types.py --check` -> passed.
+- `npm run typecheck:js` -> passed.
+- `npm run lint:js` -> passed.
+- `PYTHONPATH=src ./.venv/bin/python scripts/dev/baseline.py` -> passed.
+
+Risks/open questions:
+
+- Plant request controls are still not exposed in the public simulator form, so plant viewer rendering is currently available through plant-enabled backend/runtime workspaces rather than end-user UI fields.
+- Plant meshes participate in viewer scene bounds when present; current plant defaults stay inside the room/canopy footprint, but Phase 06 should test larger configured canopies before relying on camera comparisons.
+- The viewer uses a simple green `MeshStandardMaterial`; Radiance leaf material science remains the Phase 07 review item.
+
+Recommended Phase 06 handoff:
+
+- Add no-plant versus plant-geometry comparison metrics that stay framed as geometric/photometric differences, not yield or biomass.
+- Compare workspace artifacts and scene payloads for identical lighting requests with only `plants_enabled` and plant config changed.
+- Add tests proving default no-plant metrics and public precomputed playback remain unchanged.
+- Decide whether comparison metrics consume plant mesh geometry, Radiance surface IDs, or both.
+- Document any camera/bounds or PPFD-layer differences caused by plant geometry as viewer/runtime effects, not crop-response claims.
 
 ### Phase 06 - No-Plant Vs Plant-Geometry Comparison Metrics
 

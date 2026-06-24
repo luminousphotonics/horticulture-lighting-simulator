@@ -668,6 +668,17 @@
             "title": "Placement Strategy",
             "type": "string"
           },
+          "plants": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plants"
+          },
           "room": {
             "$ref": "#/components/schemas/AssemblyRoomResponse"
           },
@@ -3205,6 +3216,144 @@
           },
           {
             "in": "query",
+            "name": "plants_enabled",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Plants Enabled",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_seed",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Seed"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_rows",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Rows"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_columns",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Columns"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_spacing_m",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Spacing M"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_height_m",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Height M"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_canopy_radius_m",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Canopy Radius M"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_leaf_count",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Leaf Count"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_growth_stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Growth Stage"
+            }
+          },
+          {
+            "in": "query",
             "name": "session_id",
             "required": false,
             "schema": {
@@ -3513,6 +3662,144 @@
           },
           {
             "in": "query",
+            "name": "plants_enabled",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Plants Enabled",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_seed",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Seed"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_rows",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Rows"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_columns",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Columns"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_spacing_m",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Spacing M"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_height_m",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Height M"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_canopy_radius_m",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Canopy Radius M"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_leaf_count",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Leaf Count"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_growth_stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Growth Stage"
+            }
+          },
+          {
+            "in": "query",
             "name": "session_id",
             "required": false,
             "schema": {
@@ -3810,6 +4097,144 @@
               "default": "rtrace",
               "title": "Basis Backend",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plants_enabled",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Plants Enabled",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_seed",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Seed"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_rows",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Rows"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_columns",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Columns"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_spacing_m",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Spacing M"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_height_m",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Height M"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_canopy_radius_m",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Canopy Radius M"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_leaf_count",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Leaf Count"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_growth_stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Growth Stage"
             }
           },
           {

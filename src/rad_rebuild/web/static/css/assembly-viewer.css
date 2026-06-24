@@ -108,7 +108,8 @@ button:focus-visible {
 }
 
 .assembly-viewer__heatmap-controls,
-.assembly-viewer__fixture-controls {
+.assembly-viewer__fixture-controls,
+.assembly-viewer__plant-controls {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
@@ -118,6 +119,10 @@ button:focus-visible {
     color: var(--assembly-muted);
     font-size: 0.82rem;
     font-weight: 700;
+}
+
+.assembly-viewer__plant-controls[hidden] {
+    display: none;
 }
 
 .assembly-viewer__toggle,
@@ -160,6 +165,11 @@ button:disabled {
 
 .assembly-viewer__heatmap-status {
     min-width: 4.4rem;
+    color: var(--assembly-accent);
+}
+
+.assembly-viewer__plant-status {
+    min-width: 5.2rem;
     color: var(--assembly-accent);
 }
 
@@ -307,7 +317,8 @@ dd {
     }
 
     .assembly-viewer__heatmap-controls,
-    .assembly-viewer__fixture-controls {
+    .assembly-viewer__fixture-controls,
+    .assembly-viewer__plant-controls {
         justify-content: flex-start;
         min-width: 0;
     }

@@ -23,6 +23,17 @@ import {
 } from "./state.js";
 
 const PLACEHOLDER_SRC = "/static/img/transparent-placeholder.svg";
+const OPTIONAL_PLANT_QUERY_FIELDS = [
+  ["plantsEnabled", "plants_enabled"],
+  ["plantSeed", "plant_seed"],
+  ["plantRows", "plant_rows"],
+  ["plantColumns", "plant_columns"],
+  ["plantSpacingM", "plant_spacing_m"],
+  ["plantHeightM", "plant_height_m"],
+  ["plantCanopyRadiusM", "plant_canopy_radius_m"],
+  ["plantLeafCount", "plant_leaf_count"],
+  ["plantGrowthStage", "plant_growth_stage"],
+];
 
 function hpsArtifactMountHeightM(payload) {
   return payload.mode === "1000W HPS" && payload.executionMode === "precomputed"
@@ -107,6 +118,12 @@ export function artifactQueryParams(payload, extras = {}) {
   });
   if (appState.currentArtifactToken) {
     params.set("artifact_token", appState.currentArtifactToken);
+  }
+  for (const [payloadKey, queryKey] of OPTIONAL_PLANT_QUERY_FIELDS) {
+    const value = payload?.[payloadKey];
+    if (value !== undefined && value !== null && value !== "") {
+      params.set(queryKey, String(value));
+    }
   }
   return params;
 }
