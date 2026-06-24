@@ -970,6 +970,14 @@ def _prepare_optional_plant_artifacts_or_report(
         return int(RadianceScriptExit.VALIDATION), None
 
 
+def _print_optional_plant_artifact_note(plant_artifacts: PlantArtifactPaths | None) -> None:
+    if plant_artifacts is None:
+        return
+    print("FSPM plant artifacts:")
+    print(f"  • {plant_artifacts.radiance}")
+    print("  note: excluded from baseline PPFD octree; used by viewer/absorption scaffold.")
+
+
 def _octree_scene_inputs(
     *,
     room: Path,
@@ -977,13 +985,17 @@ def _octree_scene_inputs(
     plant_rad: Path | None = None,
     static_room_oct: Path | None = None,
 ) -> list[str]:
+    """Build baseline PPFD scene inputs.
+
+    Plant geometry is intentionally excluded from this octree. FSPM plant
+    artifacts are a separate viewer/analysis layer; they must not shadow or
+    otherwise alter the baseline fixture uniformity field.
+    """
+
+    _ = plant_rad
     if static_room_oct and static_room_oct.is_file():
-        inputs = ["-f", "-i", str(static_room_oct), str(emitter_file)]
-    else:
-        inputs = ["-f", str(room), str(emitter_file)]
-    if plant_rad is not None:
-        inputs.append(str(plant_rad))
-    return inputs
+        return ["-f", "-i", str(static_room_oct), str(emitter_file)]
+    return ["-f", str(room), str(emitter_file)]
 
 
 def _clamp_0_1(value: float) -> float:
@@ -1446,8 +1458,7 @@ def run_simulation_smd(raw_env: Mapping[str, str] | None = None) -> int:
     plant_rad = plant_artifacts.radiance if plant_artifacts else None
     print("Geometry files:")
     print(f"  • {room}")
-    if plant_rad is not None:
-        print(f"  • {plant_rad}")
+    _print_optional_plant_artifact_note(plant_artifacts)
     print("Emitters:")
     print(f"  • {emitter_file}")
     mode = _env_text(config.env, "MODE", "standard")
@@ -1617,8 +1628,7 @@ def run_simulation_hps(raw_env: Mapping[str, str] | None = None) -> int:
     if plant_exit != 0:
         return plant_exit
     plant_rad = plant_artifacts.radiance if plant_artifacts else None
-    if plant_rad is not None:
-        print(f"  • {plant_rad}")
+    _print_optional_plant_artifact_note(plant_artifacts)
     mode = _env_text(config.env, "MODE", "standard")
     nthreads = 1 if mode == "direct" else _cpu_count()
     oversample = int(_env_text(config.env, "OS", "4"))
@@ -1841,8 +1851,7 @@ def run_simulation_spydr3(raw_env: Mapping[str, str] | None = None) -> int:
     if plant_exit != 0:
         return plant_exit
     plant_rad = plant_artifacts.radiance if plant_artifacts else None
-    if plant_rad is not None:
-        print(f"  • {plant_rad}")
+    _print_optional_plant_artifact_note(plant_artifacts)
     mode = config.env["MODE"]
     nthreads = 1 if mode == "direct" else _cpu_count()
     oversample = int(config.env["OS"])

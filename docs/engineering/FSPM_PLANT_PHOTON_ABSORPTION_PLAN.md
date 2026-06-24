@@ -799,6 +799,23 @@ Each later phase must:
 - Public precomputed bundles may later include derived FSPM artifacts, but not protected photometry inputs.
 
 
+
+### Baseline PPFD Field vs FSPM Plant Layer
+
+Decision:
+
+- FSPM plant geometry must not be inserted into the baseline PPFD/uniformity octree.
+- Baseline heatmaps, DOU, CV, mean PPFD, and fixture-output metrics remain room + emitters only.
+- Plant geometry is generated as a separate viewer/analysis artifact layer.
+- Future plant photon absorption work should sample the unblocked fixture light field at deterministic plant surface points/normals, rather than letting plant polygons shadow the baseline canopy-plane heatmap.
+
+Rationale:
+
+- Baseline fixture comparison metrics should describe the lighting system output, not plant occlusion.
+- Plant photon absorption is a separate plant-layer metric and should not degrade the reference uniformity map.
+- This separation keeps precomputed PPFD playback compatible with future plant absorption artifacts.
+
+
 ## Open Questions And Risk Register
 
 - Radiance material model for leaves: decide whether early phases use a conservative placeholder material or defer optical properties until scientific review.
