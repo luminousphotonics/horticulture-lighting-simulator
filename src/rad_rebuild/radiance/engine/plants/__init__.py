@@ -30,6 +30,15 @@ from rad_rebuild.radiance.engine.plants.models import (
 from rad_rebuild.radiance.engine.plants.radiance_export import (
     export_scene_to_radiance,
 )
+from rad_rebuild.radiance.engine.plants.spectral import (
+    SPECTRAL_ABSORPTION_METHOD,
+    SPECTRAL_RESPONSE_SCHEMA,
+    LeafSpectralOpticalBand,
+    SpectralPhotonDistribution,
+    SpectralPhotonFraction,
+    build_leaf_spectral_absorption_summary,
+    default_leafy_green_spectral_bands,
+)
 from rad_rebuild.radiance.engine.plants.surface_flux import (
     BASELINE_PPFD_PROXY_METHOD,
     SPATIAL_PPFD_PROXY_METHOD,
@@ -64,6 +73,13 @@ __all__ = [
     "PLANT_SURFACE_FLUX_FILENAME",
     "PLANT_SURFACE_FLUX_SCHEMA",
     "PlantScene",
+    "LeafSpectralOpticalBand",
+    "SpectralPhotonDistribution",
+    "SpectralPhotonFraction",
+    "SPECTRAL_ABSORPTION_METHOD",
+    "SPECTRAL_RESPONSE_SCHEMA",
+    "build_leaf_spectral_absorption_summary",
+    "default_leafy_green_spectral_bands",
     "SurfacePhotonAbsorption",
     "BASELINE_PPFD_PROXY_METHOD",
     "SPATIAL_PPFD_PROXY_METHOD",

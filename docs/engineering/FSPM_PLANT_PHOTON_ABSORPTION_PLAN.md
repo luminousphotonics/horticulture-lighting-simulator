@@ -724,6 +724,31 @@ Scientific scope:
 - It does not include plant self-shadowing, leaf-to-leaf occlusion, photosynthesis, growth, biomass, or yield prediction.
 
 
+
+### Phase 13 - Spectral Leaf-Optics And Fixture Spectral Input Contract
+
+Goal:
+
+- Add a pure engine spectral leaf-optics contract for FSPM response modeling.
+- Represent band-level reflectance, transmittance, and absorptance using `absorptance = 1 - reflectance - transmittance`.
+- Support band-weighted absorbed photon fractions from explicit fixture/source spectral photon fractions.
+- Expose response-input metrics for blue, red, far-red, and PAR bands without claiming photosynthesis, morphology, biomass, or yield prediction.
+- Keep this phase independent of runtime Radiance sampling; later phases will connect spectral summaries to computed leaf-surface receiver outputs.
+
+Status:
+
+- In progress.
+
+Scientific scope:
+
+- This phase defines validated spectral inputs and response summaries only.
+- Default leafy-green spectral bands are deterministic placeholders for development and must be replaced or calibrated with measured leaf optical properties before publication-level biological claims.
+- Fixture spectral photon fractions are explicit model inputs and should later be connected to measured SPD data.
+
+Next handoff:
+
+- Phase 14 should combine `plant_surface_flux.json` with spectral photon distributions to produce plant/leaf/surface absorbed photon flux by spectral band.
+
 ## Validation Matrix
 
 | Phase | Primary checks | Required commands |
