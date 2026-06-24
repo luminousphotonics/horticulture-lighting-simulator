@@ -634,6 +634,10 @@ Validation:
 - Scientific review evidence for material and absorption assumptions.
 - Baseline if integrated into simulation outputs.
 
+Implementation notes:
+
+- Format the scaffold-only `plant_photon_absorption` block in the browser metrics panel so users see plant/leaf/surface counts, one-sided leaf area, optical assumptions, and a clear `absorbed_flux: not computed` note instead of a raw object dump.
+
 ## Validation Matrix
 
 | Phase | Primary checks | Required commands |

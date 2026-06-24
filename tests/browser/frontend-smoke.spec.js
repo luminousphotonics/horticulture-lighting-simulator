@@ -371,6 +371,90 @@ test("live mode selection explains unsupported public lighting systems", async (
   }
 });
 
+
+test("metrics panel formats plant absorption scaffold without object dumps", async ({ page }) => {
+  await routeLiveSimulatorPage(page);
+  await page.route("**/radiance-api/health**", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+  });
+  await page.route("**/radiance-api/radiance/runtime/status**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(runtimeStatus()),
+    });
+  });
+  await page.route("**/radiance-api/radiance/images**", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({}) });
+  });
+  await page.route("**/radiance-api/radiance/run**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        artifact_token: "plant-metrics-token",
+        job_id: "plant-metrics-job",
+        status: "running",
+        outdir: "ppfd_visualizations_proposed",
+      }),
+    });
+  });
+  await page.route("**/radiance-api/jobs/plant-metrics-job/tail**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        lines: ["plant metrics ready"],
+        next_cursor: 1,
+        done: true,
+        status: "completed",
+      }),
+    });
+  });
+  await page.route("**/radiance-api/radiance/metrics**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        metrics: {
+          mean: 1000,
+          min: 900,
+          max: 1100,
+          plant_photon_absorption: {
+            schema: "rad_rebuild.fspm.plant_photon_absorption.scaffold.v1",
+            schema_version: 1,
+            status: "scaffold_only",
+            source_artifact: "runtime_state/plant_absorption_surfaces.json",
+            plant_count: 1,
+            leaf_count: 4,
+            surface_count: 64,
+            one_sided_leaf_area_m2: 0.123456,
+            optical_assumptions: {
+              reflectance: 0.22,
+              transmittance: 0.08,
+              absorptance: 0.7,
+            },
+            outputs_do_not_predict: ["yield", "biomass", "growth", "crop_output"],
+            note: "Surface registry only. Absorbed photon flux values are not computed until a Radiance per-surface flux mapping method is reviewed.",
+          },
+        },
+        cost_estimate: null,
+      }),
+    });
+  });
+
+  await page.goto("/radiance-simulator");
+  await page.getByRole("button", { name: "Run + Visualize" }).click();
+
+  const metrics = page.locator("#rad-metrics");
+  await expect(metrics).toContainText("PLANT PHOTON ABSORPTION SCAFFOLD");
+  await expect(metrics).toContainText("status: scaffold only · runtime_state/plant_absorption_surfaces.json");
+  await expect(metrics).toContainText("registry: 1 plants · 4 leaves · 64 surfaces");
+  await expect(metrics).toContainText("absorbed_flux: not computed");
+  await expect(metrics).toContainText("absorptance=70.0%");
+  await expect(metrics).not.toContainText("[object Object]");
+});
+
 test("precomputed stays quiet and ready Proposed live mode is allowed", async ({ page }) => {
   await routeLiveSimulatorPage(page);
   await routeBasicRadianceBackend(page, () => runtimeStatus());

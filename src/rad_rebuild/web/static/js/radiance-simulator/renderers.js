@@ -560,6 +560,68 @@ function formatPercent(value, digits = 1) {
   return `${(value * 100).toFixed(digits)}%`;
 }
 
+
+function formatNumber(value, digits = 2) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return null;
+  }
+  return num.toFixed(digits);
+}
+
+function formatPlantPhotonAbsorption(metrics, used) {
+  const scaffold = metrics.plant_photon_absorption;
+  if (!scaffold || typeof scaffold !== "object") {
+    return [];
+  }
+  used.add("plant_photon_absorption");
+
+  const lines = ["PLANT PHOTON ABSORPTION SCAFFOLD"];
+  const status = String(scaffold.status || "scaffold_only").replaceAll("_", " ");
+  const source = scaffold.source_artifact ? ` · ${scaffold.source_artifact}` : "";
+  lines.push(`status: ${status}${source}`);
+
+  const counts = [];
+  const plantCount = Number(scaffold.plant_count);
+  const leafCount = Number(scaffold.leaf_count);
+  const surfaceCount = Number(scaffold.surface_count);
+  if (Number.isFinite(plantCount)) counts.push(`${plantCount} plants`);
+  if (Number.isFinite(leafCount)) counts.push(`${leafCount} leaves`);
+  if (Number.isFinite(surfaceCount)) counts.push(`${surfaceCount} surfaces`);
+  if (counts.length) {
+    lines.push(`registry: ${counts.join(" · ")}`);
+  }
+
+  const leafArea = formatNumber(scaffold.one_sided_leaf_area_m2, 4);
+  if (leafArea) {
+    lines.push(`one_sided_leaf_area: ${leafArea} m^2`);
+  }
+
+  const optical = scaffold.optical_assumptions;
+  if (optical && typeof optical === "object") {
+    const reflectance = formatPercent(optical.reflectance, 1);
+    const transmittance = formatPercent(optical.transmittance, 1);
+    const absorptance = formatPercent(optical.absorptance, 1);
+    const opticalParts = [];
+    if (reflectance) opticalParts.push(`reflectance=${reflectance}`);
+    if (transmittance) opticalParts.push(`transmittance=${transmittance}`);
+    if (absorptance) opticalParts.push(`absorptance=${absorptance}`);
+    if (opticalParts.length) {
+      lines.push(`optical_assumptions: ${opticalParts.join(" · ")}`);
+    }
+  }
+
+  lines.push("absorbed_flux: not computed");
+  if (scaffold.note) {
+    lines.push(`note: ${scaffold.note}`);
+  } else {
+    lines.push("note: Surface registry only. Absorbed photon flux requires a reviewed Radiance surface-flux mapping method.");
+  }
+
+  return lines;
+}
+
+
 function formatCurrency(value, digits = 0) {
   const num = Number(value);
   if (!Number.isFinite(num)) {
@@ -887,6 +949,13 @@ export function formatMetrics(metrics) {
       "utilization_at_cap",
       "ppf_at_cap",
     ].forEach((key) => used.add(key));
+  }
+
+
+  const plantAbsorptionLines = formatPlantPhotonAbsorption(metrics, used);
+  if (plantAbsorptionLines.length) {
+    lines.push("");
+    lines.push(...plantAbsorptionLines);
   }
 
   if (metrics.legacy && typeof metrics.legacy === "object") {
