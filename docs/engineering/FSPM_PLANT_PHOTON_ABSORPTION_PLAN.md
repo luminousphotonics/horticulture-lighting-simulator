@@ -663,6 +663,32 @@ Validation:
 - No protected IES files, absolute private paths, or generated runtime outputs committed.
 
 \nImplementation notes:\n\n- Update simulator FSPM control visibility to follow the runtime `live_supported_modes` payload. Public defaults still expose FSPM controls only for live SMD, while private live mode can expose the same controls for Conventional LED and 1000W HPS when private photometry is available.\n
+
+### Phase 09 - Plant Surface Flux Artifact
+
+Goal:
+
+- Add `runtime_state/plant_surface_flux.json` as the deterministic contract for plant photon absorption results.
+- Aggregate absorbed photon flux per surface, leaf, and plant.
+- Calculate plant-to-plant absorbed photon flux CV.
+- Classify under-lit, nominal, and over-lit plant regions.
+- Export visual-intensity values that the 3D viewer can use for future plant coloring.
+- Reject missing, duplicate, unknown, or leaf-mismatched surface IDs.
+- Keep baseline PPFD/uniformity independent from plant occlusion.
+- Avoid crop-output prediction language in generated summaries.
+
+Current method:
+
+- `baseline_ppfd_mean_orientation_proxy_v1`.
+- Uses the unblocked baseline PPFD field and deterministic plant surface geometry.
+- This is a contract-valid proxy for development/testing, not the final reviewed Radiance receiver method.
+
+Future method:
+
+- Replace proxy incident flux with reviewed Radiance per-surface receiver sampling.
+- Preserve schema-compatible per-surface, per-leaf, per-plant aggregation outputs.
+
+
 ## Validation Matrix
 
 | Phase | Primary checks | Required commands |

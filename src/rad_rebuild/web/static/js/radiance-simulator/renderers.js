@@ -576,7 +576,8 @@ function formatPlantPhotonAbsorption(metrics, used) {
   }
   used.add("plant_photon_absorption");
 
-  const lines = ["PLANT PHOTON ABSORPTION SCAFFOLD"];
+  const hasAbsorbedFlux = Number.isFinite(Number(scaffold.total_absorbed_photon_flux_umol_s));
+  const lines = [hasAbsorbedFlux ? "PLANT PHOTON ABSORPTION" : "PLANT PHOTON ABSORPTION SCAFFOLD"];
   const status = String(scaffold.status || "scaffold_only").replaceAll("_", " ");
   const source = scaffold.source_artifact ? ` · ${scaffold.source_artifact}` : "";
   lines.push(`status: ${status}${source}`);
@@ -611,7 +612,20 @@ function formatPlantPhotonAbsorption(metrics, used) {
     }
   }
 
-  lines.push("absorbed_flux: not computed");
+  if (hasAbsorbedFlux) {
+    const absorbed = formatNumber(scaffold.total_absorbed_photon_flux_umol_s, 3);
+    const incident = formatNumber(scaffold.total_incident_photon_flux_umol_s, 3);
+    const absorbedFraction = formatPercent(scaffold.mean_absorbed_fraction_of_incident, 1);
+    const plantCv = formatPercent(scaffold.plant_to_plant_absorbed_photon_flux_cv, 1);
+    if (absorbed) lines.push(`absorbed_flux_total: ${absorbed} umol/s`);
+    if (incident) lines.push(`incident_flux_total: ${incident} umol/s`);
+    if (absorbedFraction) lines.push(`absorbed_fraction: ${absorbedFraction}`);
+    if (plantCv) lines.push(`plant_to_plant_absorption_CV: ${plantCv}`);
+    lines.push(`under_lit_leaves: ${Number(scaffold.under_lit_leaf_count || 0)}`);
+    lines.push(`over_lit_leaves: ${Number(scaffold.over_lit_leaf_count || 0)}`);
+  } else {
+    lines.push("absorbed_flux: not computed");
+  }
   if (scaffold.note) {
     lines.push(`note: ${scaffold.note}`);
   } else {

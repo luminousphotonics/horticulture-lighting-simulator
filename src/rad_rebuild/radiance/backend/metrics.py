@@ -9,6 +9,10 @@ from fastapi import HTTPException
 from rad_rebuild.radiance.config import MODE_COMPETITOR, MODE_SMD
 from rad_rebuild.radiance.engine.plants.absorption import PHOTON_ABSORPTION_SCAFFOLD_SCHEMA
 from rad_rebuild.radiance.engine.plants.artifacts import PLANT_ABSORPTION_SURFACES_FILENAME
+from rad_rebuild.radiance.engine.plants.surface_flux import (
+    PLANT_SURFACE_FLUX_FILENAME,
+    PLANT_SURFACE_FLUX_SCHEMA,
+)
 
 from .artifacts import BACKEND_SERVER_FILE, _cache_fresh, _layout_file_for_mode
 from .costs import build_cost_estimate
@@ -81,6 +85,7 @@ def _metrics_dependencies(workspace_root: Path | None = None) -> list[Path | Non
         work_root / "runtime_state" / "smd_summary.txt",
         work_root / "runtime_state" / "last_run.json",
         work_root / "runtime_state" / PLANT_ABSORPTION_SURFACES_FILENAME,
+        work_root / "runtime_state" / PLANT_SURFACE_FLUX_FILENAME,
     ]
 
 
@@ -95,6 +100,53 @@ def _plant_absorption_unavailable(reason: str) -> dict[str, object]:
             "growth",
             "crop_output",
         ],
+    }
+
+
+def _load_plant_surface_flux_summary(workspace_root: Path) -> dict[str, object] | None:
+    path = workspace_root / "runtime_state" / PLANT_SURFACE_FLUX_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return _plant_absorption_unavailable("invalid_surface_flux_artifact")
+    if not isinstance(payload, dict):
+        return _plant_absorption_unavailable("invalid_surface_flux_artifact")
+    if payload.get("schema") != PLANT_SURFACE_FLUX_SCHEMA:
+        return _plant_absorption_unavailable("unsupported_surface_flux_schema")
+
+    return {
+        "schema": payload.get("schema"),
+        "schema_version": payload.get("schema_version"),
+        "status": payload.get("status", "proxy"),
+        "method": payload.get("method"),
+        "source_artifact": f"runtime_state/{PLANT_SURFACE_FLUX_FILENAME}",
+        "source_ppfd_map": payload.get("source_ppfd_map"),
+        "plant_count": payload.get("plant_count"),
+        "leaf_count": payload.get("leaf_count"),
+        "surface_count": payload.get("surface_count"),
+        "one_sided_leaf_area_m2": payload.get("one_sided_leaf_area_m2"),
+        "total_incident_photon_flux_umol_s": payload.get("total_incident_photon_flux_umol_s"),
+        "total_absorbed_photon_flux_umol_s": payload.get("total_absorbed_photon_flux_umol_s"),
+        "mean_absorbed_fraction_of_incident": payload.get("mean_absorbed_fraction_of_incident"),
+        "plant_to_plant_absorbed_photon_flux_cv": payload.get("plant_to_plant_absorbed_photon_flux_cv"),
+        "under_lit_leaf_count": payload.get("under_lit_leaf_count"),
+        "over_lit_leaf_count": payload.get("over_lit_leaf_count"),
+        "units": payload.get("units"),
+        "plant_summaries": payload.get("plant_summaries", []),
+        "leaf_summaries": payload.get("leaf_summaries", []),
+        "visualization": payload.get("visualization"),
+        "outputs_do_not_predict": payload.get(
+            "outputs_do_not_predict",
+            ["yield", "biomass", "growth", "crop_output"],
+        ),
+        "warnings": payload.get("warnings", []),
+        "limitations": payload.get("limitations", []),
+        "note": (
+            "Surface flux artifact present. Current values are proxy values until "
+            "the Radiance per-surface receiver method is reviewed."
+        ),
     }
 
 
@@ -206,7 +258,10 @@ def _metrics_payload_for_request(req: RadianceRunRequest, workspace_root: Path) 
     elif not req.peak_capping_enabled:
         metrics["mode_note"] = "Peak-capping is disabled. Dimmable LED systems are evaluated against the requested target PPFD without hotspot-cap post-processing."
 
-    plant_photon_absorption = _load_plant_photon_absorption_scaffold(workspace_root)
+    plant_photon_absorption = (
+        _load_plant_surface_flux_summary(workspace_root)
+        or _load_plant_photon_absorption_scaffold(workspace_root)
+    )
     if plant_photon_absorption is not None:
         metrics["plant_photon_absorption"] = plant_photon_absorption
 

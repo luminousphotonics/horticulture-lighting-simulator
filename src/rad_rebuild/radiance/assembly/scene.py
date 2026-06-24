@@ -9,6 +9,10 @@ from rad_rebuild.radiance.assembly.classification import PLACEHOLDER_ASSET_KEY, 
 from rad_rebuild.radiance.backend.models import RadianceRunRequest
 from rad_rebuild.radiance.config import MODE_COMPETITOR, MODE_HPS, MODE_SMD, RADIANCE_MODE_LABELS
 from rad_rebuild.radiance.engine.plants.artifacts import PLANTS_VIEWER_FILENAME
+from rad_rebuild.radiance.engine.plants.surface_flux import (
+    PLANT_SURFACE_FLUX_FILENAME,
+    PLANT_SURFACE_FLUX_SCHEMA,
+)
 
 SCENE_SCHEMA_VERSION = 3
 SYSTEM_KEY = "proposed_led_system"
@@ -29,6 +33,7 @@ SIMPLE_SYSTEMS: dict[str, dict[str, str]] = {
     },
 }
 PLANT_VIEWER_RELATIVE_PATH = Path("runtime_state") / PLANTS_VIEWER_FILENAME
+PLANT_SURFACE_FLUX_RELATIVE_PATH = Path("runtime_state") / PLANT_SURFACE_FLUX_FILENAME
 
 ASSET_URLS: dict[str, str] = {
     "manifest": f"{STATIC_ROOT_URL}/manifest.json",
@@ -541,9 +546,35 @@ def _optional_plant_viewer_payload(workspace_root: Path) -> dict[str, Any] | Non
     return payload
 
 
+def _optional_plant_surface_flux_payload(workspace_root: Path) -> dict[str, Any] | None:
+    path = workspace_root / PLANT_SURFACE_FLUX_RELATIVE_PATH
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise AssemblySceneError("Plant surface-flux payload is malformed.") from exc
+    if not isinstance(payload, dict):
+        raise AssemblySceneError("Plant surface-flux payload is malformed.")
+    if payload.get("schema") != PLANT_SURFACE_FLUX_SCHEMA:
+        raise AssemblySceneError("Plant surface-flux payload has an unsupported schema.")
+    return {
+        "schema": payload.get("schema"),
+        "schema_version": payload.get("schema_version"),
+        "status": payload.get("status"),
+        "method": payload.get("method"),
+        "visualization": payload.get("visualization"),
+        "plant_summaries": payload.get("plant_summaries", []),
+        "leaf_summaries": payload.get("leaf_summaries", []),
+    }
+
+
 def _attach_optional_plants(scene: dict[str, Any], workspace_root: Path) -> dict[str, Any]:
     plant_payload = _optional_plant_viewer_payload(workspace_root)
     if plant_payload is not None:
+        surface_flux = _optional_plant_surface_flux_payload(workspace_root)
+        if surface_flux is not None:
+            plant_payload = {**plant_payload, "surface_flux": surface_flux}
         scene["plants"] = plant_payload
     return scene
 

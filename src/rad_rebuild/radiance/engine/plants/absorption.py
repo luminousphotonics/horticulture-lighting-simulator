@@ -75,6 +75,42 @@ def _finite_non_negative(name: str, value: object) -> float:
     return number
 
 
+def _coefficient_of_variation(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    mean = sum(values) / len(values)
+    if mean <= 0.0:
+        return 0.0
+    variance = sum((value - mean) ** 2 for value in values) / len(values)
+    return math.sqrt(variance) / mean
+
+
+def _lighting_region(value: float, mean_value: float) -> str:
+    if mean_value <= 0.0:
+        return "nominal"
+    if value < mean_value * 0.80:
+        return "under_lit"
+    if value > mean_value * 1.20:
+        return "over_lit"
+    return "nominal"
+
+
+def _annotate_regions(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    key = "absorbed_photon_flux_density_umol_m2_s"
+    values = [float(row.get(key, 0.0) or 0.0) for row in rows]
+    mean_value = sum(values) / len(values) if values else 0.0
+    annotated: list[dict[str, Any]] = []
+    for row in rows:
+        value = float(row.get(key, 0.0) or 0.0)
+        annotated.append(
+            {
+                **row,
+                "lighting_region": _lighting_region(value, mean_value),
+            }
+        )
+    return annotated
+
+
 def _leaf_surfaces(
     leaf: LeafGeometry,
     absorptance: float,
@@ -204,10 +240,15 @@ def compute_photon_absorption_metrics(
             )
         )
 
-    plant_summaries = _aggregate_by(surface_metrics, key_name="plant_id")
-    leaf_summaries = _aggregate_by(surface_metrics, key_name="leaf_id")
+    plant_summaries = _annotate_regions(_aggregate_by(surface_metrics, key_name="plant_id"))
+    leaf_summaries = _annotate_regions(_aggregate_by(surface_metrics, key_name="leaf_id"))
     total_incident = sum(metric.incident_photon_flux_umol_s for metric in surface_metrics)
     total_absorbed = sum(metric.absorbed_photon_flux_umol_s for metric in surface_metrics)
+    plant_absorbed_values = [
+        float(row["absorbed_photon_flux_umol_s"])
+        for row in plant_summaries
+    ]
+    plant_absorption_cv = _coefficient_of_variation(plant_absorbed_values)
 
     return {
         "schema": PHOTON_ABSORPTION_METRICS_SCHEMA,
@@ -227,6 +268,9 @@ def compute_photon_absorption_metrics(
         "mean_absorbed_fraction_of_incident": (
             total_absorbed / total_incident if total_incident > 0.0 else 0.0
         ),
+        "plant_to_plant_absorbed_photon_flux_cv": plant_absorption_cv,
+        "under_lit_leaf_count": sum(1 for row in leaf_summaries if row.get("lighting_region") == "under_lit"),
+        "over_lit_leaf_count": sum(1 for row in leaf_summaries if row.get("lighting_region") == "over_lit"),
         "plant_summaries": plant_summaries,
         "leaf_summaries": leaf_summaries,
         "surfaces": [asdict(metric) for metric in surface_metrics],
@@ -257,18 +301,36 @@ def _aggregate_by(
     rows: list[dict[str, Any]] = []
     for key in sorted(grouped):
         items = grouped[key]
+        area = sum(item.area_m2 for item in items)
         incident = sum(item.incident_photon_flux_umol_s for item in items)
         absorbed = sum(item.absorbed_photon_flux_umol_s for item in items)
-        rows.append(
-            {
-                key_name: key,
-                "surface_count": len(items),
-                "one_sided_leaf_area_m2": sum(item.area_m2 for item in items),
-                "incident_photon_flux_umol_s": incident,
-                "absorbed_photon_flux_umol_s": absorbed,
-                "absorbed_fraction_of_incident": (
-                    absorbed / incident if incident > 0.0 else 0.0
-                ),
-            }
-        )
+        row: dict[str, Any] = {
+            key_name: key,
+            "surface_count": len(items),
+            "one_sided_leaf_area_m2": area,
+            "incident_photon_flux_umol_s": incident,
+            "absorbed_photon_flux_umol_s": absorbed,
+            "incident_photon_flux_density_umol_m2_s": (
+                incident / area if area > 0.0 else 0.0
+            ),
+            "absorbed_photon_flux_density_umol_m2_s": (
+                absorbed / area if area > 0.0 else 0.0
+            ),
+            "absorbed_fraction_of_incident": (
+                absorbed / incident if incident > 0.0 else 0.0
+            ),
+        }
+
+        if key_name == "leaf_id":
+            plant_ids = sorted({item.plant_id for item in items})
+            if len(plant_ids) != 1:
+                raise ValueError(f"Leaf {key!r} maps to multiple plant IDs: {plant_ids}")
+            row["plant_id"] = plant_ids[0]
+            row["leaf_index"] = items[0].leaf_index
+
+        if key_name == "plant_id":
+            row["leaf_count"] = len({item.leaf_id for item in items})
+
+        rows.append(row)
+
     return rows

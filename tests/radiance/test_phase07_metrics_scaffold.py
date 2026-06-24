@@ -15,7 +15,8 @@ from rad_rebuild.radiance.backend.routes.metrics import (  # noqa: E402
     _apply_metrics_plant_query_overrides,
 )
 from rad_rebuild.radiance.config import EXECUTION_MODE_LIVE_LOCAL  # noqa: E402
-from rad_rebuild.radiance.engine.plants import PlantGeometryConfig, write_plant_artifacts  # noqa: E402
+from rad_rebuild.radiance.engine.plants import PlantGeometryConfig, generate_plant_scene, write_plant_artifacts  # noqa: E402
+from rad_rebuild.radiance.engine.plants.surface_flux import write_baseline_proxy_plant_surface_flux_artifact  # noqa: E402
 
 
 def _request(query: dict[str, str]) -> SimpleNamespace:
@@ -126,3 +127,42 @@ def test_metrics_route_invalid_plant_query_is_400() -> None:
         )
 
     assert exc_info.value.status_code == 400
+
+
+def test_metrics_payload_prefers_surface_flux_artifact_when_available(tmp_path) -> None:
+    _write_ppfd_map(tmp_path)
+    config = PlantGeometryConfig(
+        seed=13,
+        plant_grid_rows=1,
+        plant_grid_columns=1,
+        leaf_count_per_plant=4,
+    )
+    write_plant_artifacts(
+        tmp_path / "runtime_state",
+        config,
+        active_simulation_integration=True,
+        provenance_phase="Phase 09",
+    )
+    write_baseline_proxy_plant_surface_flux_artifact(
+        tmp_path / "runtime_state",
+        generate_plant_scene(config),
+        baseline_ppfd_mean_umol_m2_s=1000.0,
+    )
+    req = RadianceRunRequest(
+        action="metrics",
+        execution_mode=EXECUTION_MODE_LIVE_LOCAL,
+        plants_enabled=True,
+        plant_seed=13,
+        plant_rows=1,
+        plant_columns=1,
+        plant_leaf_count=4,
+    )
+
+    payload = _metrics_payload_for_request(req, tmp_path)
+    absorption = payload["metrics"]["plant_photon_absorption"]
+
+    assert absorption["source_artifact"] == "runtime_state/plant_surface_flux.json"
+    assert absorption["status"] == "proxy"
+    assert absorption["total_absorbed_photon_flux_umol_s"] > 0
+    assert absorption["plant_to_plant_absorbed_photon_flux_cv"] >= 0
+    assert absorption["leaf_summaries"]

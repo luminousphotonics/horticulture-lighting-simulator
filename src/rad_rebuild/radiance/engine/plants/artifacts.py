@@ -12,6 +12,7 @@ from rad_rebuild.radiance.engine.plants.absorption import build_absorption_surfa
 from rad_rebuild.radiance.engine.plants.config import PlantGeometryConfig
 from rad_rebuild.radiance.engine.plants.generator import generate_plant_scene
 from rad_rebuild.radiance.engine.plants.models import PlantScene
+from rad_rebuild.radiance.engine.plants.surface_flux import PLANT_SURFACE_FLUX_FILENAME
 from rad_rebuild.radiance.engine.plants.radiance_export import (
     export_scene_to_radiance,
 )
@@ -28,6 +29,7 @@ PLANT_ARTIFACT_FILENAMES = (
     PLANTS_MANIFEST_FILENAME,
     PLANT_CONFIG_FILENAME,
     PLANT_ABSORPTION_SURFACES_FILENAME,
+    PLANT_SURFACE_FLUX_FILENAME,
 )
 PLANT_ARTIFACT_SCHEMA = "rad_rebuild.fspm.plants.artifacts.v1"
 PLANT_ARTIFACT_SCHEMA_VERSION = 1
@@ -127,6 +129,7 @@ def _manifest_payload(
             "viewer": PLANTS_VIEWER_FILENAME,
             "config": PLANT_CONFIG_FILENAME,
             "absorption_surfaces": PLANT_ABSORPTION_SURFACES_FILENAME,
+            "surface_flux": PLANT_SURFACE_FLUX_FILENAME,
             "manifest": PLANTS_MANIFEST_FILENAME,
         },
         "active_simulation_integration": active_simulation_integration,

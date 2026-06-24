@@ -42,6 +42,11 @@ from rad_rebuild.radiance.engine.plants.config import (
     PlantGeometryConfig,
     PlantOpticalAssumptions,
 )
+from rad_rebuild.radiance.engine.plants.generator import generate_plant_scene
+from rad_rebuild.radiance.engine.plants.surface_flux import (
+    BASELINE_PPFD_PROXY_METHOD,
+    write_baseline_proxy_plant_surface_flux_artifact,
+)
 from rad_rebuild.radiance.engine.simulation.basis_backends import canonicalize_basis_backend
 from rad_rebuild.radiance.paths import REPO_ROOT
 
@@ -978,6 +983,29 @@ def _print_optional_plant_artifact_note(plant_artifacts: PlantArtifactPaths | No
     print("  note: excluded from baseline PPFD octree; used by viewer/absorption scaffold.")
 
 
+def _write_optional_plant_surface_flux_artifact(
+    config: RuntimeConfig,
+    plant_artifacts: PlantArtifactPaths | None,
+    ppfd_map: Path,
+) -> Path | None:
+    if plant_artifacts is None:
+        return None
+    plant_config = _fspm_plant_config_from_env(config.env)
+    scene = generate_plant_scene(plant_config)
+    baseline_mean = _ppfd_mean(ppfd_map)
+    path = write_baseline_proxy_plant_surface_flux_artifact(
+        config.runtime_state_root,
+        scene,
+        baseline_ppfd_mean_umol_m2_s=baseline_mean,
+        source_ppfd_map=ppfd_map.name,
+    )
+    print("FSPM plant surface-flux artifact:")
+    print(f"  • {path}")
+    print(f"  method: {BASELINE_PPFD_PROXY_METHOD}")
+    print("  note: proxy values use the unblocked baseline PPFD field and do not alter heatmap uniformity.")
+    return path
+
+
 def _octree_scene_inputs(
     *,
     room: Path,
@@ -1524,6 +1552,7 @@ def run_simulation_smd(raw_env: Mapping[str, str] | None = None) -> int:
         return sym_exit
     if _bool_env(config.env, "LOG_CAP_METRICS", "1"):
         _print_cap_metrics(config, cap=config.env.get("SETPOINT_PPFD") or config.env.get("TARGET_PPFD", ""), watts=None, emitted_ppf=None)
+    _write_optional_plant_surface_flux_artifact(config, plant_artifacts, ppfd_map)
     return int(RadianceScriptExit.OK)
 
 
@@ -1698,6 +1727,7 @@ def run_simulation_hps(raw_env: Mapping[str, str] | None = None) -> int:
     )
     if _bool_env(config.env, "LOG_CAP_METRICS", "1"):
         _print_cap_metrics(config, cap=config.env.get("SETPOINT_PPFD") or target, watts=total_watts, emitted_ppf=total_ppf)
+    _write_optional_plant_surface_flux_artifact(config, plant_artifacts, ppfd_map)
     return int(RadianceScriptExit.OK)
 
 
@@ -1979,6 +2009,7 @@ def run_simulation_spydr3(raw_env: Mapping[str, str] | None = None) -> int:
     )
     if _bool_env(config.env, "LOG_CAP_METRICS", "1"):
         _print_cap_metrics(config, cap=config.env.get("SETPOINT_PPFD") or target, watts=total_watts, emitted_ppf=total_ppf)
+    _write_optional_plant_surface_flux_artifact(config, plant_artifacts, ppfd_map)
     print("Done.")
     return int(RadianceScriptExit.OK)
 
