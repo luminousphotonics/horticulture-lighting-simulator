@@ -5,6 +5,7 @@ import * as THREE from "/static/vendor/three/three.module.js";
 
 const PLANT_VIEWER_SCHEMA = "rad_rebuild.fspm.plants.viewer.v1";
 const DEFAULT_LEAF_COLOR = 0x3fa66f;
+const DEFAULT_ABSORPTION_INTENSITY = 0.5;
 
 function finiteNumber(value) {
   const number = Number(value);
@@ -61,6 +62,60 @@ function leafMaterialOpacity(plantPayload) {
   return Math.min(0.96, Math.max(0.62, 0.9 - transmittance * 0.4));
 }
 
+function clamp01(value, fallback = DEFAULT_ABSORPTION_INTENSITY) {
+  const number = finiteNumber(value);
+  if (number === null) {
+    return fallback;
+  }
+  return Math.min(1.0, Math.max(0.0, number));
+}
+
+function absorptionColorForIntensity(value) {
+  const intensity = clamp01(value);
+  const color = new THREE.Color();
+  // Low absorption: deeper green/teal. High absorption: brighter yellow-green.
+  color.setHSL(0.40 - 0.26 * intensity, 0.72, 0.32 + 0.22 * intensity);
+  return color;
+}
+
+function createLeafMaterial({ plantPayload, color }) {
+  return new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.78,
+    metalness: 0.0,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: leafMaterialOpacity(plantPayload),
+  });
+}
+
+function surfaceFluxLeafValues(plantPayload) {
+  const values = plantPayload?.surface_flux?.visualization?.leaf_values;
+  return Array.isArray(values) ? values : [];
+}
+
+function leafFluxById(plantPayload) {
+  const map = new Map();
+  for (const row of surfaceFluxLeafValues(plantPayload)) {
+    const leafId = typeof row?.leaf_id === "string" ? row.leaf_id : "";
+    if (!leafId) {
+      continue;
+    }
+    map.set(leafId, row);
+  }
+  return map;
+}
+
+function leafVisualIntensity(leaf, fluxByLeafId) {
+  const leafId = typeof leaf?.leaf_id === "string" ? leaf.leaf_id : "";
+  const row = leafId ? fluxByLeafId.get(leafId) : null;
+  if (!row) {
+    return null;
+  }
+  return clamp01(row.visual_intensity_0_1);
+}
+
+
 function plantCounts(plants) {
   const plantCount = plants.length;
   let leafCount = 0;
@@ -88,21 +143,47 @@ export function createPlantVisibilityController(plantGroup) {
     throw new TypeError("A plant group object is required.");
   }
   plantGroup.visible = plantGroup.visible !== false;
+  const hasAbsorptionColor = Boolean(plantGroup.userData?.hasAbsorptionColor);
+  let absorptionColor = hasAbsorptionColor;
+
+  function applyAbsorptionColor() {
+    plantGroup.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) {
+        return;
+      }
+      const defaultMaterial = child.userData?.defaultMaterial;
+      const absorptionMaterial = child.userData?.absorptionMaterial;
+      if (!defaultMaterial || !absorptionMaterial) {
+        return;
+      }
+      child.material = absorptionColor ? absorptionMaterial : defaultMaterial;
+    });
+  }
 
   function setVisible(value) {
     plantGroup.visible = Boolean(value);
     return getState();
   }
 
+  function setAbsorptionColor(value) {
+    absorptionColor = hasAbsorptionColor && Boolean(value);
+    applyAbsorptionColor();
+    return getState();
+  }
+
   function getState() {
     return {
       visible: plantGroup.visible !== false,
+      absorptionColor,
+      hasAbsorptionColor,
       plantCount: Number(plantGroup.userData?.plantCount || 0),
       leafCount: Number(plantGroup.userData?.leafCount || 0),
+      colorMetric: plantGroup.userData?.colorMetric || "",
     };
   }
 
-  return { setVisible, getState };
+  applyAbsorptionColor();
+  return { setVisible, setAbsorptionColor, getState };
 }
 
 export function createLeafGeometry(leaf) {
@@ -139,15 +220,14 @@ export function createPlantGroup(scenePayload) {
   const plantPayload = scenePayload.plants;
   const counts = summarizePlantPayload(scenePayload);
   const warnings = [];
-  const material = new THREE.MeshStandardMaterial({
+  const defaultMaterial = createLeafMaterial({
+    plantPayload,
     color: DEFAULT_LEAF_COLOR,
-    roughness: 0.78,
-    metalness: 0.0,
-    side: THREE.DoubleSide,
-    transparent: true,
-    opacity: leafMaterialOpacity(plantPayload),
   });
+  const fluxByLeafId = leafFluxById(plantPayload);
+  const colorMetric = plantPayload?.surface_flux?.visualization?.color_metric || "";
   let renderedLeafCount = 0;
+  let absorptionColoredLeafCount = 0;
 
   for (const plant of plantPayload.plants) {
     const plantGroup = new THREE.Group();
@@ -165,7 +245,17 @@ export function createPlantGroup(scenePayload) {
         warnings.push(`${leaf?.leaf_id || "unknown leaf"} has invalid plant mesh data.`);
         continue;
       }
-      const mesh = new THREE.Mesh(geometry, material);
+      const visualIntensity = leafVisualIntensity(leaf, fluxByLeafId);
+      const absorptionMaterial = visualIntensity === null
+        ? null
+        : createLeafMaterial({
+          plantPayload,
+          color: absorptionColorForIntensity(visualIntensity),
+        });
+      if (absorptionMaterial) {
+        absorptionColoredLeafCount += 1;
+      }
+      const mesh = new THREE.Mesh(geometry, absorptionMaterial || defaultMaterial);
       mesh.name = `plant-leaf-${leaf?.leaf_id || renderedLeafCount}`;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
@@ -173,6 +263,9 @@ export function createPlantGroup(scenePayload) {
         plantId: leaf?.plant_id || plant?.plant_id || null,
         leafId: leaf?.leaf_id || null,
         radianceMaterialId: leaf?.radiance_material_id || null,
+        visualIntensity,
+        defaultMaterial,
+        absorptionMaterial,
       };
       plantGroup.add(mesh);
       renderedLeafCount += 1;
@@ -184,6 +277,9 @@ export function createPlantGroup(scenePayload) {
     plantCount: counts.plantCount,
     leafCount: counts.leafCount,
     renderedLeafCount,
+    absorptionColoredLeafCount,
+    hasAbsorptionColor: absorptionColoredLeafCount > 0,
+    colorMetric,
     warnings,
   };
   return group;

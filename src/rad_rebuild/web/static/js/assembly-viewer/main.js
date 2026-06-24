@@ -32,6 +32,7 @@ const fixtureHeightValueEl = document.getElementById("assembly-fixture-height-va
 const fixtureHeightResetButton = document.getElementById("assembly-fixture-height-reset");
 const plantsControlEl = document.getElementById("assembly-plants-control");
 const plantsToggle = document.getElementById("assembly-plants-toggle");
+const plantsColorToggle = document.getElementById("assembly-plants-color-toggle");
 const plantsStatusEl = document.getElementById("assembly-plants-status");
 const perfEl = document.getElementById("assembly-perf");
 const devPanelEl = document.getElementById("assembly-dev-panel");
@@ -146,12 +147,15 @@ function wireFixtureControls(fixtureGroup, scenePayload) {
   return controller;
 }
 
-function setPlantControlsEnabled(enabled) {
+function setPlantControlsEnabled(enabled, colorEnabled = false) {
   if (plantsControlEl instanceof HTMLElement) {
     plantsControlEl.hidden = !enabled;
   }
   if (plantsToggle instanceof window.HTMLInputElement) {
     plantsToggle.disabled = !enabled;
+  }
+  if (plantsColorToggle instanceof window.HTMLInputElement) {
+    plantsColorToggle.disabled = !(enabled && colorEnabled);
   }
 }
 
@@ -164,7 +168,11 @@ function renderPlantStatus(controller) {
     return;
   }
   const state = controller.getState();
-  plantsStatusEl.textContent = `${state.leafCount} ${state.leafCount === 1 ? "leaf" : "leaves"}`;
+  const leafText = `${state.leafCount} ${state.leafCount === 1 ? "leaf" : "leaves"}`;
+  const colorText = state.hasAbsorptionColor
+    ? (state.absorptionColor ? " · absorption color" : " · geometry color")
+    : "";
+  plantsStatusEl.textContent = `${leafText}${colorText}`;
 }
 
 function wirePlantControls(plantGroup) {
@@ -175,13 +183,23 @@ function wirePlantControls(plantGroup) {
     return null;
   }
   const controller = createPlantVisibilityController(plantGroup);
+  const state = controller.getState();
   if (plantsToggle instanceof window.HTMLInputElement) {
-    plantsToggle.checked = controller.getState().visible;
+    plantsToggle.checked = state.visible;
     plantsToggle.addEventListener("change", () => {
       controller.setVisible(plantsToggle.checked);
+      renderPlantStatus(controller);
     });
   }
-  setPlantControlsEnabled(true);
+  if (plantsColorToggle instanceof window.HTMLInputElement) {
+    plantsColorToggle.checked = Boolean(state.hasAbsorptionColor && state.absorptionColor);
+    plantsColorToggle.disabled = !state.hasAbsorptionColor;
+    plantsColorToggle.addEventListener("change", () => {
+      controller.setAbsorptionColor(plantsColorToggle.checked);
+      renderPlantStatus(controller);
+    });
+  }
+  setPlantControlsEnabled(true, state.hasAbsorptionColor);
   renderPlantStatus(controller);
   return controller;
 }

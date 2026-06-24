@@ -689,6 +689,23 @@ Future method:
 - Preserve schema-compatible per-surface, per-leaf, per-plant aggregation outputs.
 
 
+
+### Phase 10 - Absorption-Colored Plant Viewer Layer
+
+Goal:
+
+- Use `scene.plants.surface_flux.visualization.leaf_values` to color plant leaves by absorbed photon intensity.
+- Keep the plant geometry visibility toggle.
+- Add an absorption-color toggle so the viewer can switch between default plant material and absorbed-photon intensity coloring.
+- Keep coloring strictly visual; it does not alter baseline PPFD, DOU, CV, or heatmap outputs.
+
+Validation:
+
+- Browser smoke test verifies the absorption-color control appears when surface-flux visualization data is present.
+- Browser smoke test verifies the toggle can switch between absorption color and geometry color.
+- Viewer coloring reads deterministic `leaf_id` values and ignores leaves without matching visualization data.
+
+
 ## Validation Matrix
 
 | Phase | Primary checks | Required commands |

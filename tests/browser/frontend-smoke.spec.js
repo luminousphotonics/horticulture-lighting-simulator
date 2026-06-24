@@ -830,6 +830,24 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
             transmittance: 0.08,
             absorptance: 0.7,
           },
+          surface_flux: {
+            schema: "rad_rebuild.fspm.plant_surface_flux.v1",
+            schema_version: 1,
+            status: "proxy",
+            method: "baseline_ppfd_mean_orientation_proxy_v1",
+            visualization: {
+              color_metric: "absorbed_photon_flux_density_umol_m2_s",
+              leaf_values: [
+                {
+                  leaf_id: "plant_r000_c000_leaf_000",
+                  plant_id: "plant_r000_c000",
+                  lighting_region: "nominal",
+                  absorbed_photon_flux_density_umol_m2_s: 650,
+                  visual_intensity_0_1: 0.78,
+                },
+              ],
+            },
+          },
           plants: [
             {
               plant_id: "plant_r000_c000",
@@ -1125,6 +1143,7 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
   const heatmapOpacity = frame.getByLabel("Opacity");
   const fixturesToggle = frame.getByRole("checkbox", { name: "Show fixtures" });
   const plantsToggle = frame.getByRole("checkbox", { name: "Show plants" });
+  const plantsColorToggle = frame.getByRole("checkbox", { name: "Absorption color" });
   const fixtureHeight = frame.getByLabel("Fixture height");
   const fixtureHeightValue = frame.locator("#assembly-fixture-height-value");
   const fixtureHeightReset = frame.getByRole("button", { name: "Reset Height" });
@@ -1135,7 +1154,10 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
   await expect(fixturesToggle).toBeChecked();
   await expect(plantsToggle).toBeEnabled();
   await expect(plantsToggle).toBeChecked();
-  await expect(frame.locator("#assembly-plants-status")).toHaveText("1 leaf");
+  await expect(plantsColorToggle).toBeEnabled();
+  await expect(plantsColorToggle).toBeChecked();
+  await expect(frame.locator("#assembly-plants-status")).toContainText("1 leaf");
+  await expect(frame.locator("#assembly-plants-status")).toContainText("absorption color");
   await expect(fixtureHeight).toBeEnabled();
   await expect(fixtureHeightValue).toContainText("Visual mount: 0.46 m (0.00 m)");
   await expect(fixtureHeightReset).toBeEnabled();
@@ -1153,6 +1175,12 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
     await expect(plantsToggle).not.toBeChecked();
     await plantsToggle.check();
     await expect(plantsToggle).toBeChecked();
+    await plantsColorToggle.uncheck();
+    await expect(plantsColorToggle).not.toBeChecked();
+    await expect(frame.locator("#assembly-plants-status")).toContainText("geometry color");
+    await plantsColorToggle.check();
+    await expect(plantsColorToggle).toBeChecked();
+    await expect(frame.locator("#assembly-plants-status")).toContainText("absorption color");
     await fixtureHeight.evaluate((input) => {
       input.value = "0.25";
       input.dispatchEvent(new Event("input", { bubbles: true }));
