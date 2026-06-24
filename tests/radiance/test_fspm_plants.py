@@ -21,11 +21,17 @@ from rad_rebuild.radiance.engine.plants.artifacts import (
     PLANT_ARTIFACT_SCHEMA,
     PLANT_ARTIFACT_SCHEMA_VERSION,
     PLANT_CONFIG_FILENAME,
+    PLANT_ABSORPTION_SURFACES_FILENAME,
     PLANTS_MANIFEST_FILENAME,
     PLANTS_RAD_FILENAME,
     PLANTS_VIEWER_FILENAME,
 )
 from rad_rebuild.radiance.engine.plants.mesh import LEAF_FACE_COUNT, LEAF_VERTEX_COUNT
+from rad_rebuild.radiance.engine.plants.absorption import (  # noqa: E402
+    PHOTON_ABSORPTION_SCAFFOLD_SCHEMA,
+    build_absorption_surface_registry,
+    leaf_absorption_surfaces,
+)
 
 
 def test_default_config_is_valid() -> None:
@@ -217,6 +223,7 @@ def test_write_plant_artifacts_writes_expected_files_to_tmp_path(
         PLANTS_VIEWER_FILENAME,
         PLANTS_MANIFEST_FILENAME,
         PLANT_CONFIG_FILENAME,
+    PLANT_ABSORPTION_SURFACES_FILENAME,
     }
     assert paths.radiance.read_text(encoding="utf-8").startswith(
         "# FSPM Phase 01 deterministic plant geometry\n"
@@ -236,6 +243,7 @@ def test_write_plant_artifacts_is_deterministic(tmp_path: Path) -> None:
         PLANTS_VIEWER_FILENAME,
         PLANTS_MANIFEST_FILENAME,
         PLANT_CONFIG_FILENAME,
+    PLANT_ABSORPTION_SURFACES_FILENAME,
     ):
         assert (first / filename).read_bytes() == (second / filename).read_bytes()
 
@@ -272,6 +280,7 @@ def test_plant_artifact_json_files_are_parseable(tmp_path: Path) -> None:
     assert config["seed"] == 1
     assert viewer["schema"] == "rad_rebuild.fspm.plants.viewer.v1"
     assert manifest["artifact_filenames"]["viewer"] == PLANTS_VIEWER_FILENAME
+    assert manifest["artifact_filenames"]["absorption_surfaces"] == PLANT_ABSORPTION_SURFACES_FILENAME
 
 
 def test_plant_manifest_file_records_bind_written_files(tmp_path: Path) -> None:
@@ -283,6 +292,7 @@ def test_plant_manifest_file_records_bind_written_files(tmp_path: Path) -> None:
         PLANTS_RAD_FILENAME,
         PLANTS_VIEWER_FILENAME,
         PLANT_CONFIG_FILENAME,
+    PLANT_ABSORPTION_SURFACES_FILENAME,
     }
     for filename, record in file_records.items():
         data = (tmp_path / filename).read_bytes()
@@ -302,6 +312,7 @@ def test_write_plant_artifacts_does_not_write_outside_target_directory(
 
     assert {path.name for path in target.iterdir()} == {
         PLANT_CONFIG_FILENAME,
+    PLANT_ABSORPTION_SURFACES_FILENAME,
         PLANTS_MANIFEST_FILENAME,
         PLANTS_RAD_FILENAME,
         PLANTS_VIEWER_FILENAME,
@@ -309,3 +320,40 @@ def test_write_plant_artifacts_does_not_write_outside_target_directory(
     assert list(sibling.iterdir()) == []
     for path in (paths.radiance, paths.viewer, paths.manifest, paths.config):
         assert path.parent == target
+
+
+def test_phase07_absorption_surface_registry_matches_radiance_surface_ids() -> None:
+    scene = generate_plant_scene(
+        PlantGeometryConfig(seed=5, plant_grid_rows=1, plant_grid_columns=1)
+    )
+    rad_text = export_scene_to_radiance(scene)
+    surfaces = leaf_absorption_surfaces(scene)
+
+    assert surfaces
+    assert all(surface.surface_id in rad_text for surface in surfaces)
+    assert all(surface.area_m2 > 0.0 for surface in surfaces)
+    assert all(math.isfinite(surface.area_m2) for surface in surfaces)
+    assert surfaces[0].plant_id == "plant_r000_c000"
+    assert surfaces[0].leaf_id == "plant_r000_c000_leaf_000"
+
+
+def test_phase07_absorption_registry_is_scaffold_only_and_not_yield_model() -> None:
+    scene = generate_plant_scene(
+        PlantGeometryConfig(seed=6, plant_grid_rows=1, plant_grid_columns=1)
+    )
+
+    registry = build_absorption_surface_registry(scene)
+
+    assert registry["schema"] == PHOTON_ABSORPTION_SCAFFOLD_SCHEMA
+    assert registry["status"] == "scaffold_only"
+    assert registry["plant_count"] == 1
+    assert registry["leaf_count"] == scene.config.leaf_count_per_plant
+    assert registry["surface_count"] == len(leaf_absorption_surfaces(scene))
+    assert registry["one_sided_leaf_area_m2"] > 0.0
+    assert registry["outputs_do_not_predict"] == [
+        "yield",
+        "biomass",
+        "growth",
+        "crop_output",
+    ]
+    assert "umol/s" == registry["units"]["future_absorbed_photon_flux"]

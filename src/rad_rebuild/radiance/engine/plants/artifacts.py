@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from rad_rebuild.radiance.engine.plants.absorption import build_absorption_surface_registry
 from rad_rebuild.radiance.engine.plants.config import PlantGeometryConfig
 from rad_rebuild.radiance.engine.plants.generator import generate_plant_scene
 from rad_rebuild.radiance.engine.plants.models import PlantScene
@@ -20,11 +21,13 @@ PLANTS_RAD_FILENAME = "plants.rad"
 PLANTS_VIEWER_FILENAME = "plants_viewer.json"
 PLANTS_MANIFEST_FILENAME = "plants_manifest.json"
 PLANT_CONFIG_FILENAME = "plant_config.json"
+PLANT_ABSORPTION_SURFACES_FILENAME = "plant_absorption_surfaces.json"
 PLANT_ARTIFACT_FILENAMES = (
     PLANTS_RAD_FILENAME,
     PLANTS_VIEWER_FILENAME,
     PLANTS_MANIFEST_FILENAME,
     PLANT_CONFIG_FILENAME,
+    PLANT_ABSORPTION_SURFACES_FILENAME,
 )
 PLANT_ARTIFACT_SCHEMA = "rad_rebuild.fspm.plants.artifacts.v1"
 PLANT_ARTIFACT_SCHEMA_VERSION = 1
@@ -39,6 +42,7 @@ class PlantArtifactPaths:
     viewer: Path
     manifest: Path
     config: Path
+    absorption_surfaces: Path
 
 
 def write_plant_artifacts(
@@ -62,16 +66,19 @@ def write_plant_artifacts(
         viewer=output_dir / PLANTS_VIEWER_FILENAME,
         manifest=output_dir / PLANTS_MANIFEST_FILENAME,
         config=output_dir / PLANT_CONFIG_FILENAME,
+        absorption_surfaces=output_dir / PLANT_ABSORPTION_SURFACES_FILENAME,
     )
     _assert_fixed_artifact_paths(output_dir, paths)
 
     radiance_text = export_scene_to_radiance(scene)
     viewer_json = _canonical_json(export_scene_to_viewer(scene))
     config_json = _canonical_json(_config_payload(scene.config))
+    absorption_json = _canonical_json(build_absorption_surface_registry(scene))
 
     paths.radiance.write_text(radiance_text, encoding="utf-8")
     paths.viewer.write_text(viewer_json, encoding="utf-8")
     paths.config.write_text(config_json, encoding="utf-8")
+    paths.absorption_surfaces.write_text(absorption_json, encoding="utf-8")
 
     manifest = _manifest_payload(
         scene,
@@ -92,6 +99,7 @@ def _assert_fixed_artifact_paths(
         paths.viewer: PLANTS_VIEWER_FILENAME,
         paths.manifest: PLANTS_MANIFEST_FILENAME,
         paths.config: PLANT_CONFIG_FILENAME,
+        paths.absorption_surfaces: PLANT_ABSORPTION_SURFACES_FILENAME,
     }
     for path, filename in expected.items():
         if path.parent != output_dir or path.name != filename:
@@ -109,6 +117,7 @@ def _manifest_payload(
         _file_record(paths.radiance),
         _file_record(paths.viewer),
         _file_record(paths.config),
+        _file_record(paths.absorption_surfaces),
     ]
     return {
         "schema": PLANT_ARTIFACT_SCHEMA,
@@ -117,6 +126,7 @@ def _manifest_payload(
             "radiance": PLANTS_RAD_FILENAME,
             "viewer": PLANTS_VIEWER_FILENAME,
             "config": PLANT_CONFIG_FILENAME,
+            "absorption_surfaces": PLANT_ABSORPTION_SURFACES_FILENAME,
             "manifest": PLANTS_MANIFEST_FILENAME,
         },
         "active_simulation_integration": active_simulation_integration,

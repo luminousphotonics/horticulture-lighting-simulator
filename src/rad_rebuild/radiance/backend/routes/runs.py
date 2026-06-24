@@ -4,6 +4,7 @@ import shlex
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import ValidationError
 
 from rad_rebuild.radiance.config import (
     MODE_COMPETITOR,
@@ -48,6 +49,7 @@ from rad_rebuild.radiance.backend.runner import (
 from rad_rebuild.radiance.backend.runtime import (
     assert_live_execution_allowed,
     maybe_cleanup_runtime_state,
+    request_bool_query_param,
     pipeline_command,
     pipeline_shell,
     precomputed_mode,
@@ -118,6 +120,84 @@ def _validate_public_precomputed_dimensions(req: RadianceRunRequest) -> None:
         raise HTTPException(status_code=422, detail=_precomputed_bundle_detail(req, reason="range"))
 
 
+_INT_PLANT_QUERY_FIELDS = {
+    "plant_seed",
+    "plant_rows",
+    "plant_columns",
+    "plant_leaf_count",
+}
+
+_FLOAT_PLANT_QUERY_FIELDS = {
+    "plant_spacing_m",
+    "plant_height_m",
+    "plant_canopy_radius_m",
+    "plant_growth_stage",
+}
+
+
+def _query_text(request: Request, name: str) -> str | None:
+    raw = request.query_params.get(name)
+    if raw is None:
+        return None
+    value = raw.strip()
+    return value if value else None
+
+
+def _query_int(request: Request, name: str) -> int | None:
+    raw = _query_text(request, name)
+    if raw is None:
+        return None
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"{name} must be an integer.") from exc
+
+
+def _query_float(request: Request, name: str) -> float | None:
+    raw = _query_text(request, name)
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"{name} must be a number.") from exc
+
+
+def _apply_run_plant_query_overrides(
+    req: RadianceRunRequest,
+    request: Request,
+) -> RadianceRunRequest:
+    updates: dict[str, object] = {}
+
+    if request.query_params.get("plants_enabled") is not None:
+        updates["plants_enabled"] = request_bool_query_param(
+            request,
+            "plants_enabled",
+            req.plants_enabled,
+        )
+
+    for field_name in _INT_PLANT_QUERY_FIELDS:
+        value = _query_int(request, field_name)
+        if value is not None:
+            updates[field_name] = value
+
+    for field_name in _FLOAT_PLANT_QUERY_FIELDS:
+        value = _query_float(request, field_name)
+        if value is not None:
+            updates[field_name] = value
+
+    if not updates:
+        return req
+
+    try:
+        return request_with_updates(req, **updates)
+    except (TypeError, ValueError, ValidationError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid plant query parameter: {exc}",
+        ) from exc
+
+
 @router.post(
     "/layout",
     response_model=LayoutResponse,
@@ -150,6 +230,8 @@ def run_radiance(req: RadianceRunRequest, request: Request) -> dict[str, Any]:
     action = req.action.strip().lower()
     if action not in {"uniformity", "competitor", "visualize", "all"}:
         raise HTTPException(status_code=400, detail="Invalid action.")
+    req = _canonicalize_mode_request(req)
+    req = _apply_run_plant_query_overrides(req, request)
     req = _canonicalize_mode_request(req)
     session_id = _session_id_from_request(request)
     assert_live_execution_allowed(req, session_id)

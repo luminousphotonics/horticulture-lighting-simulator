@@ -3,7 +3,7 @@
 ## Status Header
 
 - Feature: Functional Structural Plant Modeling for leafy-green / lettuce-style plant geometry and plant photon absorption groundwork.
-- Current phase: Phase 05 complete; next phase is Phase 06.
+- Current phase: Phase 07 in progress; Phase 06 is intentionally skipped/deferred.
 - Last updated: 2026-06-24.
 - Branch: `feat/fspm-plant-modeling`.
 - Worktree: `/home/austin/Desktop/hls-fspm`.
@@ -589,6 +589,8 @@ Recommended Phase 06 handoff:
 
 ### Phase 06 - No-Plant Vs Plant-Geometry Comparison Metrics
 
+Status: intentionally deferred/skipped for the current implementation sequence. Do not use this as the next implementation prompt.
+
 Goal:
 
 - Add comparison scaffolding that can report differences between no-plant and plant-geometry scenes without implying crop output.
@@ -609,6 +611,10 @@ Validation:
 
 ### Phase 07 - Plant Photon Absorption Metrics Design And Scaffold
 
+Prerequisite:
+
+- Verify that plant-enabled live `/radiance/run` jobs generate and sync `plants.rad`, `plants_viewer.json`, `plants_manifest.json`, and `plant_config.json` automatically before building absorption metrics on top of runtime workspaces.
+
 Goal:
 
 - Design and scaffold plant photon absorption metrics based on validated plant geometry and explicit optical assumptions.
@@ -617,8 +623,10 @@ Goal:
 Expected outputs:
 
 - Metrics design notes in this plan or a reviewed engineering/science doc.
+- Deterministic plant/leaf/surface ID registry for future photon-flux mapping.
 - Scaffolding code and tests only after assumptions are accepted.
-- Traceable material assumptions, units, and limitations.
+- Traceable optical assumptions, units, and limitations.
+- Explicit notes that the scaffold does not estimate yield, biomass, growth, or crop output.
 
 Validation:
 
@@ -636,7 +644,7 @@ Validation:
 | 03 | Explicitly gated Radiance inclusion | Targeted Radiance scene tests; scientific characterization; baseline before behavior change |
 | 04 | Request/config/workspace controls | API, route, boundary, workspace, OpenAPI checks as applicable; baseline for broad changes |
 | 05 | Viewer rendering and toggle | Assembly viewer tests; browser smoke; Node parse checks; `npm run test:browser` |
-| 06 | Comparison metrics | Metrics tests; scientific contract tests; baseline if outputs change |
+| 06 | Deferred comparison metrics | Not part of the current implementation sequence |
 | 07 | Photon absorption scaffold | Metric tests; documented assumptions; scientific review evidence |
 
 General command sequence:
