@@ -10,6 +10,8 @@ before replacing the proxy with a reviewed Radiance per-surface receiver method.
 
 from __future__ import annotations
 
+import bisect
+from dataclasses import dataclass
 import json
 import math
 from pathlib import Path
@@ -26,6 +28,7 @@ PLANT_SURFACE_FLUX_SCHEMA = "rad_rebuild.fspm.plant_surface_flux.v1"
 PLANT_SURFACE_FLUX_SCHEMA_VERSION = 1
 PLANT_SURFACE_FLUX_FILENAME = "plant_surface_flux.json"
 BASELINE_PPFD_PROXY_METHOD = "baseline_ppfd_mean_orientation_proxy_v1"
+SPATIAL_PPFD_PROXY_METHOD = "baseline_ppfd_spatial_interpolation_orientation_proxy_v1"
 NO_CROP_OUTPUT_TERMS = ["yield", "biomass", "growth", "crop_output"]
 
 
@@ -88,6 +91,160 @@ def _surface_geometry_by_id(scene: PlantScene) -> dict[str, dict[str, Any]]:
         raise ValueError(f"Missing mesh geometry for {len(missing)} plant surfaces.")
     return geometry
 
+
+
+@dataclass(frozen=True)
+class PpfdMapField:
+    """Interpolatable unblocked baseline PPFD map."""
+
+    xs: tuple[float, ...]
+    ys: tuple[float, ...]
+    values: Mapping[tuple[float, float], float]
+    mean_umol_m2_s: float
+    min_umol_m2_s: float
+    max_umol_m2_s: float
+    sample_count: int
+
+    @property
+    def rectangular(self) -> bool:
+        return len(self.values) == len(self.xs) * len(self.ys)
+
+    def sample(self, x_m: float, y_m: float) -> float:
+        x = float(x_m)
+        y = float(y_m)
+        if not math.isfinite(x) or not math.isfinite(y):
+            raise ValueError("PPFD sample coordinates must be finite.")
+
+        if not self.rectangular:
+            nearest = min(
+                self.values,
+                key=lambda key: (key[0] - x) * (key[0] - x) + (key[1] - y) * (key[1] - y),
+            )
+            return float(self.values[nearest])
+
+        x0, x1, xt = _axis_bracket(self.xs, x)
+        y0, y1, yt = _axis_bracket(self.ys, y)
+
+        q00 = float(self.values[(x0, y0)])
+        q10 = float(self.values[(x1, y0)])
+        q01 = float(self.values[(x0, y1)])
+        q11 = float(self.values[(x1, y1)])
+
+        low = q00 * (1.0 - xt) + q10 * xt
+        high = q01 * (1.0 - xt) + q11 * xt
+        return low * (1.0 - yt) + high * yt
+
+    def summary(self) -> dict[str, Any]:
+        return {
+            "sample_count": self.sample_count,
+            "grid_x_count": len(self.xs),
+            "grid_y_count": len(self.ys),
+            "rectangular": self.rectangular,
+            "mean_umol_m2_s": self.mean_umol_m2_s,
+            "min_umol_m2_s": self.min_umol_m2_s,
+            "max_umol_m2_s": self.max_umol_m2_s,
+        }
+
+
+def _axis_bracket(axis: tuple[float, ...], value: float) -> tuple[float, float, float]:
+    if not axis:
+        raise ValueError("PPFD interpolation axis is empty.")
+    if len(axis) == 1 or value <= axis[0]:
+        return axis[0], axis[0], 0.0
+    if value >= axis[-1]:
+        return axis[-1], axis[-1], 0.0
+
+    index = bisect.bisect_left(axis, value)
+    lower = axis[index - 1]
+    upper = axis[index]
+    fraction = (value - lower) / (upper - lower) if upper > lower else 0.0
+    return lower, upper, min(1.0, max(0.0, fraction))
+
+
+def read_ppfd_map_field(path: str | Path) -> PpfdMapField:
+    source = Path(path)
+    if not source.is_file():
+        raise ValueError(f"PPFD map not found: {source}")
+
+    buckets: dict[tuple[float, float], list[float]] = {}
+    sample_count = 0
+    for line_number, line in enumerate(source.read_text(encoding="utf-8").splitlines(), start=1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        parts = stripped.replace(",", " ").split()
+        if len(parts) < 4:
+            continue
+        try:
+            x = round(float(parts[0]), 6)
+            y = round(float(parts[1]), 6)
+            ppfd = _finite_non_negative(f"{source}:{line_number}:ppfd", float(parts[3]))
+        except ValueError as exc:
+            raise ValueError(f"Invalid PPFD map row {line_number}: {line!r}") from exc
+        buckets.setdefault((x, y), []).append(ppfd)
+        sample_count += 1
+
+    if not buckets:
+        raise ValueError(f"PPFD map has no usable samples: {source}")
+
+    values = {
+        key: sum(samples) / len(samples)
+        for key, samples in sorted(buckets.items())
+    }
+    ppfd_values = list(values.values())
+    xs = tuple(sorted({key[0] for key in values}))
+    ys = tuple(sorted({key[1] for key in values}))
+
+    return PpfdMapField(
+        xs=xs,
+        ys=ys,
+        values=values,
+        mean_umol_m2_s=sum(ppfd_values) / len(ppfd_values),
+        min_umol_m2_s=min(ppfd_values),
+        max_umol_m2_s=max(ppfd_values),
+        sample_count=sample_count,
+    )
+
+
+def build_spatial_proxy_surface_flux_rows(
+    scene: PlantScene,
+    ppfd_map_path: str | Path,
+) -> list[dict[str, Any]]:
+    """Create proxy surface flux rows by spatially sampling the baseline PPFD map."""
+
+    field = read_ppfd_map_field(ppfd_map_path)
+    geometry = _surface_geometry_by_id(scene)
+    max_height = max(float(scene.config.plant_height_m), 1e-9)
+
+    rows: list[dict[str, Any]] = []
+    for surface_id in sorted(geometry):
+        item = geometry[surface_id]
+        surface = item["surface"]
+        if not isinstance(surface, LeafAbsorptionSurface):
+            raise ValueError(f"Invalid surface registry entry for {surface_id}.")
+        centroid = item["centroid_m"]
+        normal = item["normal"]
+        sampled_ppfd = field.sample(float(centroid[0]), float(centroid[1]))
+        orientation_factor = 0.35 + 0.65 * abs(float(normal[2]))
+        height_factor = 0.90 + 0.20 * min(1.0, max(0.0, float(centroid[2]) / max_height))
+        incident_density = sampled_ppfd * orientation_factor * height_factor
+        rows.append(
+            {
+                "surface_id": surface.surface_id,
+                "plant_id": surface.plant_id,
+                "leaf_id": surface.leaf_id,
+                "leaf_index": surface.leaf_index,
+                "face_index": surface.face_index,
+                "area_m2": surface.area_m2,
+                "centroid_m": [float(v) for v in centroid],
+                "normal": [float(v) for v in normal],
+                "sampled_ppfd_umol_m2_s": sampled_ppfd,
+                "incident_photon_flux_density_umol_m2_s": incident_density,
+                "incident_photon_flux_umol_s": incident_density * surface.area_m2,
+                "source": "baseline_ppfd_spatial_interpolation_orientation_proxy",
+            }
+        )
+    return rows
 
 def build_baseline_proxy_surface_flux_rows(
     scene: PlantScene,
@@ -275,6 +432,7 @@ def build_plant_surface_flux_payload(
     method: str,
     source_ppfd_map: str | None = None,
     baseline_ppfd_mean_umol_m2_s: float | None = None,
+    ppfd_field_summary: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     normalized_rows, incident_by_surface_id = _normalize_surface_rows(scene, surface_flux_rows)
     absorption_metrics = compute_photon_absorption_metrics(
@@ -309,10 +467,11 @@ def build_plant_surface_flux_payload(
     return {
         "schema": PLANT_SURFACE_FLUX_SCHEMA,
         "schema_version": PLANT_SURFACE_FLUX_SCHEMA_VERSION,
-        "status": "proxy" if method == BASELINE_PPFD_PROXY_METHOD else "computed",
+        "status": "proxy" if method in {BASELINE_PPFD_PROXY_METHOD, SPATIAL_PPFD_PROXY_METHOD} else "computed",
         "method": method,
         "source_ppfd_map": source_ppfd_map,
         "baseline_ppfd_mean_umol_m2_s": baseline_ppfd_mean_umol_m2_s,
+        "ppfd_field_summary": dict(ppfd_field_summary or {}),
         "units": {
             "area": "m2",
             "incident_photon_flux": "umol/s",
@@ -378,5 +537,25 @@ def write_baseline_proxy_plant_surface_flux_artifact(
         method=BASELINE_PPFD_PROXY_METHOD,
         source_ppfd_map=source_ppfd_map,
         baseline_ppfd_mean_umol_m2_s=baseline_ppfd_mean_umol_m2_s,
+    )
+    return write_plant_surface_flux_artifact(target_dir, payload)
+
+
+def write_spatial_proxy_plant_surface_flux_artifact(
+    target_dir: str | Path,
+    scene: PlantScene,
+    *,
+    ppfd_map_path: str | Path,
+    source_ppfd_map: str = "ppfd_map.txt",
+) -> Path:
+    field = read_ppfd_map_field(ppfd_map_path)
+    rows = build_spatial_proxy_surface_flux_rows(scene, ppfd_map_path)
+    payload = build_plant_surface_flux_payload(
+        scene,
+        rows,
+        method=SPATIAL_PPFD_PROXY_METHOD,
+        source_ppfd_map=source_ppfd_map,
+        baseline_ppfd_mean_umol_m2_s=field.mean_umol_m2_s,
+        ppfd_field_summary=field.summary(),
     )
     return write_plant_surface_flux_artifact(target_dir, payload)

@@ -32,11 +32,15 @@ from rad_rebuild.radiance.engine.plants.radiance_export import (
 )
 from rad_rebuild.radiance.engine.plants.surface_flux import (
     BASELINE_PPFD_PROXY_METHOD,
+    SPATIAL_PPFD_PROXY_METHOD,
     PLANT_SURFACE_FLUX_FILENAME,
     PLANT_SURFACE_FLUX_SCHEMA,
     build_baseline_proxy_surface_flux_rows,
+    build_spatial_proxy_surface_flux_rows,
     build_plant_surface_flux_payload,
+    read_ppfd_map_field,
     write_baseline_proxy_plant_surface_flux_artifact,
+    write_spatial_proxy_plant_surface_flux_artifact,
 )
 from rad_rebuild.radiance.engine.plants.viewer_export import export_scene_to_viewer
 
@@ -56,14 +60,18 @@ __all__ = [
     "PlantScene",
     "SurfacePhotonAbsorption",
     "BASELINE_PPFD_PROXY_METHOD",
+    "SPATIAL_PPFD_PROXY_METHOD",
     "build_absorption_surface_registry",
     "build_baseline_proxy_surface_flux_rows",
+    "build_spatial_proxy_surface_flux_rows",
     "build_plant_surface_flux_payload",
+    "read_ppfd_map_field",
     "compute_photon_absorption_metrics",
     "export_scene_to_radiance",
     "export_scene_to_viewer",
     "generate_plant_scene",
     "leaf_absorption_surfaces",
     "write_baseline_proxy_plant_surface_flux_artifact",
+    "write_spatial_proxy_plant_surface_flux_artifact",
     "write_plant_artifacts",
 ]

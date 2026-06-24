@@ -11,10 +11,14 @@ configure_test_runtime()
 from rad_rebuild.radiance.engine.plants import PlantGeometryConfig, generate_plant_scene  # noqa: E402
 from rad_rebuild.radiance.engine.plants.surface_flux import (  # noqa: E402
     BASELINE_PPFD_PROXY_METHOD,
+    SPATIAL_PPFD_PROXY_METHOD,
     PLANT_SURFACE_FLUX_SCHEMA,
     build_baseline_proxy_surface_flux_rows,
+    build_spatial_proxy_surface_flux_rows,
     build_plant_surface_flux_payload,
+    read_ppfd_map_field,
     write_baseline_proxy_plant_surface_flux_artifact,
+    write_spatial_proxy_plant_surface_flux_artifact,
 )
 
 
@@ -121,3 +125,75 @@ def test_surface_flux_summaries_do_not_use_crop_output_language() -> None:
 
     for forbidden in ("yield", "biomass", "crop_output"):
         assert forbidden not in summary_text
+
+
+def _write_gradient_ppfd_map(path):
+    path.write_text(
+        "\n".join(
+            [
+                "-1 -1 0 200",
+                "1 -1 0 600",
+                "-1 1 0 400",
+                "1 1 0 1000",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def test_ppfd_map_field_bilinear_interpolation(tmp_path) -> None:
+    ppfd_path = tmp_path / "ppfd_map.txt"
+    _write_gradient_ppfd_map(ppfd_path)
+
+    field = read_ppfd_map_field(ppfd_path)
+
+    assert field.rectangular is True
+    assert field.sample(-1, -1) == pytest.approx(200)
+    assert field.sample(1, 1) == pytest.approx(1000)
+    assert field.sample(0, 0) == pytest.approx(550)
+
+
+def test_spatial_proxy_samples_leaf_centroids_from_ppfd_map(tmp_path) -> None:
+    scene = _scene()
+    ppfd_path = tmp_path / "ppfd_map.txt"
+    _write_gradient_ppfd_map(ppfd_path)
+
+    rows = build_spatial_proxy_surface_flux_rows(scene, ppfd_path)
+    payload = build_plant_surface_flux_payload(
+        scene,
+        rows,
+        method=SPATIAL_PPFD_PROXY_METHOD,
+        source_ppfd_map="ppfd_map.txt",
+        ppfd_field_summary=read_ppfd_map_field(ppfd_path).summary(),
+    )
+
+    sampled_values = {round(float(row["sampled_ppfd_umol_m2_s"]), 6) for row in rows}
+
+    assert len(sampled_values) > 1
+    assert payload["method"] == SPATIAL_PPFD_PROXY_METHOD
+    assert payload["status"] == "proxy"
+    assert payload["ppfd_field_summary"]["rectangular"] is True
+    assert payload["total_absorbed_photon_flux_umol_s"] > 0
+
+
+def test_spatial_proxy_artifact_export_is_deterministic(tmp_path) -> None:
+    scene = _scene()
+    ppfd_path = tmp_path / "ppfd_map.txt"
+    _write_gradient_ppfd_map(ppfd_path)
+
+    first_path = write_spatial_proxy_plant_surface_flux_artifact(
+        tmp_path,
+        scene,
+        ppfd_map_path=ppfd_path,
+    )
+    first = first_path.read_text(encoding="utf-8")
+    second_path = write_spatial_proxy_plant_surface_flux_artifact(
+        tmp_path,
+        scene,
+        ppfd_map_path=ppfd_path,
+    )
+    second = second_path.read_text(encoding="utf-8")
+
+    assert first_path == second_path
+    assert first == second

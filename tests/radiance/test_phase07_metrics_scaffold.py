@@ -16,7 +16,7 @@ from rad_rebuild.radiance.backend.routes.metrics import (  # noqa: E402
 )
 from rad_rebuild.radiance.config import EXECUTION_MODE_LIVE_LOCAL  # noqa: E402
 from rad_rebuild.radiance.engine.plants import PlantGeometryConfig, generate_plant_scene, write_plant_artifacts  # noqa: E402
-from rad_rebuild.radiance.engine.plants.surface_flux import write_baseline_proxy_plant_surface_flux_artifact  # noqa: E402
+from rad_rebuild.radiance.engine.plants.surface_flux import write_spatial_proxy_plant_surface_flux_artifact  # noqa: E402
 
 
 def _request(query: dict[str, str]) -> SimpleNamespace:
@@ -143,10 +143,10 @@ def test_metrics_payload_prefers_surface_flux_artifact_when_available(tmp_path) 
         active_simulation_integration=True,
         provenance_phase="Phase 09",
     )
-    write_baseline_proxy_plant_surface_flux_artifact(
+    write_spatial_proxy_plant_surface_flux_artifact(
         tmp_path / "runtime_state",
         generate_plant_scene(config),
-        baseline_ppfd_mean_umol_m2_s=1000.0,
+        ppfd_map_path=tmp_path / "ppfd_map.txt",
     )
     req = RadianceRunRequest(
         action="metrics",
@@ -163,6 +163,7 @@ def test_metrics_payload_prefers_surface_flux_artifact_when_available(tmp_path) 
 
     assert absorption["source_artifact"] == "runtime_state/plant_surface_flux.json"
     assert absorption["status"] == "proxy"
+    assert absorption["method"] == "baseline_ppfd_spatial_interpolation_orientation_proxy_v1"
     assert absorption["total_absorbed_photon_flux_umol_s"] > 0
     assert absorption["plant_to_plant_absorbed_photon_flux_cv"] >= 0
     assert absorption["leaf_summaries"]

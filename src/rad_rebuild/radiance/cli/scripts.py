@@ -44,8 +44,8 @@ from rad_rebuild.radiance.engine.plants.config import (
 )
 from rad_rebuild.radiance.engine.plants.generator import generate_plant_scene
 from rad_rebuild.radiance.engine.plants.surface_flux import (
-    BASELINE_PPFD_PROXY_METHOD,
-    write_baseline_proxy_plant_surface_flux_artifact,
+    SPATIAL_PPFD_PROXY_METHOD,
+    write_spatial_proxy_plant_surface_flux_artifact,
 )
 from rad_rebuild.radiance.engine.simulation.basis_backends import canonicalize_basis_backend
 from rad_rebuild.radiance.paths import REPO_ROOT
@@ -992,17 +992,16 @@ def _write_optional_plant_surface_flux_artifact(
         return None
     plant_config = _fspm_plant_config_from_env(config.env)
     scene = generate_plant_scene(plant_config)
-    baseline_mean = _ppfd_mean(ppfd_map)
-    path = write_baseline_proxy_plant_surface_flux_artifact(
+    path = write_spatial_proxy_plant_surface_flux_artifact(
         config.runtime_state_root,
         scene,
-        baseline_ppfd_mean_umol_m2_s=baseline_mean,
+        ppfd_map_path=ppfd_map,
         source_ppfd_map=ppfd_map.name,
     )
     print("FSPM plant surface-flux artifact:")
     print(f"  • {path}")
-    print(f"  method: {BASELINE_PPFD_PROXY_METHOD}")
-    print("  note: proxy values use the unblocked baseline PPFD field and do not alter heatmap uniformity.")
+    print(f"  method: {SPATIAL_PPFD_PROXY_METHOD}")
+    print("  note: proxy values spatially sample the unblocked baseline PPFD field and do not alter heatmap uniformity.")
     return path
 
 

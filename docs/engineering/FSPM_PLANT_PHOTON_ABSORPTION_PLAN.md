@@ -679,8 +679,8 @@ Goal:
 
 Current method:
 
-- `baseline_ppfd_mean_orientation_proxy_v1`.
-- Uses the unblocked baseline PPFD field and deterministic plant surface geometry.
+- `baseline_ppfd_spatial_interpolation_orientation_proxy_v1`.
+- Spatially samples the unblocked baseline `ppfd_map.txt` at deterministic plant surface centroids, then applies deterministic surface orientation/height factors.
 - This is a contract-valid proxy for development/testing, not the final reviewed Radiance receiver method.
 
 Future method:
@@ -857,6 +857,14 @@ Rationale:
 - Baseline fixture comparison metrics should describe the lighting system output, not plant occlusion.
 - Plant photon absorption is a separate plant-layer metric and should not degrade the reference uniformity map.
 - This separation keeps precomputed PPFD playback compatible with future plant absorption artifacts.
+
+
+
+Phase 11 proxy upgrade decision:
+
+- The plant surface-flux proxy now spatially samples `ppfd_map.txt` instead of using only the run-wide mean PPFD.
+- This should make absorbed-photon coloring and under-lit/over-lit classifications differ between Proposed LED, Conventional LED, and 1000W HPS before the final Radiance receiver method is implemented.
+- It is still a proxy because it interpolates a canopy-plane PPFD field rather than tracing irradiance at leaf surface points/normals.
 
 
 ## Open Questions And Risk Register
