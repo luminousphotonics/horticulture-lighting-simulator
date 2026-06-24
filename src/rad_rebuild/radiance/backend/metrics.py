@@ -7,6 +7,8 @@ from pathlib import Path
 from fastapi import HTTPException
 
 from rad_rebuild.radiance.config import MODE_COMPETITOR, MODE_SMD
+from rad_rebuild.radiance.engine.plants.absorption import PHOTON_ABSORPTION_SCAFFOLD_SCHEMA
+from rad_rebuild.radiance.engine.plants.artifacts import PLANT_ABSORPTION_SURFACES_FILENAME
 
 from .artifacts import BACKEND_SERVER_FILE, _cache_fresh, _layout_file_for_mode
 from .costs import build_cost_estimate
@@ -78,7 +80,62 @@ def _metrics_dependencies(workspace_root: Path | None = None) -> list[Path | Non
         work_root / "runtime_state" / "hps_power.txt",
         work_root / "runtime_state" / "smd_summary.txt",
         work_root / "runtime_state" / "last_run.json",
+        work_root / "runtime_state" / PLANT_ABSORPTION_SURFACES_FILENAME,
     ]
+
+
+def _plant_absorption_unavailable(reason: str) -> dict[str, object]:
+    return {
+        "schema": PHOTON_ABSORPTION_SCAFFOLD_SCHEMA,
+        "status": "unavailable",
+        "reason": reason,
+        "outputs_do_not_predict": [
+            "yield",
+            "biomass",
+            "growth",
+            "crop_output",
+        ],
+    }
+
+
+def _load_plant_photon_absorption_scaffold(workspace_root: Path) -> dict[str, object] | None:
+    path = workspace_root / "runtime_state" / PLANT_ABSORPTION_SURFACES_FILENAME
+    if not path.is_file():
+        return None
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return _plant_absorption_unavailable("invalid_scaffold_artifact")
+
+    if not isinstance(payload, dict):
+        return _plant_absorption_unavailable("invalid_scaffold_artifact")
+
+    if payload.get("schema") != PHOTON_ABSORPTION_SCAFFOLD_SCHEMA:
+        return _plant_absorption_unavailable("unsupported_scaffold_schema")
+
+    return {
+        "schema": payload.get("schema"),
+        "schema_version": payload.get("schema_version"),
+        "status": payload.get("status", "scaffold_only"),
+        "method": payload.get("method"),
+        "source_artifact": f"runtime_state/{PLANT_ABSORPTION_SURFACES_FILENAME}",
+        "plant_count": payload.get("plant_count"),
+        "leaf_count": payload.get("leaf_count"),
+        "surface_count": payload.get("surface_count"),
+        "one_sided_leaf_area_m2": payload.get("one_sided_leaf_area_m2"),
+        "optical_assumptions": payload.get("optical_assumptions"),
+        "units": payload.get("units"),
+        "outputs_do_not_predict": payload.get(
+            "outputs_do_not_predict",
+            ["yield", "biomass", "growth", "crop_output"],
+        ),
+        "limitations": payload.get("limitations", []),
+        "note": (
+            "Surface registry only. Absorbed photon flux values are not computed "
+            "until a Radiance per-surface flux mapping method is reviewed."
+        ),
+    }
 
 
 def _metrics_payload_for_request(req: RadianceRunRequest, workspace_root: Path) -> dict[str, object]:
@@ -148,6 +205,10 @@ def _metrics_payload_for_request(req: RadianceRunRequest, workspace_root: Path) 
         metrics["mode_note"] = "Peak-cap metrics are omitted for 1000W HPS because reliable dimming is not assumed."
     elif not req.peak_capping_enabled:
         metrics["mode_note"] = "Peak-capping is disabled. Dimmable LED systems are evaluated against the requested target PPFD without hotspot-cap post-processing."
+
+    plant_photon_absorption = _load_plant_photon_absorption_scaffold(workspace_root)
+    if plant_photon_absorption is not None:
+        metrics["plant_photon_absorption"] = plant_photon_absorption
 
     cost_estimate = None
     try:
