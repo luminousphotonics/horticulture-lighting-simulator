@@ -662,7 +662,7 @@ Validation:
 - Backend live-run gate test proving private assets can authorize Conventional/HPS only under the private gate.
 - No protected IES files, absolute private paths, or generated runtime outputs committed.
 
-
+\nImplementation notes:\n\n- Update simulator FSPM control visibility to follow the runtime `live_supported_modes` payload. Public defaults still expose FSPM controls only for live SMD, while private live mode can expose the same controls for Conventional LED and 1000W HPS when private photometry is available.\n
 ## Validation Matrix
 
 | Phase | Primary checks | Required commands |

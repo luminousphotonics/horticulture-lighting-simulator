@@ -373,7 +373,7 @@ test("live mode selection explains unsupported public lighting systems", async (
 
 
 
-test("live SMD FSPM controls feed plant fields through payload and artifact params", async ({ page }) => {
+test("live-supported FSPM controls feed plant fields through payload and artifact params", async ({ page }) => {
   await page.addInitScript((key) => {
     window.localStorage.setItem(key, "dismissed");
   }, DEMO_GUIDE_STORAGE_KEY);
@@ -387,16 +387,21 @@ test("live SMD FSPM controls feed plant fields through payload and artifact para
 
   await page.evaluate(async () => {
     const forms = await import("/static/js/radiance-simulator/forms.js");
+    const state = await import("/static/js/radiance-simulator/state.js");
     const mode = document.querySelector("#rad-mode");
     const simMode = document.querySelector("#rad-sim-mode");
     if (!(mode instanceof HTMLSelectElement) || !(simMode instanceof HTMLSelectElement)) {
       throw new Error("Expected simulator controls were not found.");
     }
-    mode.value = "SMD";
+    state.appState.runtimeStatus = {
+      live_supported_modes: ["SMD", "Competitor", "1000W HPS"],
+    };
+    mode.value = "Competitor";
     simMode.value = "live_local";
     forms.syncFspmControls();
   });
 
+  await expect(page.locator("#rad-mode")).toHaveValue("Competitor");
   await expect(page.locator("#rad-sim-mode")).toHaveValue("live_local");
   await expect(page.locator("#rad-fspm-fieldset")).toBeVisible();
   await expect(page.locator("#rad-plants-enabled")).toBeEnabled();
@@ -417,6 +422,7 @@ test("live SMD FSPM controls feed plant fields through payload and artifact para
     return { parsed, runPayload, artifactParams };
   });
 
+  expect(result.parsed.mode).toBe("Competitor");
   expect(result.parsed.plantsEnabled).toBe(true);
   expect(result.parsed.plantSeed).toBe(77);
   expect(result.parsed.plantRows).toBe(1);
@@ -424,6 +430,7 @@ test("live SMD FSPM controls feed plant fields through payload and artifact para
   expect(result.parsed.plantLeafCount).toBe(5);
   expect(result.parsed.plantSpacingM).toBe(0.34);
 
+  expect(result.runPayload.mode).toBe("Competitor");
   expect(result.runPayload.plants_enabled).toBe(true);
   expect(result.runPayload.plant_seed).toBe(77);
   expect(result.runPayload.plant_rows).toBe(1);

@@ -64,8 +64,13 @@ function parseInteger(el, fallback) {
   return Number.isFinite(value) ? value : fallback;
 }
 
+function liveSupportedModes() {
+  const modes = appState.runtimeStatus?.live_supported_modes;
+  return Array.isArray(modes) && modes.length ? modes : ["SMD"];
+}
+
 function plantsAvailable(mode, executionMode) {
-  return mode === "SMD" && executionMode !== "precomputed";
+  return executionMode !== "precomputed" && liveSupportedModes().includes(mode);
 }
 
 export function syncFspmControls() {
@@ -92,7 +97,7 @@ export function syncFspmControls() {
     control.disabled = !fspmAvailable;
     control.title = fspmAvailable
       ? ""
-      : "FSPM plant geometry is available only for live Proposed LED System runs.";
+      : "FSPM plant geometry is available only for currently live-supported lighting modes.";
   });
 
   if (!fspmAvailable && els.radPlantsEnabled) {
