@@ -43,6 +43,10 @@ from rad_rebuild.radiance.engine.plants.config import (
     PlantOpticalAssumptions,
 )
 from rad_rebuild.radiance.engine.plants.generator import generate_plant_scene
+from rad_rebuild.radiance.engine.plants.photomorphogenesis import (
+    PhotomorphogenesisResponseParameters,
+    write_plant_photomorphogenesis_response_artifact,
+)
 from rad_rebuild.radiance.engine.plants.photosynthesis import (
     PhotosynthesisResponseParameters,
     write_plant_photosynthesis_response_artifact,
@@ -1121,6 +1125,44 @@ def _infer_fixture_spectral_mode(
 
 
 
+
+def _photomorphogenesis_parameters_from_env(env: Mapping[str, str]) -> PhotomorphogenesisResponseParameters:
+    defaults = PhotomorphogenesisResponseParameters()
+    return PhotomorphogenesisResponseParameters(
+        red_far_red_shade_threshold=_float_env(
+            env,
+            "FSPM_PHOTOMORPH_RED_FAR_RED_SHADE_THRESHOLD",
+            str(defaults.red_far_red_shade_threshold),
+        ),
+        red_far_red_full_sun_threshold=_float_env(
+            env,
+            "FSPM_PHOTOMORPH_RED_FAR_RED_FULL_SUN_THRESHOLD",
+            str(defaults.red_far_red_full_sun_threshold),
+        ),
+        blue_fraction_compact_low=_float_env(
+            env,
+            "FSPM_PHOTOMORPH_BLUE_COMPACT_LOW",
+            str(defaults.blue_fraction_compact_low),
+        ),
+        blue_fraction_compact_high=_float_env(
+            env,
+            "FSPM_PHOTOMORPH_BLUE_COMPACT_HIGH",
+            str(defaults.blue_fraction_compact_high),
+        ),
+        photosynthetic_expansion_threshold=_float_env(
+            env,
+            "FSPM_PHOTOMORPH_PHOTOSYNTHETIC_EXPANSION_THRESHOLD",
+            str(defaults.photosynthetic_expansion_threshold),
+        ),
+        shade_expansion_penalty=_float_env(
+            env,
+            "FSPM_PHOTOMORPH_SHADE_EXPANSION_PENALTY",
+            str(defaults.shade_expansion_penalty),
+        ),
+    )
+
+
+
 def _photosynthesis_parameters_from_env(env: Mapping[str, str]) -> PhotosynthesisResponseParameters:
     defaults = PhotosynthesisResponseParameters()
     return PhotosynthesisResponseParameters(
@@ -1230,10 +1272,17 @@ def _write_optional_plant_surface_flux_artifact(
             default_leafy_green_spectral_bands(),
             spectral_distribution,
         )
+        spectral_payload = json.loads(spectral_path.read_text(encoding="utf-8"))
         photosynthesis_path = write_plant_photosynthesis_response_artifact(
             config.runtime_state_root,
-            json.loads(spectral_path.read_text(encoding="utf-8")),
+            spectral_payload,
             _photosynthesis_parameters_from_env(config.env),
+        )
+        photomorphogenesis_path = write_plant_photomorphogenesis_response_artifact(
+            config.runtime_state_root,
+            spectral_payload,
+            json.loads(photosynthesis_path.read_text(encoding="utf-8")),
+            _photomorphogenesis_parameters_from_env(config.env),
         )
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"ERROR: failed to write FSPM plant receiver surface flux: {exc}", file=sys.stderr)
@@ -1256,6 +1305,10 @@ def _write_optional_plant_surface_flux_artifact(
     print(f"  • {photosynthesis_path}")
     print("  method: absorbed_par_non_rectangular_hyperbola_v1")
     print("  note: photosynthetic response potential is based on absorbed PAR and does not predict crop output.")
+    print("FSPM plant photomorphogenic-response artifact:")
+    print(f"  • {photomorphogenesis_path}")
+    print("  method: spectral_ratio_morphology_response_v1")
+    print("  note: photomorphogenic response potential is based on spectral ratios and does not predict crop output.")
     return int(RadianceScriptExit.OK)
 
 

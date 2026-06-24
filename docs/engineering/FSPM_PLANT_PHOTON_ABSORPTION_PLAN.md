@@ -980,3 +980,29 @@ Scientific scope:
 Next handoff:
 
 - Phase 16 should consume spectral response and photosynthesis response artifacts to produce photomorphogenic response metrics.
+
+
+### Phase 16 - Photomorphogenic Response Potential Artifact
+
+Goal:
+
+- Consume `plant_spectral_response.json` and `plant_photosynthesis_response.json`.
+- Produce `plant_photomorphogenesis_response.json`.
+- Use absorbed red/far-red ratio, absorbed blue/PAR fraction, far-red transmission, and photosynthetic response index to estimate photomorphogenic response potentials.
+- Expose shade-avoidance, blue-compactness, canopy-expansion, elongation, and morphology-balance indices.
+- Aggregate response potentials at leaf and plant levels for later geometry-state updates and viewer animation.
+
+Status:
+
+- In progress.
+
+Scientific scope:
+
+- This phase models morphology-response potential from spectral ratios and absorbed-light response indices.
+- It does not alter plant geometry yet.
+- It does not predict biomass, yield, harvest weight, or crop output.
+- Parameters are explicit thresholds and should be treated as model inputs until cultivar-specific validation exists.
+
+Next handoff:
+
+- Phase 17 should use photosynthetic and photomorphogenic response artifacts to drive deterministic FSPM state updates across a growth-cycle series.

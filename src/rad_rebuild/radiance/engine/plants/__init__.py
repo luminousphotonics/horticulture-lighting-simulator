@@ -21,6 +21,17 @@ from rad_rebuild.radiance.engine.plants.config import (
     PlantOpticalAssumptions,
 )
 from rad_rebuild.radiance.engine.plants.generator import generate_plant_scene
+from rad_rebuild.radiance.engine.plants.photomorphogenesis import (
+    PLANT_PHOTOMORPHOGENESIS_RESPONSE_FILENAME,
+    PLANT_PHOTOMORPHOGENESIS_RESPONSE_METHOD,
+    PLANT_PHOTOMORPHOGENESIS_RESPONSE_SCHEMA,
+    PhotomorphogenesisResponseParameters,
+    blue_compactness_response_index,
+    build_plant_photomorphogenesis_response_payload,
+    default_photomorphogenesis_response_parameters,
+    shade_avoidance_response_index,
+    write_plant_photomorphogenesis_response_artifact,
+)
 from rad_rebuild.radiance.engine.plants.photosynthesis import (
     PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME,
     PLANT_PHOTOSYNTHESIS_RESPONSE_METHOD,
@@ -94,6 +105,15 @@ __all__ = [
     "photosynthetic_gross_rate_umol_co2_m2_s",
     "photosynthetic_net_rate_umol_co2_m2_s",
     "write_plant_photosynthesis_response_artifact",
+    "PLANT_PHOTOMORPHOGENESIS_RESPONSE_FILENAME",
+    "PLANT_PHOTOMORPHOGENESIS_RESPONSE_METHOD",
+    "PLANT_PHOTOMORPHOGENESIS_RESPONSE_SCHEMA",
+    "PhotomorphogenesisResponseParameters",
+    "blue_compactness_response_index",
+    "build_plant_photomorphogenesis_response_payload",
+    "default_photomorphogenesis_response_parameters",
+    "shade_avoidance_response_index",
+    "write_plant_photomorphogenesis_response_artifact",
     "PlantArtifactPaths",
     "PlantGeometry",
     "PlantGeometryConfig",
