@@ -300,7 +300,16 @@ Suggested validation:
 
 ### Step 2 — Phase 15 V2 Provenance And Contract Hardening
 
-Status: pending.
+Status: complete.
+
+Completed checklist:
+
+* Added a v2 schema/method identity to `plant_photosynthesis_response.json`.
+* Added additive contract metadata for calibration status, input basis, unvalidated default-parameter status, target model identity, evidence-quality tier, uncertainty notes, and non-prediction framing.
+* Kept existing leaf, plant, total, visualization, warning, limitation, and summary fields intact for current consumers.
+* Allowed Phase 16 and backend metrics loading to read both legacy v1 and new v2 photosynthesis-response artifacts.
+* Added focused tests for v2 metadata presence and prohibited crop-claim wording absence in the new contract metadata.
+* Left request schemas, routes, OpenAPI, baseline PPFD, DOU, CV, mean PPFD, heatmaps, fixture-output metrics, source data, generated artifacts, bundles, and numerical goldens unchanged.
 
 Goal:
 
@@ -316,6 +325,36 @@ Acceptance criteria:
 * Artifact declares that defaults are unvalidated.
 * Existing runtime tests pass.
 * New tests verify prohibited wording is absent.
+
+Validation run:
+
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_photosynthesis_response.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_photomorphogenesis_response.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_phase07_metrics_scaffold.py tests/radiance/test_route_query_contracts.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_fspm_plants.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_import_boundaries.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_config_contracts.py`
+* `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance/engine/plants/photosynthesis.py src/rad_rebuild/radiance/engine/plants/photomorphogenesis.py src/rad_rebuild/radiance/backend/metrics.py tests/radiance/test_plant_photosynthesis_response.py tests/radiance/test_plant_photomorphogenesis_response.py`
+* `git diff --check`
+
+Validation results:
+
+* Photosynthesis artifact tests: passed, 7 tests.
+* Photomorphogenesis artifact tests: passed, 5 tests.
+* Metrics/route-focused checks: passed, 15 tests.
+* Plant/FSPM tests: passed, 44 tests.
+* Import-boundary tests: passed, 6 tests, 33 subtests, with existing third-party matplotlib/pyparsing deprecation warnings.
+* Config-contract tests: passed, 9 tests, 6 subtests.
+* Focused Ruff check: passed.
+* `git diff --check`: passed.
+
+Unresolved issues:
+
+* None for Step 2.
+
+Next recommended implementation step:
+
+* Step 3 — Surface-Local Phase 15 Aggregation.
 
 ### Step 3 — Surface-Local Phase 15 Aggregation
 

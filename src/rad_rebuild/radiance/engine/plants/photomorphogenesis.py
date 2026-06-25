@@ -18,7 +18,18 @@ PLANT_PHOTOMORPHOGENESIS_RESPONSE_SCHEMA_VERSION = 1
 PLANT_PHOTOMORPHOGENESIS_RESPONSE_FILENAME = "plant_photomorphogenesis_response.json"
 PLANT_PHOTOMORPHOGENESIS_RESPONSE_METHOD = "spectral_ratio_morphology_response_v1"
 PLANT_SPECTRAL_RESPONSE_SCHEMA = "rad_rebuild.fspm.plant_spectral_response.v1"
-PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA = "rad_rebuild.fspm.plant_photosynthesis_response.v1"
+LEGACY_PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA = (
+    "rad_rebuild.fspm.plant_photosynthesis_response.v1"
+)
+PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA = (
+    "rad_rebuild.fspm.plant_photosynthetic_light_response.v2"
+)
+SUPPORTED_PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMAS = frozenset(
+    {
+        LEGACY_PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA,
+        PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA,
+    }
+)
 NO_CROP_OUTPUT_TERMS = ["yield", "biomass", "growth", "crop_output"]
 
 
@@ -169,7 +180,7 @@ def _spectral_leaf_rows(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
 
 
 def _photosynthesis_leaf_rows(payload: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
-    if payload.get("schema") != PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA:
+    if payload.get("schema") not in SUPPORTED_PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMAS:
         raise ValueError("Unsupported plant photosynthesis-response schema.")
     rows = payload.get("leaf_summaries")
     if not isinstance(rows, list) or not rows:

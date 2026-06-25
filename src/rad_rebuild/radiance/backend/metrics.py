@@ -15,7 +15,7 @@ from rad_rebuild.radiance.engine.plants.photomorphogenesis import (
 )
 from rad_rebuild.radiance.engine.plants.photosynthesis import (
     PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME,
-    PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA,
+    SUPPORTED_PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMAS,
 )
 from rad_rebuild.radiance.engine.plants.surface_flux import (
     PLANT_SURFACE_FLUX_FILENAME,
@@ -238,7 +238,7 @@ def _load_plant_photosynthesis_response_summary(workspace_root: Path) -> dict[st
         return None
     if not isinstance(payload, dict):
         return None
-    if payload.get("schema") != PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA:
+    if payload.get("schema") not in SUPPORTED_PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMAS:
         return None
 
     return {
@@ -246,6 +246,15 @@ def _load_plant_photosynthesis_response_summary(workspace_root: Path) -> dict[st
         "schema_version": payload.get("schema_version"),
         "status": payload.get("status"),
         "method": payload.get("method"),
+        "method_version": payload.get("method_version"),
+        "contract": payload.get("contract"),
+        "calibration_status": payload.get("calibration_status"),
+        "default_parameter_status": payload.get("default_parameter_status"),
+        "target_model": payload.get("target_model"),
+        "input_basis": payload.get("input_basis"),
+        "evidence_quality_tier": payload.get("evidence_quality_tier"),
+        "uncertainty_notes": payload.get("uncertainty_notes", []),
+        "non_prediction_framing": payload.get("non_prediction_framing"),
         "source_artifact": f"runtime_state/{PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME}",
         "source_spectral_response_method": payload.get("source_spectral_response_method"),
         "source_spectral_distribution": payload.get("source_spectral_distribution"),

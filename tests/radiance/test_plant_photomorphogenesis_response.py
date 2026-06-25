@@ -60,10 +60,10 @@ def _spectral_payload() -> dict[str, object]:
 
 def _photosynthesis_payload() -> dict[str, object]:
     return {
-        "schema": "rad_rebuild.fspm.plant_photosynthesis_response.v1",
-        "schema_version": 1,
+        "schema": "rad_rebuild.fspm.plant_photosynthetic_light_response.v2",
+        "schema_version": 2,
         "status": "computed",
-        "method": "absorbed_par_non_rectangular_hyperbola_v1",
+        "method": "absorbed_par_non_rectangular_hyperbola_v2",
         "leaf_summaries": [
             {
                 "leaf_id": "plant_000_leaf_000",

@@ -14,12 +14,29 @@ import math
 from pathlib import Path
 from typing import Any, Mapping
 
-PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA = "rad_rebuild.fspm.plant_photosynthesis_response.v1"
-PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA_VERSION = 1
+LEGACY_PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA = (
+    "rad_rebuild.fspm.plant_photosynthesis_response.v1"
+)
+PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA = (
+    "rad_rebuild.fspm.plant_photosynthetic_light_response.v2"
+)
+PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA_VERSION = 2
 PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME = "plant_photosynthesis_response.json"
-PLANT_PHOTOSYNTHESIS_RESPONSE_METHOD = "absorbed_par_non_rectangular_hyperbola_v1"
+PLANT_PHOTOSYNTHESIS_RESPONSE_METHOD = "absorbed_par_non_rectangular_hyperbola_v2"
 PLANT_SPECTRAL_RESPONSE_SCHEMA = "rad_rebuild.fspm.plant_spectral_response.v1"
 NO_CROP_OUTPUT_TERMS = ["yield", "biomass", "growth", "crop_output"]
+PHOTOSYNTHESIS_TARGET_MODEL_ID = "lettuce_rosette_archetype_v1"
+PHOTOSYNTHESIS_TARGET_MODEL_ARCHETYPE = (
+    "generic lettuce / leafy-green rosette archetype"
+)
+PHOTOSYNTHESIS_CALIBRATION_STATUS = "uncalibrated_model_scaffold"
+PHOTOSYNTHESIS_DEFAULT_PARAMETER_STATUS = "unvalidated_default_parameters"
+SUPPORTED_PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMAS = frozenset(
+    {
+        LEGACY_PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA,
+        PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA,
+    }
+)
 
 
 def _finite_non_negative(name: str, value: object) -> float:
@@ -293,6 +310,37 @@ def _visualization_payload(leaf_rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _contract_payload(method: str) -> dict[str, Any]:
+    return {
+        "schema": PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA,
+        "schema_version": PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA_VERSION,
+        "legacy_schema": LEGACY_PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA,
+        "method": method,
+        "method_version": 2,
+        "calibration_status": PHOTOSYNTHESIS_CALIBRATION_STATUS,
+        "default_parameter_status": PHOTOSYNTHESIS_DEFAULT_PARAMETER_STATUS,
+        "target_model": {
+            "id": PHOTOSYNTHESIS_TARGET_MODEL_ID,
+            "archetype": PHOTOSYNTHESIS_TARGET_MODEL_ARCHETYPE,
+            "cultivar_specific": False,
+        },
+        "input_basis": {
+            "source_artifact": "runtime_state/plant_spectral_response.json",
+            "driver": "absorbed_par_photon_flux_density_umol_m2_s",
+            "basis": "absorbed_PAR_from_leaf_spectral_response",
+        },
+        "evidence_quality_tier": "unvalidated_default",
+        "uncertainty_note": (
+            "Response-potential values are deterministic lighting-analysis "
+            "outputs from unvalidated default parameters."
+        ),
+        "non_prediction_framing": (
+            "This artifact is a lighting-analysis response-potential scaffold, "
+            "not a biological prediction."
+        ),
+    }
+
+
 def build_plant_photosynthesis_response_payload(
     spectral_response_payload: Mapping[str, Any],
     parameters: PhotosynthesisResponseParameters | None = None,
@@ -321,6 +369,35 @@ def build_plant_photosynthesis_response_payload(
         "schema_version": PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA_VERSION,
         "status": "computed",
         "method": method,
+        "method_version": 2,
+        "contract": _contract_payload(method),
+        "calibration_status": PHOTOSYNTHESIS_CALIBRATION_STATUS,
+        "default_parameter_status": PHOTOSYNTHESIS_DEFAULT_PARAMETER_STATUS,
+        "target_model": {
+            "id": PHOTOSYNTHESIS_TARGET_MODEL_ID,
+            "archetype": PHOTOSYNTHESIS_TARGET_MODEL_ARCHETYPE,
+            "cultivar_specific": False,
+        },
+        "input_basis": {
+            "source_artifact": "runtime_state/plant_spectral_response.json",
+            "driver": "absorbed_par_photon_flux_density_umol_m2_s",
+            "basis": "absorbed_PAR_from_leaf_spectral_response",
+        },
+        "evidence_quality_tier": "unvalidated_default",
+        "uncertainty_notes": [
+            (
+                "Response-potential values are deterministic lighting-analysis "
+                "outputs from unvalidated default parameters."
+            ),
+            (
+                "The current model omits environmental and physiological "
+                "calibration factors."
+            ),
+        ],
+        "non_prediction_framing": (
+            "This artifact is a lighting-analysis response-potential scaffold, "
+            "not a biological prediction."
+        ),
         "source_spectral_response_schema": spectral_response_payload.get("schema"),
         "source_spectral_response_method": spectral_response_payload.get("method"),
         "source_spectral_distribution": spectral_response_payload.get("spectral_distribution"),

@@ -82,11 +82,55 @@ def test_photosynthesis_payload_uses_absorbed_par_density() -> None:
     payload = build_plant_photosynthesis_response_payload(_spectral_payload())
 
     assert payload["schema"] == PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA
+    assert payload["schema_version"] == 2
+    assert payload["method_version"] == 2
     assert payload["status"] == "computed"
     assert payload["total_absorbed_par_photon_flux_umol_s"] == pytest.approx(1020.0)
     assert payload["leaf_summaries"][0]["photosynthetic_response_index_0_1"] < payload["leaf_summaries"][1]["photosynthetic_response_index_0_1"]
     assert payload["plant_to_plant_photosynthetic_response_cv"] > 0
     assert payload["visualization"]["leaf_values"][0]["visual_intensity_0_1"] < payload["visualization"]["leaf_values"][1]["visual_intensity_0_1"]
+
+
+def test_photosynthesis_payload_declares_v2_contract_metadata() -> None:
+    payload = build_plant_photosynthesis_response_payload(_spectral_payload())
+
+    assert payload["contract"]["schema"] == PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA
+    assert payload["contract"]["method_version"] == 2
+    assert payload["calibration_status"] == "uncalibrated_model_scaffold"
+    assert payload["default_parameter_status"] == "unvalidated_default_parameters"
+    assert payload["target_model"] == {
+        "id": "lettuce_rosette_archetype_v1",
+        "archetype": "generic lettuce / leafy-green rosette archetype",
+        "cultivar_specific": False,
+    }
+    assert payload["input_basis"] == {
+        "source_artifact": "runtime_state/plant_spectral_response.json",
+        "driver": "absorbed_par_photon_flux_density_umol_m2_s",
+        "basis": "absorbed_PAR_from_leaf_spectral_response",
+    }
+    assert payload["evidence_quality_tier"] == "unvalidated_default"
+    assert payload["uncertainty_notes"]
+    assert "biological prediction" in payload["non_prediction_framing"]
+
+
+def test_photosynthesis_v2_contract_metadata_avoids_prohibited_crop_claims() -> None:
+    payload = build_plant_photosynthesis_response_payload(_spectral_payload())
+    contract_text = json.dumps(
+        {
+            "contract": payload["contract"],
+            "calibration_status": payload["calibration_status"],
+            "default_parameter_status": payload["default_parameter_status"],
+            "target_model": payload["target_model"],
+            "input_basis": payload["input_basis"],
+            "evidence_quality_tier": payload["evidence_quality_tier"],
+            "uncertainty_notes": payload["uncertainty_notes"],
+            "non_prediction_framing": payload["non_prediction_framing"],
+        },
+        sort_keys=True,
+    ).lower()
+
+    for forbidden in ("yield", "biomass", "harvest", "crop-output", "growth prediction"):
+        assert forbidden not in contract_text
 
 
 def test_photosynthesis_artifact_export_is_deterministic(tmp_path) -> None:
