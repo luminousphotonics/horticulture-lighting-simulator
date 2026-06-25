@@ -79,7 +79,11 @@
       <div id="assembly-perf" class="assembly-viewer__perf" hidden></div>
       <div id="assembly-heatmap-tooltip" class="assembly-viewer__heatmap-tooltip" role="status" aria-live="polite" hidden></div>
       <aside id="assembly-fspm-panel" class="assembly-viewer__fspm-panel" aria-label="FSPM Panel" hidden>
-        <h2>FSPM Panel</h2>
+        <div class="assembly-viewer__fspm-header">
+          <h2>FSPM Panel</h2>
+          <button id="assembly-fspm-export" type="button" disabled hidden>Export Data</button>
+        </div>
+        <p id="assembly-fspm-export-status" class="assembly-viewer__fspm-export-status" aria-live="polite" hidden></p>
         <div id="assembly-fspm-content" class="assembly-viewer__fspm-content"></div>
       </aside>
     </section>

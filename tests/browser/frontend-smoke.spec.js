@@ -1267,6 +1267,7 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
   const dialog = page.getByRole("dialog", { name: "3D Assembly" });
   await expect(dialog).toBeVisible();
   await expect(dialog).toHaveClass(/radiance-modal--fullscreen/);
+  await expect(page.locator("#modal-frame")).toHaveAttribute("sandbox", /allow-downloads/);
   const frame = page.frameLocator("#modal-frame");
   await expect(frame.locator("#assembly-canvas")).toBeVisible();
   await expect(frame.locator("#assembly-status")).toContainText("3D assembly loaded", { timeout: 20000 });
@@ -1342,6 +1343,8 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
     await frame.getByRole("button", { name: /Show FSPM Panel/ }).click();
     await expect(frame.locator("#assembly-fspm-panel")).toBeVisible();
     await expect(frame.locator("#assembly-fspm-panel")).toContainText("FSPM Panel");
+    await expect(frame.getByRole("button", { name: "Export Data" })).toBeVisible();
+    await expect(frame.getByRole("button", { name: "Export Data" })).toBeEnabled();
     await expect(frame.locator("#assembly-fspm-panel")).toContainText("plant-surface absorption");
     await expect(frame.locator("#assembly-fspm-panel")).toContainText("spectral exposure");
     await expect(frame.locator("#assembly-fspm-panel")).toContainText("photosynthetic light-response potential");

@@ -13,7 +13,12 @@ import { clampHeatmapOpacity, fetchPhotometricLayer, formatPpfdTooltipValue, loo
 import { createPerfOverlay } from "./perf.js";
 import { createPlantVisibilityController } from "./plants.js";
 import { buildAssemblyWorld, createAssemblyScene, createPhotometricHeatmapPlane } from "./renderer.js";
-import { loadAssemblyScene, loadFixtureAssets, sceneUrlFromQuery } from "./scene-loader.js";
+import {
+  fspmCsvUrlFromSceneUrl,
+  loadAssemblyScene,
+  loadFixtureAssets,
+  sceneUrlFromQuery,
+} from "./scene-loader.js";
 
 const root = document.querySelector("[data-viewer-root]");
 const canvas = document.getElementById("assembly-canvas");
@@ -38,8 +43,11 @@ const plantsStatusEl = document.getElementById("assembly-plants-status");
 const perfEl = document.getElementById("assembly-perf");
 const fspmPanelEl = document.getElementById("assembly-fspm-panel");
 const fspmContentEl = document.getElementById("assembly-fspm-content");
+const fspmExportButton = document.getElementById("assembly-fspm-export");
+const fspmExportStatusEl = document.getElementById("assembly-fspm-export-status");
 let fspmPanelExpanded = false;
 let fspmPanelAvailable = false;
+let fspmCsvUrl = "";
 const heatmapRaycaster = new THREE.Raycaster();
 const heatmapPointer = new THREE.Vector2();
 const heatmapIntersections = [];
@@ -216,6 +224,78 @@ function updateFspmPanel() {
     fspmToggleButton.hidden = !fspmPanelAvailable;
     fspmToggleButton.setAttribute("aria-expanded", fspmPanelExpanded ? "true" : "false");
     fspmToggleButton.textContent = `${fspmPanelExpanded ? "Hide" : "Show"} FSPM Panel`;
+  }
+  syncFspmExportButton();
+}
+
+function setFspmExportStatus(state, message) {
+  if (!(fspmExportStatusEl instanceof HTMLElement)) {
+    return;
+  }
+  fspmExportStatusEl.dataset.state = state;
+  fspmExportStatusEl.textContent = message;
+  fspmExportStatusEl.hidden = !message;
+}
+
+function syncFspmExportButton() {
+  if (!(fspmExportButton instanceof HTMLButtonElement)) {
+    return;
+  }
+  const ready = Boolean(fspmPanelAvailable && fspmCsvUrl);
+  fspmExportButton.hidden = !fspmPanelAvailable;
+  fspmExportButton.disabled = !ready;
+  fspmExportButton.title = ready
+    ? "Download compact FSPM metrics CSV for this assembly scene."
+    : "FSPM export data is unavailable for this assembly scene.";
+}
+
+function filenameFromContentDisposition(header) {
+  const match = String(header || "").match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+  return match ? decodeURIComponent(match[1]) : "fspm_metrics.csv";
+}
+
+async function responseErrorMessage(response) {
+  try {
+    const payload = await response.json();
+    const detail = payload?.detail;
+    if (typeof detail === "string" && detail) {
+      return detail;
+    }
+    if (detail?.message) {
+      return String(detail.message);
+    }
+  } catch (_err) {
+    // Fall through to the status text.
+  }
+  return response.statusText || `HTTP ${response.status}`;
+}
+
+async function handleFspmExport() {
+  if (!(fspmExportButton instanceof HTMLButtonElement) || !fspmCsvUrl) {
+    setFspmExportStatus("error", "FSPM export is unavailable.");
+    return;
+  }
+  fspmExportButton.disabled = true;
+  setFspmExportStatus("loading", "Preparing CSV...");
+  try {
+    const response = await fetch(fspmCsvUrl, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(await responseErrorMessage(response));
+    }
+    const blob = await response.blob();
+    const href = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = href;
+    link.download = filenameFromContentDisposition(response.headers.get("content-disposition"));
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(href);
+    setFspmExportStatus("ready", "CSV download started.");
+  } catch (err) {
+    setFspmExportStatus("error", `Export unavailable: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    syncFspmExportButton();
   }
 }
 
@@ -466,10 +546,14 @@ async function boot() {
   try {
     setState("loading", "Loading assembly scene...");
     const sceneUrl = sceneUrlFromQuery(window.location.search);
+    fspmCsvUrl = fspmCsvUrlFromSceneUrl(sceneUrl);
     const scenePayload = await loadAssemblyScene(window.location.search);
     const instanceCount = Array.isArray(scenePayload.instances) ? scenePayload.instances.length : 0;
     renderSummary(scenePayload, instanceCount);
     renderFspmPanel(scenePayload);
+    fspmExportButton?.addEventListener("click", () => {
+      handleFspmExport();
+    });
 
     setState("loading", "Loading fixture assets...");
     const fixtureAssets = await loadFixtureAssets(scenePayload);

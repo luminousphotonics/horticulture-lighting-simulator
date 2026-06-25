@@ -584,6 +584,63 @@ Next recommended implementation step:
 
 * Step 5 — Workshop Demo Hardening.
 
+### Step 4.7 — FSPM Panel Compact CSV Export
+
+Status: complete.
+
+Completed checklist:
+
+* Added an `Export Data` button at the top of the 3D Assembly viewer `FSPM Panel`.
+* Added dynamic `/radiance/fspm-csv` export route using the same completed-workspace authorization pattern as PPFD CSV.
+* Preserved plant fields, FSPM target PPFD/tolerance fields, `match_system_ppe`, mode/comparison fields, session ID, and artifact token through the export URL/query identity.
+* Corrected the default export to a compact wide CSV with exactly one data row per current run/system.
+* Kept stable snake-case headers, numeric values unit-free, and units in header names where practical.
+* Filled leaf and receiver-surface target-classification percentages from the FSPM artifact summary.
+* Kept target-capped incident metrics separate from raw incident and raw absorbed metrics.
+* Preserved target classification basis/source in the summary row.
+* Avoided per-plant, per-leaf, per-surface receiver, per-bucket, and per-metric rows by default.
+* Added concise unavailable/error status handling in the panel without displaying raw CSV content.
+* Allowed iframe-initiated downloads from the 3D Assembly modal so `Export Data` behaves like the PPFD CSV download.
+* Regenerated the OpenAPI contract for the new export route.
+
+Validation run:
+
+* `git diff --check`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_fspm_plants.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_workspace_keys.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_api_contracts.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_route_query_contracts.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_assembly_scene.py`
+* `npm run typecheck:js`
+* `npm run lint:js`
+* `PYTHONPATH=src ./.venv/bin/python scripts/dev/export_openapi.py --check`
+* `PYTHONPATH=src ./.venv/bin/python scripts/dev/generate_frontend_types.py --check`
+* `npx playwright test tests/browser/assembly-viewer-bounds.spec.js --project=desktop`
+* `npm run test:browser`
+* `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance/assembly/fspm_csv.py src/rad_rebuild/radiance/assembly/fspm_panel.py src/rad_rebuild/radiance/backend/routes/artifacts.py tests/radiance/test_route_query_contracts.py`
+
+Validation results:
+
+* Plant/FSPM tests: passed, 44 tests.
+* Workspace-key tests: passed, 13 tests, 42 subtests.
+* API contract tests: passed, 13 tests.
+* Route query contract tests: passed, 13 tests after the compact wide-row correction.
+* Assembly scene tests: passed, 19 tests.
+* TypeScript and ESLint checks: passed.
+* OpenAPI and frontend type checks: passed after regenerating `docs/api/radiance-openapi.json`.
+* Assembly viewer focused browser tests: passed, 7 tests. Initial sandboxed run could not start the local Flask server; rerun with local-server escalation passed.
+* Browser smoke: passed, 54 tests before the compact wide-row correction. After the iframe download fix, one full-suite desktop navigation timeout reproduced as isolated load flakiness and passed when rerun by itself.
+* Focused Ruff check: passed.
+* Diff whitespace check: passed.
+
+Unresolved issues:
+
+* None for Step 4.7.
+
+Next recommended implementation step:
+
+* Step 5 — Workshop Demo Hardening.
+
 ### Step 5 — Workshop Demo Hardening
 
 Status: pending.

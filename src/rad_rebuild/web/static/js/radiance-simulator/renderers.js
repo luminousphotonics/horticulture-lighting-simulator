@@ -16,6 +16,7 @@ const FOCUSABLE_SELECTOR = [
 ].join(",");
 const PLACEHOLDER_SRC = "/static/img/transparent-placeholder.svg";
 const ASSEMBLY_SUPPORTED_MODES = new Set(["SMD", "Competitor", "1000W HPS"]);
+const MODAL_FRAME_SANDBOX = "allow-scripts allow-same-origin allow-downloads";
 const dialogStack = [];
 
 export function appendOutput(el, text) {
@@ -296,6 +297,7 @@ export function openModal({ title, imageSrc, frameSrc, text, fullscreen }) {
     els.modalImage.classList.add("hidden");
   }
   if (frameSrc) {
+    els.modalFrame.setAttribute("sandbox", MODAL_FRAME_SANDBOX);
     els.modalFrame.src = frameSrc;
     els.modalFrame.title = title || "Visualization";
     els.modalFrame.classList.remove("hidden");

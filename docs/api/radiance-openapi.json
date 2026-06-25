@@ -4742,6 +4742,285 @@
         "summary": "Radiance Electrical Estimate"
       }
     },
+    "/radiance/fspm-csv": {
+      "get": {
+        "operationId": "get_radiance_fspm_csv",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "SMD",
+              "title": "Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "execution_mode",
+            "required": false,
+            "schema": {
+              "default": "precomputed",
+              "title": "Execution Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sim_mode",
+            "required": false,
+            "schema": {
+              "default": "standard",
+              "title": "Sim Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_ppfd",
+            "required": false,
+            "schema": {
+              "default": 1000.0,
+              "title": "Target Ppfd",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "peak_capping_enabled",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Peak Capping Enabled",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "match_system_ppe",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Match System Ppe",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "length_ft",
+            "required": false,
+            "schema": {
+              "default": 10.0,
+              "title": "Length Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "width_ft",
+            "required": false,
+            "schema": {
+              "default": 10.0,
+              "title": "Width Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "w_min",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "W Min"
+            }
+          },
+          {
+            "in": "query",
+            "name": "w_max",
+            "required": false,
+            "schema": {
+              "default": 100.0,
+              "title": "W Max",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "competitor_layout",
+            "required": false,
+            "schema": {
+              "default": "full",
+              "title": "Competitor Layout",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_coverage_ft",
+            "required": false,
+            "schema": {
+              "default": 4.0,
+              "title": "Hps Coverage Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_ies_variant",
+            "required": false,
+            "schema": {
+              "default": "karma",
+              "title": "Hps Ies Variant",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mount_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Mount Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sp_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Sp Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hps_z_m",
+            "required": false,
+            "schema": {
+              "default": 0.4572,
+              "title": "Hps Z M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "basis_backend",
+            "required": false,
+            "schema": {
+              "default": "rtrace",
+              "title": "Basis Backend",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Radiance Fspm Csv"
+      }
+    },
     "/radiance/image": {
       "get": {
         "operationId": "get_radiance_image",

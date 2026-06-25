@@ -419,3 +419,22 @@ test("FSPM panel formatter summarizes available plant metrics", async ({ page })
   expect(result.text).not.toContain("null");
   expect(result.text).not.toMatch(/yield|biomass|harvest|crop output|growth prediction/i);
 });
+
+test("FSPM CSV URL is derived from assembly scene identity", async ({ page }) => {
+  await page.goto("/");
+  const result = await page.evaluate(async () => {
+    const { fspmCsvUrlFromSceneUrl } = await import("/static/js/assembly-viewer/scene-loader.js");
+    const sceneUrl = "/radiance-api/radiance/assembly-scene?mode=SMD&match_system_ppe=true&plants_enabled=true&plant_seed=13&fspm_target_ppfd_umol_m2_s=275&fspm_target_tolerance_umol_m2_s=20&artifact_token=abc&session_id=s1";
+    return fspmCsvUrlFromSceneUrl(sceneUrl);
+  });
+  const parsed = new URL(result, "http://example.test");
+
+  expect(parsed.pathname).toBe("/radiance-api/radiance/fspm-csv");
+  expect(parsed.searchParams.get("match_system_ppe")).toBe("true");
+  expect(parsed.searchParams.get("plants_enabled")).toBe("true");
+  expect(parsed.searchParams.get("plant_seed")).toBe("13");
+  expect(parsed.searchParams.get("fspm_target_ppfd_umol_m2_s")).toBe("275");
+  expect(parsed.searchParams.get("fspm_target_tolerance_umol_m2_s")).toBe("20");
+  expect(parsed.searchParams.get("artifact_token")).toBe("abc");
+  expect(parsed.searchParams.get("session_id")).toBe("s1");
+});
