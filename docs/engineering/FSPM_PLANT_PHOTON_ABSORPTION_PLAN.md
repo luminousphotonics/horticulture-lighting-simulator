@@ -597,6 +597,7 @@ Completed checklist:
 * Kept stable snake-case headers, numeric values unit-free, and units in header names where practical.
 * Filled leaf and receiver-surface target-classification percentages from the FSPM artifact summary.
 * Kept target-capped incident metrics separate from raw incident and raw absorbed metrics.
+* Added chart-ready derived target-capacity and incident-flux fraction columns, with blank cells for missing or zero denominators.
 * Preserved target classification basis/source in the summary row.
 * Avoided per-plant, per-leaf, per-surface receiver, per-bucket, and per-metric rows by default.
 * Added concise unavailable/error status handling in the panel without displaying raw CSV content.
@@ -624,7 +625,7 @@ Validation results:
 * Plant/FSPM tests: passed, 44 tests.
 * Workspace-key tests: passed, 13 tests, 42 subtests.
 * API contract tests: passed, 13 tests.
-* Route query contract tests: passed, 13 tests after the compact wide-row correction.
+* Route query contract tests: passed, 13 tests after the compact wide-row and derived-column corrections.
 * Assembly scene tests: passed, 19 tests.
 * TypeScript and ESLint checks: passed.
 * OpenAPI and frontend type checks: passed after regenerating `docs/api/radiance-openapi.json`.

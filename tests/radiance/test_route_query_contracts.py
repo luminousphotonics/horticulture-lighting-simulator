@@ -411,9 +411,33 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         self.assertEqual(row["target_range_receiver_surface_percent"], "62.5")
         self.assertEqual(row["over_lit_receiver_surface_percent"], "12.5")
         self.assertEqual(row["target_capped_incident_flux_total_umol_s"], "34")
+        self.assertAlmostEqual(
+            float(row["target_capacity_incident_flux_umol_s"]),
+            34.1,
+        )
         self.assertEqual(row["raw_incident_flux_total_umol_s"], "60")
+        self.assertAlmostEqual(
+            float(row["raw_incident_vs_target_capacity_percent"]),
+            60.0 / 34.1 * 100.0,
+        )
         self.assertEqual(row["raw_absorbed_flux_total_umol_s"], "42")
         self.assertEqual(row["absorbed_fraction_percent"], "70")
+        self.assertAlmostEqual(
+            float(row["target_capped_incident_fraction_of_raw_percent"]),
+            34.0 / 60.0 * 100.0,
+        )
+        self.assertAlmostEqual(
+            float(row["target_capped_incident_fraction_of_capacity_percent"]),
+            34.0 / 34.1 * 100.0,
+        )
+        self.assertAlmostEqual(
+            float(row["excess_incident_fraction_of_raw_percent"]),
+            4.0 / 60.0 * 100.0,
+        )
+        self.assertAlmostEqual(
+            float(row["deficit_to_target_capacity_percent"]),
+            7.0 / 34.1 * 100.0,
+        )
         self.assertEqual(row["raw_plant_to_plant_absorption_cv_percent"], "8")
         self.assertEqual(row["target_capped_incident_plant_to_plant_cv_percent"], "6")
         self.assertEqual(row["blue_pfd_umol_m2_s"], "83.3")
@@ -465,7 +489,7 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
                         "plant_count": 1,
                         "leaf_count": 2,
                         "surface_count": 4,
-                        "one_sided_leaf_area_m2": 0.02,
+                        "one_sided_leaf_area_m2": 0.0,
                         "target_ppfd_umol_m2_s": 300.0,
                         "target_tolerance_umol_m2_s": 30.0,
                         "target_lower_threshold_umol_m2_s": 270.0,
@@ -504,6 +528,10 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         row = rows[0]
         self.assertEqual(row["plant_count"], "1")
         self.assertEqual(row["target_range_leaf_percent"], "100")
+        self.assertEqual(row["target_capacity_incident_flux_umol_s"], "0")
+        self.assertEqual(row["raw_incident_vs_target_capacity_percent"], "")
+        self.assertEqual(row["target_capped_incident_fraction_of_capacity_percent"], "")
+        self.assertEqual(row["deficit_to_target_capacity_percent"], "")
         self.assertEqual(row["blue_pfd_umol_m2_s"], "")
         self.assertEqual(row["photosynthetic_light_response_mean"], "")
         self.assertEqual(row["calibration_status"], "")

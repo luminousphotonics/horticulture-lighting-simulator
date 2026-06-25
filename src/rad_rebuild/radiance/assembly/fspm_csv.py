@@ -38,11 +38,17 @@ FSPM_CSV_HEADERS = (
     "target_range_receiver_surface_percent",
     "over_lit_receiver_surface_percent",
     "target_capped_incident_flux_total_umol_s",
+    "target_capacity_incident_flux_umol_s",
     "raw_incident_flux_total_umol_s",
+    "raw_incident_vs_target_capacity_percent",
     "raw_absorbed_flux_total_umol_s",
     "absorbed_fraction_percent",
     "excess_incident_flux_above_target_umol_s",
+    "excess_incident_fraction_of_raw_percent",
     "deficit_to_target_incident_flux_umol_s",
+    "deficit_to_target_capacity_percent",
+    "target_capped_incident_fraction_of_raw_percent",
+    "target_capped_incident_fraction_of_capacity_percent",
     "target_capped_incident_mean_flux_density_umol_m2_s",
     "raw_mean_flux_density_umol_m2_s",
     "lower_tail_target_classification_ppfd_umol_m2_s",
@@ -126,6 +132,27 @@ def _summary_row(
         "Lighting-analysis input only; unvalidated response-potential scaffold, "
         "not biological-output prediction."
     )
+    target_ppfd = absorption.get("target_ppfd_umol_m2_s")
+    leaf_area = counts.get("one_sided_leaf_area_m2")
+    target_capacity = _product(target_ppfd, leaf_area)
+    target_capped_incident = _first(
+        absorption,
+        "target_capped_incident_flux_total_umol_s",
+        "target_capped_incident_total_flux_umol_s",
+        "target_capped_flux_total_umol_s",
+        "target_capped_total_flux_umol_s",
+    )
+    raw_incident = absorption.get("total_incident_photon_flux_umol_s")
+    excess_incident = _first(
+        absorption,
+        "excess_incident_flux_above_target_umol_s",
+        "excess_flux_above_target_umol_s",
+    )
+    deficit_to_target = _first(
+        absorption,
+        "deficit_to_target_incident_flux_umol_s",
+        "under_target_deficit_umol_s",
+    )
 
     return _format_row(
         {
@@ -134,7 +161,7 @@ def _summary_row(
             "system_label": system_label,
             "method": source.get("method"),
             "artifact_schema": source.get("schema"),
-            "target_ppfd_umol_m2_s": absorption.get("target_ppfd_umol_m2_s"),
+            "target_ppfd_umol_m2_s": target_ppfd,
             "target_tolerance_umol_m2_s": absorption.get("target_tolerance_umol_m2_s"),
             "target_lower_threshold_umol_m2_s": absorption.get(
                 "target_lower_threshold_umol_m2_s"
@@ -170,15 +197,12 @@ def _summary_row(
             "over_lit_receiver_surface_percent": _percent(
                 absorption.get("over_lit_surface_fraction")
             ),
-            "target_capped_incident_flux_total_umol_s": _first(
-                absorption,
-                "target_capped_incident_flux_total_umol_s",
-                "target_capped_incident_total_flux_umol_s",
-                "target_capped_flux_total_umol_s",
-                "target_capped_total_flux_umol_s",
-            ),
-            "raw_incident_flux_total_umol_s": absorption.get(
-                "total_incident_photon_flux_umol_s"
+            "target_capped_incident_flux_total_umol_s": target_capped_incident,
+            "target_capacity_incident_flux_umol_s": target_capacity,
+            "raw_incident_flux_total_umol_s": raw_incident,
+            "raw_incident_vs_target_capacity_percent": _ratio_percent(
+                raw_incident,
+                target_capacity,
             ),
             "raw_absorbed_flux_total_umol_s": absorption.get(
                 "total_absorbed_photon_flux_umol_s"
@@ -186,15 +210,23 @@ def _summary_row(
             "absorbed_fraction_percent": _percent(
                 absorption.get("mean_absorbed_fraction_of_incident")
             ),
-            "excess_incident_flux_above_target_umol_s": _first(
-                absorption,
-                "excess_incident_flux_above_target_umol_s",
-                "excess_flux_above_target_umol_s",
+            "excess_incident_flux_above_target_umol_s": excess_incident,
+            "excess_incident_fraction_of_raw_percent": _ratio_percent(
+                excess_incident,
+                raw_incident,
             ),
-            "deficit_to_target_incident_flux_umol_s": _first(
-                absorption,
-                "deficit_to_target_incident_flux_umol_s",
-                "under_target_deficit_umol_s",
+            "deficit_to_target_incident_flux_umol_s": deficit_to_target,
+            "deficit_to_target_capacity_percent": _ratio_percent(
+                deficit_to_target,
+                target_capacity,
+            ),
+            "target_capped_incident_fraction_of_raw_percent": _ratio_percent(
+                target_capped_incident,
+                raw_incident,
+            ),
+            "target_capped_incident_fraction_of_capacity_percent": _ratio_percent(
+                target_capped_incident,
+                target_capacity,
             ),
             "target_capped_incident_mean_flux_density_umol_m2_s": _first(
                 absorption,
@@ -304,6 +336,22 @@ def _object(value: object) -> Mapping[str, Any]:
 def _percent(fraction: object) -> float | None:
     number = _finite(fraction)
     return number * 100.0 if number is not None else None
+
+
+def _product(left: object, right: object) -> float | None:
+    left_number = _finite(left)
+    right_number = _finite(right)
+    if left_number is None or right_number is None:
+        return None
+    return left_number * right_number
+
+
+def _ratio_percent(numerator: object, denominator: object) -> float | None:
+    numerator_number = _finite(numerator)
+    denominator_number = _finite(denominator)
+    if numerator_number is None or denominator_number is None or denominator_number == 0.0:
+        return None
+    return numerator_number / denominator_number * 100.0
 
 
 def _umol_to_mol(value: object) -> float | None:
