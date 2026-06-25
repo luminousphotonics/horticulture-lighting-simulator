@@ -1,0 +1,232 @@
+// @ts-check
+
+const UNAVAILABLE = "Unavailable";
+
+function asObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+
+function finiteNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function formatNumber(value, digits = 2) {
+  const number = finiteNumber(value);
+  return number === null ? UNAVAILABLE : number.toFixed(digits);
+}
+
+function formatCount(value, singular, plural) {
+  const number = finiteNumber(value);
+  if (number === null) {
+    return UNAVAILABLE;
+  }
+  const rounded = Math.round(number);
+  return `${rounded} ${rounded === 1 ? singular : plural}`;
+}
+
+function formatMetric(value, unit = "", digits = 2) {
+  const formatted = formatNumber(value, digits);
+  return formatted === UNAVAILABLE ? UNAVAILABLE : `${formatted}${unit ? ` ${unit}` : ""}`;
+}
+
+function formatPercent(value, digits = 1) {
+  const number = finiteNumber(value);
+  return number === null ? UNAVAILABLE : `${(number * 100).toFixed(digits)}%`;
+}
+
+function labelStatus(value) {
+  if (typeof value !== "string" || !value) {
+    return UNAVAILABLE;
+  }
+  return value.replaceAll("_", " ");
+}
+
+function bandAbsorbedFlux(bandTotals, bandId) {
+  const band = asObject(bandTotals?.[bandId]);
+  return band?.absorbed_photon_flux_umol_s;
+}
+
+function hasAnySection(panel) {
+  return Boolean(
+    asObject(panel?.plant_surface_absorption)
+      || asObject(panel?.spectral_exposure)
+      || asObject(panel?.photosynthetic_light_response_potential)
+      || asObject(panel?.photoreceptor_exposure)
+      || asObject(panel?.legacy_morphology_response_scaffold),
+  );
+}
+
+function scenePlantCounts(scene) {
+  const plantsPayload = asObject(scene?.plants);
+  const plants = Array.isArray(plantsPayload?.plants) ? plantsPayload.plants : [];
+  let leafCount = 0;
+  for (const plant of plants) {
+    const leaves = Array.isArray(plant?.leaves) ? plant.leaves : [];
+    leafCount += leaves.length;
+  }
+  return {
+    plant_count: plants.length || null,
+    leaf_count: leafCount || null,
+  };
+}
+
+function fallbackPanelFromScene(scene) {
+  const plantsPayload = asObject(scene?.plants);
+  if (!plantsPayload) {
+    return null;
+  }
+  const surface = asObject(plantsPayload.surface_flux);
+  const counts = {
+    ...scenePlantCounts(scene),
+    surface_count: surface?.surface_count,
+    one_sided_leaf_area_m2: surface?.one_sided_leaf_area_m2,
+  };
+  const panel = {
+    status: "available",
+    counts,
+    limitations_note: "Lighting-analysis input only; response potentials are unvalidated and are not biological production forecasts.",
+  };
+  if (surface) {
+    panel.plant_surface_absorption = surface;
+  }
+  return panel;
+}
+
+export function fspmPanelData(scene) {
+  const panel = asObject(scene?.fspm_metrics) || fallbackPanelFromScene(scene);
+  if (!panel) {
+    return null;
+  }
+  const counts = asObject(panel.counts);
+  return hasAnySection(panel) || finiteNumber(counts?.plant_count) !== null || finiteNumber(counts?.leaf_count) !== null
+    ? panel
+    : null;
+}
+
+export function hasFspmPanelData(scene) {
+  return fspmPanelData(scene) !== null;
+}
+
+export function buildFspmPanelSections(scene) {
+  const panel = fspmPanelData(scene);
+  if (!panel) {
+    return [];
+  }
+
+  const sections = [];
+  const counts = asObject(panel.counts) || {};
+  sections.push({
+    title: "Plant-model overview",
+    rows: [
+      ["Plants", formatCount(counts.plant_count, "plant", "plants")],
+      ["Leaves", formatCount(counts.leaf_count, "leaf", "leaves")],
+      ["Surface receivers", formatCount(counts.surface_count, "surface", "surfaces")],
+      ["One-sided leaf area", formatMetric(counts.one_sided_leaf_area_m2, "m2", 4)],
+    ],
+  });
+
+  const absorption = asObject(panel.plant_surface_absorption);
+  if (absorption) {
+    sections.push({
+      title: "plant-surface absorption",
+      rows: [
+        ["Status", labelStatus(absorption.status)],
+        ["Method", labelStatus(absorption.method)],
+        ["Total absorbed flux", formatMetric(absorption.total_absorbed_photon_flux_umol_s, "umol/s", 2)],
+        [
+          "Mean absorbed flux density",
+          formatMetric(absorption.mean_absorbed_photon_flux_density_umol_m2_s, "umol/m2/s", 1),
+        ],
+        [
+          "Lower-tail absorbed flux density",
+          formatMetric(absorption.lower_tail_absorbed_photon_flux_density_umol_m2_s, "umol/m2/s", 1),
+        ],
+        ["Plant-to-plant absorbed-flux CV", formatPercent(absorption.plant_to_plant_absorbed_photon_flux_cv, 1)],
+      ],
+    });
+  }
+
+  const spectral = asObject(panel.spectral_exposure);
+  if (spectral) {
+    const bands = asObject(spectral.band_totals);
+    sections.push({
+      title: "spectral exposure",
+      rows: [
+        ["Status", labelStatus(spectral.status)],
+        ["Method", labelStatus(spectral.method)],
+        ["Absorbed PAR", formatMetric(spectral.total_absorbed_par_photon_flux_umol_s, "umol/s", 2)],
+        ["Blue absorbed flux", formatMetric(bandAbsorbedFlux(bands, "blue"), "umol/s", 2)],
+        ["Green absorbed flux", formatMetric(bandAbsorbedFlux(bands, "green"), "umol/s", 2)],
+        ["Red absorbed flux", formatMetric(bandAbsorbedFlux(bands, "red"), "umol/s", 2)],
+        ["Far-red absorbed flux", formatMetric(bandAbsorbedFlux(bands, "far_red"), "umol/s", 2)],
+      ],
+    });
+  }
+
+  const response = asObject(panel.photosynthetic_light_response_potential);
+  if (response) {
+    sections.push({
+      title: "photosynthetic light-response potential",
+      rows: [
+        ["Calibration", labelStatus(response.calibration_status)],
+        ["Input basis", labelStatus(response.input_basis)],
+        ["Area-weighted local response", formatPercent(response.area_weighted_mean_local_response_0_1, 1)],
+        ["Equal-plant normalized response", formatPercent(response.equal_plant_mean_normalized_response_0_1, 1)],
+        ["P10 local response", formatPercent(response.local_response_p10_0_1, 1)],
+        ["Bottom-decile response", formatPercent(response.bottom_decile_area_weighted_response_0_1, 1)],
+        ["Nonuniformity response retention", formatPercent(response.nonuniformity_response_retention_0_1, 1)],
+        ["Plant-to-plant response CV", formatPercent(response.plant_to_plant_photosynthetic_response_cv, 1)],
+      ],
+    });
+  }
+
+  const exposure = asObject(panel.photoreceptor_exposure);
+  if (exposure) {
+    const pss = asObject(exposure.phytochrome_pss_proxy);
+    const dose = asObject(exposure.blue_photon_dose);
+    sections.push({
+      title: "photoreceptor exposure",
+      rows: [
+        ["Status", labelStatus(exposure.status)],
+        ["Method", labelStatus(exposure.method)],
+        ["Blue PFD", formatMetric(exposure.mean_absorbed_blue_pfd_umol_m2_s, "umol/m2/s", 1)],
+        ["Green PFD", formatMetric(exposure.mean_absorbed_green_pfd_umol_m2_s, "umol/m2/s", 1)],
+        ["Red PFD", formatMetric(exposure.mean_absorbed_red_pfd_umol_m2_s, "umol/m2/s", 1)],
+        ["Far-red PFD", formatMetric(exposure.mean_absorbed_far_red_pfd_umol_m2_s, "umol/m2/s", 1)],
+        ["Blue fraction of PAR", formatPercent(exposure.mean_absorbed_blue_fraction_of_par, 1)],
+        [
+          "R:FR diagnostic",
+          formatMetric(exposure.mean_absorbed_red_to_far_red_ratio_diagnostic, "", 2),
+        ],
+        ["PSS proxy", pss?.value === null || pss?.value === undefined ? labelStatus(pss?.status) : formatNumber(pss.value, 3)],
+        [
+          "Blue dose",
+          dose?.value_umol_m2 === null || dose?.value_umol_m2 === undefined
+            ? labelStatus(dose?.status)
+            : formatMetric(dose.value_umol_m2, "umol/m2", 1),
+        ],
+      ],
+    });
+  }
+
+  const scaffold = asObject(panel.legacy_morphology_response_scaffold);
+  if (scaffold) {
+    sections.push({
+      title: "Legacy morphology-response scaffold",
+      rows: [
+        ["Status", labelStatus(scaffold.status)],
+        ["Method", labelStatus(scaffold.method)],
+        ["Hypothesis status", labelStatus(scaffold.morphology_hypothesis_status)],
+      ],
+    });
+  }
+
+  sections.push({
+    title: "Limitations",
+    note: typeof panel.limitations_note === "string" && panel.limitations_note
+      ? panel.limitations_note
+      : "Lighting-analysis input only; response potentials are unvalidated and are not biological production forecasts.",
+  });
+  return sections;
+}

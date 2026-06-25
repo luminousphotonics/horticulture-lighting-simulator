@@ -872,6 +872,58 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
             },
           ],
         },
+        fspm_metrics: {
+          schema: "rad_rebuild.fspm.viewer_panel.v1",
+          status: "available",
+          counts: {
+            plant_count: 1,
+            leaf_count: 1,
+            surface_count: 2,
+            one_sided_leaf_area_m2: 0.012,
+          },
+          plant_surface_absorption: {
+            status: "computed",
+            method: "radiance_leaf_surface_receiver_v1",
+            total_absorbed_photon_flux_umol_s: 6,
+            mean_absorbed_photon_flux_density_umol_m2_s: 500,
+            lower_tail_absorbed_photon_flux_density_umol_m2_s: 450,
+            plant_to_plant_absorbed_photon_flux_cv: 0,
+          },
+          spectral_exposure: {
+            status: "computed",
+            method: "surface_flux_band_weighted_leaf_absorptance_v1",
+            total_absorbed_par_photon_flux_umol_s: 5,
+            band_totals: {
+              blue: { absorbed_photon_flux_umol_s: 1 },
+              green: { absorbed_photon_flux_umol_s: 1.5 },
+              red: { absorbed_photon_flux_umol_s: 2.5 },
+              far_red: { absorbed_photon_flux_umol_s: 1 },
+            },
+          },
+          photosynthetic_light_response_potential: {
+            calibration_status: "uncalibrated_model_scaffold",
+            input_basis: "absorbed_par",
+            area_weighted_mean_local_response_0_1: 0.64,
+            equal_plant_mean_normalized_response_0_1: 0.64,
+            local_response_p10_0_1: 0.58,
+            bottom_decile_area_weighted_response_0_1: 0.58,
+            nonuniformity_response_retention_0_1: 0.97,
+            plant_to_plant_photosynthetic_response_cv: 0,
+          },
+          photoreceptor_exposure: {
+            status: "computed",
+            method: "spectral_band_exposure_inputs_v1",
+            mean_absorbed_blue_pfd_umol_m2_s: 83.3,
+            mean_absorbed_green_pfd_umol_m2_s: 125,
+            mean_absorbed_red_pfd_umol_m2_s: 208.3,
+            mean_absorbed_far_red_pfd_umol_m2_s: 83.3,
+            mean_absorbed_blue_fraction_of_par: 0.2,
+            mean_absorbed_red_to_far_red_ratio_diagnostic: 2.5,
+            phytochrome_pss_proxy: { value: null, status: "not_computed" },
+            blue_photon_dose: { value_umol_m2: null, status: "not_computed" },
+          },
+          limitations_note: "Lighting-analysis input only; response potentials are unvalidated and are not biological production forecasts.",
+        },
         assets: {
           manifest: "/static/viewer/proposed_led_system/manifest.json",
           anchors: "/static/viewer/proposed_led_system/anchors.json",
@@ -1137,8 +1189,8 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
   await expect(frame.locator("#assembly-mode")).toContainText("Proposed LED System");
   await expect(frame.locator("#assembly-room")).toContainText("3.05 m x 3.05 m");
   await expect(frame.locator("#assembly-count")).toContainText("7 fixture instances");
-  await expect(frame.locator("#assembly-dev-panel")).toBeHidden();
-  await expect(frame.getByRole("button", { name: /Show Diagnostics/ })).toBeVisible();
+  await expect(frame.locator("#assembly-fspm-panel")).toBeHidden();
+  await expect(frame.getByRole("button", { name: /Show FSPM Panel/ })).toBeVisible();
   const heatmapToggle = frame.getByRole("checkbox", { name: "PPFD heatmap" });
   const heatmapOpacity = frame.getByLabel("Opacity");
   const fixturesToggle = frame.getByRole("checkbox", { name: "Show fixtures" });
@@ -1203,19 +1255,18 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
     expect(heatmapMetadataRequests).toBe(1);
     expect(heatmapBinaryRequests).toBe(1);
 
-    await frame.getByRole("button", { name: /Show Diagnostics/ }).click();
-    await expect(frame.locator("#assembly-dev-panel")).toBeVisible();
-    await expect(frame.locator("#assembly-dev-panel")).toContainText("centerpiece");
-    await expect(frame.locator("#assembly-dev-panel")).toContainText("linear2");
-    await expect(frame.locator("#assembly-dev-panel")).toContainText("linear3_corner");
-    await expect(frame.locator("#assembly-dev-panel")).toContainText("linear3_linear");
-    await expect(frame.locator("#assembly-dev-panel")).toContainText("linear4_linear");
-    await expect(frame.locator("#assembly-dev-panel")).toContainText("l4_corner");
-    await expect(frame.locator("#assembly-dev-panel")).toContainText("l4_reverse_corner");
-    await expect(frame.locator("#assembly-fit-diagnostics")).toContainText("fixture-0001");
-    await expect(frame.locator("#assembly-warnings")).toContainText("Using linear3_linear for missing optional linear3_corner");
-    await frame.getByRole("button", { name: /Hide Diagnostics/ }).click();
-    await expect(frame.getByRole("button", { name: /Show Diagnostics/ })).toBeVisible();
+    await frame.getByRole("button", { name: /Show FSPM Panel/ }).click();
+    await expect(frame.locator("#assembly-fspm-panel")).toBeVisible();
+    await expect(frame.locator("#assembly-fspm-panel")).toContainText("FSPM Panel");
+    await expect(frame.locator("#assembly-fspm-panel")).toContainText("plant-surface absorption");
+    await expect(frame.locator("#assembly-fspm-panel")).toContainText("spectral exposure");
+    await expect(frame.locator("#assembly-fspm-panel")).toContainText("photosynthetic light-response potential");
+    await expect(frame.locator("#assembly-fspm-panel")).toContainText("photoreceptor exposure");
+    await expect(frame.locator("#assembly-fspm-panel")).toContainText("Plant-to-plant absorbed-flux CV");
+    await expect(frame.locator("#assembly-fspm-panel")).not.toContainText("undefined");
+    await expect(frame.locator("#assembly-fspm-panel")).not.toContainText("crop output");
+    await frame.getByRole("button", { name: /Hide FSPM Panel/ }).click();
+    await expect(frame.getByRole("button", { name: /Show FSPM Panel/ })).toBeVisible();
   }
 
   const resetCamera = frame.getByRole("button", { name: "Reset Camera" });
@@ -1272,6 +1323,8 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
     await expect(frame.locator("#assembly-heatmap-status")).toHaveText("Idle");
     const fixturesToggle = frame.getByRole("checkbox", { name: "Show fixtures" });
     await expect(frame.locator("#assembly-plants-control")).toBeHidden();
+    await expect(frame.locator("#assembly-fspm-panel")).toBeHidden();
+    await expect(frame.getByRole("button", { name: /FSPM Panel/ })).toBeHidden();
     const fixtureHeight = frame.getByLabel("Fixture height");
     const fixtureHeightValue = frame.locator("#assembly-fixture-height-value");
     const fixtureHeightReset = frame.getByRole("button", { name: "Reset Height" });
@@ -1304,10 +1357,8 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
       await heatmapToggle.check();
       await expect(frame.locator("#assembly-heatmap-status")).toHaveText("On");
 
-      await frame.getByRole("button", { name: /Show Diagnostics/ }).click();
-      await expect(frame.locator("#assembly-dev-panel")).toBeVisible();
-      await expect(frame.locator("#assembly-dev-panel")).toContainText("fixture");
-      await expect(frame.locator("#assembly-fit-diagnostics")).toContainText("fixture-0001");
+      await expect(frame.locator("#assembly-fspm-panel")).toBeHidden();
+      await expect(frame.getByRole("button", { name: /FSPM Panel/ })).toBeHidden();
     }
 
     expect(errors).toEqual([]);

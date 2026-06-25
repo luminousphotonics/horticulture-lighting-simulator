@@ -313,3 +313,86 @@ test("proposed LED material tuning is scoped and does not stack", async ({ page 
   expect(result.afterFirst.roughness).toBeLessThan(result.original.roughness);
   expect(result.afterSecond).toEqual(result.afterFirst);
 });
+
+test("FSPM panel formatter summarizes available plant metrics", async ({ page }) => {
+  await page.goto("/");
+  const result = await page.evaluate(async () => {
+    const { buildFspmPanelSections, hasFspmPanelData } = await import("/static/js/assembly-viewer/fspm-panel.js");
+    const emptyScene = { schema_version: 3, instances: [] };
+    const scene = {
+      fspm_metrics: {
+        counts: {
+          plant_count: 2,
+          leaf_count: 8,
+          surface_count: 16,
+          one_sided_leaf_area_m2: 0.124,
+        },
+        plant_surface_absorption: {
+          status: "computed",
+          method: "radiance_leaf_surface_receiver_v1",
+          total_absorbed_photon_flux_umol_s: 42,
+          mean_absorbed_photon_flux_density_umol_m2_s: 338.71,
+          lower_tail_absorbed_photon_flux_density_umol_m2_s: 120,
+          plant_to_plant_absorbed_photon_flux_cv: 0.08,
+        },
+        spectral_exposure: {
+          status: "computed",
+          method: "surface_flux_band_weighted_leaf_absorptance_v1",
+          total_absorbed_par_photon_flux_umol_s: 35,
+          band_totals: {
+            blue: { absorbed_photon_flux_umol_s: 8 },
+            green: { absorbed_photon_flux_umol_s: 9 },
+            red: { absorbed_photon_flux_umol_s: 18 },
+            far_red: { absorbed_photon_flux_umol_s: 7 },
+          },
+        },
+        photosynthetic_light_response_potential: {
+          calibration_status: "uncalibrated_model_scaffold",
+          input_basis: "absorbed_par",
+          area_weighted_mean_local_response_0_1: 0.71,
+          equal_plant_mean_normalized_response_0_1: 0.69,
+          local_response_p10_0_1: 0.44,
+          bottom_decile_area_weighted_response_0_1: 0.42,
+          nonuniformity_response_retention_0_1: 0.93,
+          plant_to_plant_photosynthetic_response_cv: 0.12,
+        },
+        photoreceptor_exposure: {
+          status: "computed",
+          method: "spectral_band_exposure_inputs_v1",
+          mean_absorbed_blue_pfd_umol_m2_s: 64,
+          mean_absorbed_green_pfd_umol_m2_s: 72,
+          mean_absorbed_red_pfd_umol_m2_s: 145,
+          mean_absorbed_far_red_pfd_umol_m2_s: 56,
+          mean_absorbed_blue_fraction_of_par: 0.23,
+          mean_absorbed_red_to_far_red_ratio_diagnostic: 2.59,
+          phytochrome_pss_proxy: { value: null, status: "not_computed" },
+          blue_photon_dose: { value_umol_m2: null, status: "not_computed" },
+        },
+        limitations_note: "Lighting-analysis input only; response potentials are unvalidated and are not biological production forecasts.",
+      },
+    };
+    const sections = buildFspmPanelSections(scene);
+    const text = sections.map((section) => [
+      section.title,
+      section.note || "",
+      ...(section.rows || []).flat(),
+    ].join(" ")).join(" ");
+    return {
+      emptyAvailable: hasFspmPanelData(emptyScene),
+      available: hasFspmPanelData(scene),
+      sectionTitles: sections.map((section) => section.title),
+      text,
+    };
+  });
+
+  expect(result.emptyAvailable).toBe(false);
+  expect(result.available).toBe(true);
+  expect(result.sectionTitles).toContain("plant-surface absorption");
+  expect(result.sectionTitles).toContain("spectral exposure");
+  expect(result.sectionTitles).toContain("photosynthetic light-response potential");
+  expect(result.sectionTitles).toContain("photoreceptor exposure");
+  expect(result.text).toContain("8.0%");
+  expect(result.text).not.toContain("undefined");
+  expect(result.text).not.toContain("null");
+  expect(result.text).not.toMatch(/yield|biomass|harvest|crop output|growth prediction/i);
+});

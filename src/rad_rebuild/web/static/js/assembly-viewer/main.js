@@ -8,6 +8,7 @@ import {
   createFixtureArrayController,
   formatVisualMountHeightM,
 } from "./fixture-controls.js";
+import { buildFspmPanelSections, hasFspmPanelData } from "./fspm-panel.js";
 import { clampHeatmapOpacity, fetchPhotometricLayer, formatPpfdTooltipValue, lookupPpfdAtUv } from "./heatmap.js";
 import { createPerfOverlay } from "./perf.js";
 import { createPlantVisibilityController } from "./plants.js";
@@ -21,7 +22,7 @@ const modeEl = document.getElementById("assembly-mode");
 const roomEl = document.getElementById("assembly-room");
 const countEl = document.getElementById("assembly-count");
 const resetCameraButton = document.getElementById("assembly-reset-camera");
-const debugToggleButton = document.getElementById("assembly-debug-toggle");
+const fspmToggleButton = document.getElementById("assembly-fspm-toggle");
 const heatmapToggle = document.getElementById("assembly-heatmap-toggle");
 const heatmapOpacityInput = document.getElementById("assembly-heatmap-opacity");
 const heatmapStatusEl = document.getElementById("assembly-heatmap-status");
@@ -35,13 +36,10 @@ const plantsToggle = document.getElementById("assembly-plants-toggle");
 const plantsColorToggle = document.getElementById("assembly-plants-color-toggle");
 const plantsStatusEl = document.getElementById("assembly-plants-status");
 const perfEl = document.getElementById("assembly-perf");
-const devPanelEl = document.getElementById("assembly-dev-panel");
-const assetCountsEl = document.getElementById("assembly-asset-counts");
-const sceneBoundsEl = document.getElementById("assembly-scene-bounds");
-const fitDiagnosticsEl = document.getElementById("assembly-fit-diagnostics");
-const warningsEl = document.getElementById("assembly-warnings");
-let diagnosticsExpanded = false;
-let warningCount = 0;
+const fspmPanelEl = document.getElementById("assembly-fspm-panel");
+const fspmContentEl = document.getElementById("assembly-fspm-content");
+let fspmPanelExpanded = false;
+let fspmPanelAvailable = false;
 const heatmapRaycaster = new THREE.Raycaster();
 const heatmapPointer = new THREE.Vector2();
 const heatmapIntersections = [];
@@ -210,48 +208,26 @@ function clearElement(el) {
   }
 }
 
-function updateDiagnosticsPanel() {
-  if (devPanelEl instanceof HTMLElement) {
-    devPanelEl.hidden = !diagnosticsExpanded;
+function updateFspmPanel() {
+  if (fspmPanelEl instanceof HTMLElement) {
+    fspmPanelEl.hidden = !(fspmPanelAvailable && fspmPanelExpanded);
   }
-  if (debugToggleButton instanceof HTMLButtonElement) {
-    debugToggleButton.setAttribute("aria-expanded", diagnosticsExpanded ? "true" : "false");
-    const suffix = warningCount ? ` (${warningCount})` : "";
-    debugToggleButton.textContent = `${diagnosticsExpanded ? "Hide" : "Show"} Diagnostics${suffix}`;
+  if (fspmToggleButton instanceof HTMLButtonElement) {
+    fspmToggleButton.hidden = !fspmPanelAvailable;
+    fspmToggleButton.setAttribute("aria-expanded", fspmPanelExpanded ? "true" : "false");
+    fspmToggleButton.textContent = `${fspmPanelExpanded ? "Hide" : "Show"} FSPM Panel`;
   }
 }
 
-function toggleDiagnostics() {
-  diagnosticsExpanded = !diagnosticsExpanded;
-  updateDiagnosticsPanel();
-}
-
-function renderAssetCounts(scene) {
-  if (!(devPanelEl instanceof HTMLElement) || !(assetCountsEl instanceof HTMLElement)) {
+function toggleFspmPanel() {
+  if (!fspmPanelAvailable) {
     return;
   }
-  clearElement(assetCountsEl);
-  const counts = scene?.fixture_counts_by_asset_key && typeof scene.fixture_counts_by_asset_key === "object"
-    ? scene.fixture_counts_by_asset_key
-    : {};
-  for (const [assetKey, count] of Object.entries(counts)) {
-    const item = document.createElement("li");
-    const label = document.createElement("span");
-    const value = document.createElement("strong");
-    label.textContent = assetKey;
-    value.textContent = String(count);
-    item.append(label, value);
-    assetCountsEl.append(item);
-  }
-  updateDiagnosticsPanel();
+  fspmPanelExpanded = !fspmPanelExpanded;
+  updateFspmPanel();
 }
 
-function formatBoundsNumber(value) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number.toFixed(2) : "-";
-}
-
-function appendDebugMetric(parent, labelText, valueText) {
+function appendPanelMetric(parent, labelText, valueText) {
   const item = document.createElement("li");
   const label = document.createElement("span");
   const value = document.createElement("strong");
@@ -259,43 +235,6 @@ function appendDebugMetric(parent, labelText, valueText) {
   value.textContent = valueText;
   item.append(label, value);
   parent.append(item);
-}
-
-function renderSceneBounds(buildResult) {
-  if (!(sceneBoundsEl instanceof HTMLElement)) {
-    return;
-  }
-  clearElement(sceneBoundsEl);
-  const bounds = buildResult?.assemblyBoundsSummary;
-  const shadow = buildResult?.shadowCameraBounds;
-  if (bounds?.size) {
-    appendDebugMetric(
-      sceneBoundsEl,
-      "Assembly size",
-      `${formatBoundsNumber(bounds.size.x)} x ${formatBoundsNumber(bounds.size.y)} x ${formatBoundsNumber(bounds.size.z)} m`,
-    );
-    appendDebugMetric(
-      sceneBoundsEl,
-      "Assembly center",
-      `${formatBoundsNumber(bounds.center.x)}, ${formatBoundsNumber(bounds.center.y)}, ${formatBoundsNumber(bounds.center.z)} m`,
-    );
-  }
-  if (shadow) {
-    appendDebugMetric(
-      sceneBoundsEl,
-      "Shadow camera",
-      [
-        `L ${formatBoundsNumber(shadow.left)}`,
-        `R ${formatBoundsNumber(shadow.right)}`,
-        `T ${formatBoundsNumber(shadow.top)}`,
-        `B ${formatBoundsNumber(shadow.bottom)}`,
-        `N ${formatBoundsNumber(shadow.near)}`,
-        `F ${formatBoundsNumber(shadow.far)}`,
-      ].join(" "),
-    );
-  }
-  appendDebugMetric(sceneBoundsEl, "Fixture culling", "instanced fixture batches disabled");
-  updateDiagnosticsPanel();
 }
 
 function fallbackWarnings(scene) {
@@ -307,54 +246,39 @@ function fallbackWarnings(scene) {
   });
 }
 
-function renderFitDiagnostics(diagnostics) {
-  if (!(fitDiagnosticsEl instanceof HTMLElement)) {
+function renderFspmPanel(scene) {
+  fspmPanelAvailable = hasFspmPanelData(scene);
+  if (!(fspmContentEl instanceof HTMLElement)) {
+    updateFspmPanel();
     return;
   }
-  clearElement(fitDiagnosticsEl);
-  const safeDiagnostics = Array.isArray(diagnostics) ? diagnostics : [];
-  for (const diagnostic of safeDiagnostics.slice(0, 16)) {
-    const item = document.createElement("li");
-    const label = document.createElement("span");
-    const value = document.createElement("strong");
-    const residual = Number(diagnostic?.residual?.max);
-    const scale = Number(diagnostic?.scale);
-    label.textContent = `${diagnostic?.id || "fixture"} ${diagnostic?.assetKey || ""}`.trim();
-    value.textContent = [
-      Number.isFinite(residual) ? `${residual.toFixed(3)} m` : "-",
-      Number.isFinite(scale) ? `s ${scale.toFixed(2)}` : "",
-      diagnostic?.pointCorrespondenceInferred ? "perm" : "",
-    ].filter(Boolean).join(" ");
-    item.append(label, value);
-    fitDiagnosticsEl.append(item);
-  }
-  if (safeDiagnostics.length > 16) {
-    const item = document.createElement("li");
-    item.textContent = `${safeDiagnostics.length - 16} more fixture fits`;
-    fitDiagnosticsEl.append(item);
-  }
-  updateDiagnosticsPanel();
-}
-
-function renderWarnings(warnings) {
-  if (!(warningsEl instanceof HTMLElement)) {
+  clearElement(fspmContentEl);
+  if (!fspmPanelAvailable) {
+    fspmPanelExpanded = false;
+    updateFspmPanel();
     return;
   }
-  clearElement(warningsEl);
-  const uniqueWarnings = Array.from(new Set(warnings.filter((warning) => typeof warning === "string" && warning)));
-  warningCount = uniqueWarnings.length;
-  warningsEl.hidden = uniqueWarnings.length === 0;
-  for (const warning of uniqueWarnings.slice(0, 8)) {
-    const item = document.createElement("p");
-    item.textContent = warning;
-    warningsEl.append(item);
+  for (const section of buildFspmPanelSections(scene)) {
+    const sectionEl = document.createElement("section");
+    sectionEl.className = "assembly-viewer__fspm-section";
+    const title = document.createElement("h3");
+    title.textContent = section.title;
+    sectionEl.append(title);
+    if (section.note) {
+      const note = document.createElement("p");
+      note.className = "assembly-viewer__fspm-note";
+      note.textContent = section.note;
+      sectionEl.append(note);
+    } else {
+      const list = document.createElement("ul");
+      for (const [label, value] of section.rows || []) {
+        appendPanelMetric(list, label, value);
+      }
+      sectionEl.append(list);
+    }
+    fspmContentEl.append(sectionEl);
   }
-  if (uniqueWarnings.length > 8) {
-    const item = document.createElement("p");
-    item.textContent = `${uniqueWarnings.length - 8} more warnings.`;
-    warningsEl.append(item);
-  }
-  updateDiagnosticsPanel();
+  updateFspmPanel();
 }
 
 function wireLodInteraction(controls, lodController) {
@@ -545,13 +469,12 @@ async function boot() {
     const scenePayload = await loadAssemblyScene(window.location.search);
     const instanceCount = Array.isArray(scenePayload.instances) ? scenePayload.instances.length : 0;
     renderSummary(scenePayload, instanceCount);
-    renderAssetCounts(scenePayload);
+    renderFspmPanel(scenePayload);
 
     setState("loading", "Loading fixture assets...");
     const fixtureAssets = await loadFixtureAssets(scenePayload);
     const world = createAssemblyScene(canvas);
     const buildResult = buildAssemblyWorld(world, scenePayload, fixtureAssets.assetBundles);
-    renderSceneBounds(buildResult);
     wireFixtureControls(buildResult.group, scenePayload);
     wirePlantControls(buildResult.plantGroup);
     wireHeatmapControls(sceneUrl, world);
@@ -565,17 +488,10 @@ async function boot() {
       ...fixtureAssets.warnings,
       ...buildResult.warnings,
     ];
-    renderWarnings(warnings);
-    renderFitDiagnostics(buildResult.diagnostics);
 
     const cameraRig = createCameraRig(world, scenePayload);
     resetCameraButton?.addEventListener("click", () => cameraRig.reset());
-    debugToggleButton?.addEventListener("click", toggleDiagnostics);
-    window.addEventListener("keydown", (event) => {
-      if (event.key.toLowerCase() === "d" && !event.altKey && !event.ctrlKey && !event.metaKey) {
-        toggleDiagnostics();
-      }
-    });
+    fspmToggleButton?.addEventListener("click", toggleFspmPanel);
     wireLodInteraction(cameraRig.controls, buildResult.lodController);
 
     const perf = createPerfOverlay(perfEl, {

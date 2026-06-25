@@ -89,7 +89,14 @@ assert.equal(group.children[0].children.length, 1);
 assert.equal(group.children[0].children[0].userData.leafId, "plant_r000_c000_leaf_000");
 
 const controller = createPlantVisibilityController(group);
-assert.deepEqual(controller.getState(), {{ visible: true, plantCount: 1, leafCount: 1 }});
+assert.deepEqual(controller.getState(), {{
+  visible: true,
+  absorptionColor: false,
+  hasAbsorptionColor: false,
+  plantCount: 1,
+  leafCount: 1,
+  colorMetric: "",
+}});
 controller.setVisible(false);
 assert.equal(group.visible, false);
 controller.setVisible(true);

@@ -91,6 +91,7 @@
  * @property {string} display_name
  * @property {Record<string, number>} fixture_counts_by_asset_key
  * @property {Record<string, number>} fixture_counts_by_layout_type
+ * @property {Record<string, unknown> | null=} fspm_metrics
  * @property {AssemblyInstanceResponse[]} instances
  * @property {string[]} missing_asset_keys
  * @property {"SMD" | "Competitor" | "1000W HPS"} mode
@@ -199,11 +200,20 @@
  * @property {RuntimeLocalModeStatusResponse} live_local
  * @property {RuntimePrecomputedModeStatusResponse} precomputed
  *
+ * @typedef {object} RuntimePrivatePhotometryStatusResponse
+ * @property {boolean} available
+ * @property {boolean} enabled
+ * @property {string[]} missing_env_vars
+ * @property {Array<"SMD" | "Competitor" | "1000W HPS">} missing_files
+ * @property {string | null=} reason
+ * @property {Array<"SMD" | "Competitor" | "1000W HPS">} supported_private_modes
+ *
  * @typedef {object} RuntimeStatusResponse
  * @property {boolean} live_execution_enabled
  * @property {string[]} live_supported_modes
  * @property {string} live_unsupported_mode_message
  * @property {RuntimeModesStatusResponse} modes
+ * @property {RuntimePrivatePhotometryStatusResponse} private_photometry
  *
  * @typedef {object} ElectricalEstimateStageResponse
  * @property {number} avg_ppfd

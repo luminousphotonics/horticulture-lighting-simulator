@@ -625,6 +625,17 @@
             "title": "Fixture Counts By Layout Type",
             "type": "object"
           },
+          "fspm_metrics": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fspm Metrics"
+          },
           "instances": {
             "items": {
               "$ref": "#/components/schemas/AssemblyInstanceResponse"
@@ -3168,6 +3179,16 @@
           },
           {
             "in": "query",
+            "name": "match_system_ppe",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Match System Ppe",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
             "name": "length_ft",
             "required": false,
             "schema": {
@@ -3614,6 +3635,16 @@
           },
           {
             "in": "query",
+            "name": "match_system_ppe",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Match System Ppe",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
             "name": "length_ft",
             "required": false,
             "schema": {
@@ -4048,6 +4079,16 @@
             "schema": {
               "default": false,
               "title": "Peak Capping Enabled",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "match_system_ppe",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Match System Ppe",
               "type": "boolean"
             }
           },
@@ -4625,6 +4666,16 @@
           },
           {
             "in": "query",
+            "name": "match_system_ppe",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Match System Ppe",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
             "name": "length_ft",
             "required": false,
             "schema": {
@@ -4889,6 +4940,16 @@
             "schema": {
               "default": false,
               "title": "Peak Capping Enabled",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "match_system_ppe",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Match System Ppe",
               "type": "boolean"
             }
           },
@@ -5294,6 +5355,16 @@
           },
           {
             "in": "query",
+            "name": "match_system_ppe",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Match System Ppe",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
             "name": "length_ft",
             "required": false,
             "schema": {
@@ -5577,6 +5648,16 @@
             "schema": {
               "default": false,
               "title": "Peak Capping Enabled",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "match_system_ppe",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Match System Ppe",
               "type": "boolean"
             }
           },
@@ -6072,6 +6153,16 @@
             "schema": {
               "default": false,
               "title": "Peak Capping Enabled",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "match_system_ppe",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Match System Ppe",
               "type": "boolean"
             }
           },

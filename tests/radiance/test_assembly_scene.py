@@ -23,6 +23,10 @@ from rad_rebuild.radiance.backend.workspace import (  # noqa: E402
 )
 from rad_rebuild.radiance.config import EXECUTION_MODE_LIVE_DOCKER, MODE_COMPETITOR, MODE_HPS, MODE_SMD  # noqa: E402
 from rad_rebuild.radiance.engine.plants import PlantGeometryConfig, write_plant_artifacts  # noqa: E402
+from rad_rebuild.radiance.engine.plants.photoreceptor import PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA  # noqa: E402
+from rad_rebuild.radiance.engine.plants.photosynthesis import PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA  # noqa: E402
+from rad_rebuild.radiance.engine.plants.spectral import PLANT_SPECTRAL_RESPONSE_SCHEMA  # noqa: E402
+from rad_rebuild.radiance.engine.plants.surface_flux import PLANT_SURFACE_FLUX_SCHEMA  # noqa: E402
 
 
 class _FakeRequest:
@@ -262,6 +266,7 @@ def test_builder_returns_schema3_geometry_aware_fixture_instances(tmp_path: Path
     assert scene["asset_fallbacks_used"] == []
     assert str(tmp_path) not in json.dumps(scene)
     assert "plants" not in scene
+    assert "fspm_metrics" not in scene
 
 
 def test_builder_attaches_optional_plant_viewer_payload(tmp_path: Path) -> None:
@@ -285,6 +290,130 @@ def test_builder_attaches_optional_plant_viewer_payload(tmp_path: Path) -> None:
     assert len(scene["plants"]["plants"][0]["leaves"]) == 4
     assert scene["plants"]["plants"][0]["plant_id"] == "plant_r000_c000"
     assert scene["plants"]["plants"][0]["leaves"][0]["leaf_id"] == "plant_r000_c000_leaf_000"
+    assert scene["fspm_metrics"]["schema"] == "rad_rebuild.fspm.viewer_panel.v1"
+    assert scene["fspm_metrics"]["counts"]["plant_count"] == 1
+    assert scene["fspm_metrics"]["counts"]["leaf_count"] == 4
+    assert str(tmp_path) not in json.dumps(scene)
+
+
+def test_builder_attaches_sanitized_fspm_panel_metrics(tmp_path: Path) -> None:
+    _write_layout(tmp_path)
+    runtime = tmp_path / "runtime_state"
+    write_plant_artifacts(
+        runtime,
+        PlantGeometryConfig(
+            seed=17,
+            plant_grid_rows=1,
+            plant_grid_columns=1,
+            leaf_count_per_plant=1,
+        ),
+    )
+    (runtime / "plant_surface_flux.json").write_text(
+        json.dumps(
+            {
+                "schema": PLANT_SURFACE_FLUX_SCHEMA,
+                "schema_version": 1,
+                "status": "computed",
+                "method": "radiance_leaf_surface_receiver_v1",
+                "plant_count": 1,
+                "leaf_count": 1,
+                "surface_count": 2,
+                "one_sided_leaf_area_m2": 0.012,
+                "total_absorbed_photon_flux_umol_s": 6.0,
+                "plant_to_plant_absorbed_photon_flux_cv": 0.0,
+                "leaf_summaries": [
+                    {
+                        "leaf_id": "plant_r000_c000_leaf_000",
+                        "absorbed_photon_flux_density_umol_m2_s": 500.0,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (runtime / "plant_spectral_response.json").write_text(
+        json.dumps(
+            {
+                "schema": PLANT_SPECTRAL_RESPONSE_SCHEMA,
+                "schema_version": 1,
+                "status": "computed",
+                "method": "surface_flux_band_weighted_leaf_absorptance_v1",
+                "plant_count": 1,
+                "leaf_count": 1,
+                "surface_count": 2,
+                "total_absorbed_photon_flux_umol_s": 6.0,
+                "total_absorbed_par_photon_flux_umol_s": 5.0,
+                "band_totals": {
+                    "blue": {"absorbed_photon_flux_umol_s": 1.0},
+                    "green": {"absorbed_photon_flux_umol_s": 1.5},
+                    "red": {"absorbed_photon_flux_umol_s": 2.5},
+                    "far_red": {"absorbed_photon_flux_umol_s": 1.0},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (runtime / "plant_photosynthesis_response.json").write_text(
+        json.dumps(
+            {
+                "schema": PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA,
+                "schema_version": 2,
+                "status": "computed",
+                "method": "absorbed_par_non_rectangular_hyperbola_v2",
+                "method_version": "v2",
+                "calibration_status": "uncalibrated_model_scaffold",
+                "default_parameter_status": "unvalidated_defaults",
+                "input_basis": "absorbed_par",
+                "plant_count": 1,
+                "leaf_count": 1,
+                "surface_count": 2,
+                "total_absorbed_par_photon_flux_umol_s": 5.0,
+                "absorbed_par_area_weighted_mean_umol_m2_s": 416.7,
+                "area_weighted_mean_local_response_0_1": 0.64,
+                "equal_plant_mean_normalized_response_0_1": 0.64,
+                "local_response_p10_0_1": 0.58,
+                "bottom_decile_area_weighted_response_0_1": 0.58,
+                "nonuniformity_response_retention_0_1": 0.97,
+                "plant_to_plant_photosynthetic_response_cv": 0.0,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (runtime / "plant_photoreceptor_exposure.json").write_text(
+        json.dumps(
+            {
+                "schema": PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA,
+                "schema_version": 1,
+                "status": "computed",
+                "method": "spectral_band_exposure_inputs_v1",
+                "plant_count": 1,
+                "leaf_count": 1,
+                "surface_count": 2,
+                "phytochrome_pss_proxy": {"value": None, "status": "not_computed"},
+                "blue_photon_dose": {"value_umol_m2": None, "status": "not_computed"},
+                "plant_summaries": [
+                    {
+                        "absorbed_blue_pfd_umol_m2_s": 83.3,
+                        "absorbed_green_pfd_umol_m2_s": 125.0,
+                        "absorbed_red_pfd_umol_m2_s": 208.3,
+                        "absorbed_far_red_pfd_umol_m2_s": 83.3,
+                        "absorbed_blue_fraction_of_par": 0.2,
+                        "absorbed_red_to_far_red_ratio_diagnostic": 2.5,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    scene = build_assembly_scene(tmp_path, _smd_req(plants_enabled=True, plant_seed=17, plant_rows=1, plant_columns=1, plant_leaf_count=1))
+
+    panel = scene["fspm_metrics"]
+    assert panel["plant_surface_absorption"]["mean_absorbed_photon_flux_density_umol_m2_s"] == 500.0
+    assert panel["spectral_exposure"]["total_absorbed_par_photon_flux_umol_s"] == 5.0
+    assert panel["photosynthetic_light_response_potential"]["local_response_p10_0_1"] == 0.58
+    assert panel["photoreceptor_exposure"]["mean_absorbed_blue_pfd_umol_m2_s"] == 83.3
+    assert "plants" in scene
     assert str(tmp_path) not in json.dumps(scene)
 
 

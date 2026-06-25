@@ -53,7 +53,7 @@ body {
 .assembly-viewer__toolbar,
 .assembly-viewer__status,
 .assembly-viewer__perf,
-.assembly-viewer__dev-panel {
+.assembly-viewer__fspm-panel {
     position: absolute;
     z-index: 2;
     border: 1px solid var(--assembly-border);
@@ -258,16 +258,17 @@ dd {
     font-size: 0.75rem;
 }
 
-.assembly-viewer__dev-panel {
+.assembly-viewer__fspm-panel {
     top: 5.9rem;
     left: 1rem;
-    width: min(24rem, calc(100% - 2rem));
+    width: min(28rem, calc(100% - 2rem));
     max-height: calc(100% - 14rem);
     overflow: auto;
     padding: 0.75rem;
 }
 
-.assembly-viewer__dev-panel h2 {
+.assembly-viewer__fspm-panel h2,
+.assembly-viewer__fspm-panel h3 {
     margin: 0.75rem 0 0.55rem;
     color: var(--assembly-muted);
     font-size: 0.72rem;
@@ -275,18 +276,30 @@ dd {
     text-transform: uppercase;
 }
 
-.assembly-viewer__dev-panel h2:first-child {
+.assembly-viewer__fspm-panel h2:first-child {
     margin-top: 0;
+    color: var(--assembly-accent);
+    font-size: 0.82rem;
 }
 
-.assembly-viewer__dev-panel ul {
+.assembly-viewer__fspm-content {
+    display: grid;
+    gap: 0.8rem;
+}
+
+.assembly-viewer__fspm-section {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.assembly-viewer__fspm-panel ul {
     display: grid;
     gap: 0.35rem;
     margin: 0;
     padding: 0;
 }
 
-.assembly-viewer__dev-panel li {
+.assembly-viewer__fspm-panel li {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -299,15 +312,19 @@ dd {
     padding: 0.18rem 0;
 }
 
-.assembly-viewer__warnings {
-    margin-top: 0.7rem;
-    color: #ffd28c;
-    font-size: 0.78rem;
-    line-height: 1.45;
+.assembly-viewer__fspm-panel strong {
+    text-align: right;
 }
 
-.assembly-viewer__warnings p {
-    margin: 0.35rem 0 0;
+.assembly-viewer__fspm-note {
+    border: 1px solid rgba(104, 212, 186, 0.22);
+    border-radius: 8px;
+    margin: 0;
+    padding: 0.55rem;
+    background: rgba(104, 212, 186, 0.08);
+    color: var(--assembly-muted);
+    font-size: 0.78rem;
+    line-height: 1.45;
 }
 
 @media (max-width: 760px) {
@@ -331,7 +348,7 @@ dd {
         justify-content: flex-start;
     }
 
-    .assembly-viewer__dev-panel {
+    .assembly-viewer__fspm-panel {
         top: 12rem;
         max-height: calc(100% - 20rem);
     }

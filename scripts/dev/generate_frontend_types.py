@@ -37,6 +37,7 @@ SCHEMAS = [
     "RuntimeDockerModeStatusResponse",
     "RuntimeLocalModeStatusResponse",
     "RuntimeModesStatusResponse",
+    "RuntimePrivatePhotometryStatusResponse",
     "RuntimeStatusResponse",
     "ElectricalEstimateStageResponse",
     "ElectricalEstimateResponse",
@@ -77,6 +78,9 @@ OVERRIDES = {
     "RuntimeModesStatusResponse.live_docker": "RuntimeDockerModeStatusResponse",
     "RuntimeModesStatusResponse.live_local": "RuntimeLocalModeStatusResponse",
     "live_supported_modes": "string[]",
+    "missing_env_vars": "string[]",
+    "missing_files": 'Array<"SMD" | "Competitor" | "1000W HPS">',
+    "supported_private_modes": 'Array<"SMD" | "Competitor" | "1000W HPS">',
     "stages": "ElectricalEstimateStageResponse[]",
     "notes": "string[]",
 }

@@ -53,8 +53,8 @@
           <span id="assembly-plants-status" class="assembly-viewer__plant-status">0 leaves</span>
         </div>
         <div class="assembly-viewer__actions">
-          <button id="assembly-debug-toggle" type="button" aria-controls="assembly-dev-panel" aria-expanded="false">
-            Show Diagnostics
+          <button id="assembly-fspm-toggle" type="button" aria-controls="assembly-fspm-panel" aria-expanded="false" hidden>
+            Show FSPM Panel
           </button>
           <button id="assembly-reset-camera" type="button">Reset Camera</button>
         </div>
@@ -78,15 +78,9 @@
       </div>
       <div id="assembly-perf" class="assembly-viewer__perf" hidden></div>
       <div id="assembly-heatmap-tooltip" class="assembly-viewer__heatmap-tooltip" role="status" aria-live="polite" hidden></div>
-      <aside id="assembly-dev-panel" class="assembly-viewer__dev-panel" aria-label="Assembly asset diagnostics" hidden>
-        <h2>Asset keys</h2>
-        <ul id="assembly-asset-counts"></ul>
-        <h2>Scene bounds</h2>
-        <ul id="assembly-scene-bounds"></ul>
-        <h2>Fit diagnostics</h2>
-        <ul id="assembly-fit-diagnostics"></ul>
-        <h2>Warnings</h2>
-        <div id="assembly-warnings" class="assembly-viewer__warnings" hidden></div>
+      <aside id="assembly-fspm-panel" class="assembly-viewer__fspm-panel" aria-label="FSPM Panel" hidden>
+        <h2>FSPM Panel</h2>
+        <div id="assembly-fspm-content" class="assembly-viewer__fspm-content"></div>
       </aside>
     </section>
   </main>

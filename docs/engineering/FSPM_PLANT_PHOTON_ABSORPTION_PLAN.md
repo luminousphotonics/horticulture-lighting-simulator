@@ -474,6 +474,56 @@ Next recommended implementation step:
 
 * Step 5 — Workshop Demo Hardening.
 
+### Step 4.5 — Assembly Viewer FSPM Panel
+
+Status: complete.
+
+Completed checklist:
+
+* Replaced the visible 3D Assembly viewer Diagnostics Panel with `FSPM Panel`.
+* Added a sanitized assembly-scene `fspm_metrics` block only when plant/FSPM data exists, preserving no-plant scene shape.
+* Displayed summarized plant-model counts, plant-surface absorption, spectral exposure, photosynthetic light-response potential, and photoreceptor exposure without raw artifact JSON.
+* Kept the panel hidden when no plant/FSPM scene data exists.
+* Preserved fixture rendering, plant rendering, PPFD heatmap controls, absorption coloring, camera controls, and assembly viewer controls.
+* Kept visible UI labels framed as lighting-analysis inputs and unvalidated response potential, not biological production forecasts.
+* Refreshed OpenAPI and frontend API typedef contracts for the additive scene field.
+
+Validation run:
+
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_assembly_scene.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_fspm_plants.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_workspace_keys.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_api_contracts.py tests/radiance/test_route_query_contracts.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_assembly_viewer_plants.py tests/radiance/test_assembly_viewer_heatmap.py tests/radiance/test_assembly_viewer_fixture_controls.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_import_boundaries.py tests/radiance/test_config_contracts.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_public_web_contract.py`
+* `PYTHONPATH=src ./.venv/bin/python scripts/dev/export_openapi.py --check`
+* `PYTHONPATH=src ./.venv/bin/python scripts/dev/generate_frontend_types.py --check`
+* `npm run typecheck:js`
+* `npm run lint:js`
+* `npm run test:browser`
+
+Validation results:
+
+* Assembly scene tests: passed, 19 tests.
+* Plant/FSPM tests: passed, 44 tests.
+* Workspace-key tests: passed, 12 tests, 38 subtests.
+* API and route contract tests: passed, 23 tests.
+* Assembly viewer helper tests: passed, 6 tests.
+* Import-boundary and config-contract tests: passed, 15 tests, 39 subtests, with existing third-party matplotlib/pyparsing deprecation warnings.
+* Public web contract tests: passed, 9 tests, 3 subtests.
+* OpenAPI and frontend type checks: passed after refreshing generated contract files.
+* TypeScript and ESLint checks: passed.
+* Browser smoke: passed, 50 tests. Initial sandboxed run could not start the local Flask server; rerun with local-server escalation passed.
+
+Unresolved issues:
+
+* None for Step 4.5.
+
+Next recommended implementation step:
+
+* Step 5 — Workshop Demo Hardening.
+
 ### Step 5 — Workshop Demo Hardening
 
 Status: pending.

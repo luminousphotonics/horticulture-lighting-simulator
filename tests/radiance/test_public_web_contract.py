@@ -72,6 +72,8 @@ class PublicRadianceWebContractTests(unittest.TestCase):
         html = response.get_data(as_text=True)
         self.assertIn("Horticulture Lighting Simulator 3D Assembly Viewer", html)
         self.assertIn("js/assembly-viewer/main.js", html)
+        self.assertIn("Show FSPM Panel", html)
+        self.assertNotIn("Show Diagnostics", html)
 
     def test_dev_env_flag_shows_live_execution_modes(self) -> None:
         with patch.dict(os.environ, {"RAD_REBUILD_SHOW_LIVE_MODES": "1"}):

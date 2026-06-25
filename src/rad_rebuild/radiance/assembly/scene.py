@@ -5,6 +5,7 @@ import math
 from pathlib import Path
 from typing import Any
 
+from rad_rebuild.radiance.assembly.fspm_panel import build_fspm_panel_metrics
 from rad_rebuild.radiance.assembly.classification import PLACEHOLDER_ASSET_KEY, classify_fixture_group
 from rad_rebuild.radiance.backend.models import RadianceRunRequest
 from rad_rebuild.radiance.config import MODE_COMPETITOR, MODE_HPS, MODE_SMD, RADIANCE_MODE_LABELS
@@ -576,6 +577,9 @@ def _attach_optional_plants(scene: dict[str, Any], workspace_root: Path) -> dict
         if surface_flux is not None:
             plant_payload = {**plant_payload, "surface_flux": surface_flux}
         scene["plants"] = plant_payload
+    fspm_metrics = build_fspm_panel_metrics(workspace_root)
+    if fspm_metrics is not None:
+        scene["fspm_metrics"] = fspm_metrics
     return scene
 
 

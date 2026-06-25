@@ -784,6 +784,7 @@ class AssemblySceneResponse(StrictBoundaryModel):
     asset_fallbacks_used: list[AssemblyAssetFallbackResponse]
     warnings: list[str]
     plants: JsonObject | None = None
+    fspm_metrics: JsonObject | None = None
 
 
 class ElectricalEstimateStageResponse(StrictBoundaryModel):
