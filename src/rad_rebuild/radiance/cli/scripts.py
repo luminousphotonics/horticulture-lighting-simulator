@@ -47,6 +47,9 @@ from rad_rebuild.radiance.engine.plants.photomorphogenesis import (
     PhotomorphogenesisResponseParameters,
     write_plant_photomorphogenesis_response_artifact,
 )
+from rad_rebuild.radiance.engine.plants.photoreceptor import (
+    write_plant_photoreceptor_exposure_artifact,
+)
 from rad_rebuild.radiance.engine.plants.photosynthesis import (
     PhotosynthesisResponseParameters,
     write_plant_photosynthesis_response_artifact,
@@ -916,6 +919,7 @@ PLANT_RUNTIME_ARTIFACT_NAMES = (
     "plant_surface_flux.json",
     "plant_spectral_response.json",
     "plant_photosynthesis_response.json",
+    "plant_photoreceptor_exposure.json",
     "plant_photomorphogenesis_response.json",
 )
 
@@ -1331,6 +1335,10 @@ def _write_optional_plant_surface_flux_artifact(
             spectral_payload,
             _photosynthesis_parameters_from_env(config.env),
         )
+        photoreceptor_path = write_plant_photoreceptor_exposure_artifact(
+            config.runtime_state_root,
+            spectral_payload,
+        )
         photomorphogenesis_path = write_plant_photomorphogenesis_response_artifact(
             config.runtime_state_root,
             spectral_payload,
@@ -1356,8 +1364,12 @@ def _write_optional_plant_surface_flux_artifact(
     print("  note: band-level absorption uses explicit spectral photon fractions and leaf optics assumptions.")
     print("FSPM plant photosynthesis-response artifact:")
     print(f"  • {photosynthesis_path}")
-    print("  method: absorbed_par_non_rectangular_hyperbola_v1")
+    print("  method: absorbed_par_non_rectangular_hyperbola_v2")
     print("  note: photosynthetic response potential is based on absorbed PAR and does not predict crop output.")
+    print("FSPM plant photoreceptor-exposure artifact:")
+    print(f"  • {photoreceptor_path}")
+    print("  method: spectral_band_exposure_inputs_v1")
+    print("  note: reports spectral exposure inputs only.")
     print("FSPM plant photomorphogenic-response artifact:")
     print(f"  • {photomorphogenesis_path}")
     print("  method: spectral_ratio_morphology_response_v1")

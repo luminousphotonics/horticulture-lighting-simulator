@@ -13,6 +13,10 @@ from rad_rebuild.radiance.engine.plants.photomorphogenesis import (
     PLANT_PHOTOMORPHOGENESIS_RESPONSE_FILENAME,
     PLANT_PHOTOMORPHOGENESIS_RESPONSE_SCHEMA,
 )
+from rad_rebuild.radiance.engine.plants.photoreceptor import (
+    PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME,
+    PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA,
+)
 from rad_rebuild.radiance.engine.plants.photosynthesis import (
     PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME,
     SUPPORTED_PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMAS,
@@ -101,6 +105,7 @@ def _metrics_dependencies(workspace_root: Path | None = None) -> list[Path | Non
         work_root / "runtime_state" / PLANT_SURFACE_FLUX_FILENAME,
         work_root / "runtime_state" / PLANT_SPECTRAL_RESPONSE_FILENAME,
         work_root / "runtime_state" / PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME,
+        work_root / "runtime_state" / PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME,
         work_root / "runtime_state" / PLANT_PHOTOMORPHOGENESIS_RESPONSE_FILENAME,
     ]
 
@@ -223,6 +228,49 @@ def _load_plant_photomorphogenesis_response_summary(workspace_root: Path) -> dic
         "note": (
             "Photomorphogenic response artifact present. Values are spectral-ratio "
             "response potentials and do not predict crop output."
+        ),
+    }
+
+
+def _load_plant_photoreceptor_exposure_summary(workspace_root: Path) -> dict[str, object] | None:
+    path = workspace_root / "runtime_state" / PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("schema") != PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA:
+        return None
+
+    return {
+        "schema": payload.get("schema"),
+        "schema_version": payload.get("schema_version"),
+        "status": payload.get("status"),
+        "method": payload.get("method"),
+        "source_artifact": f"runtime_state/{PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME}",
+        "source_spectral_response_method": payload.get("source_spectral_response_method"),
+        "source_spectral_distribution": payload.get("source_spectral_distribution"),
+        "plant_count": payload.get("plant_count"),
+        "leaf_count": payload.get("leaf_count"),
+        "surface_count": payload.get("surface_count"),
+        "blue_photon_dose": payload.get("blue_photon_dose"),
+        "phytochrome_pss_proxy": payload.get("phytochrome_pss_proxy"),
+        "single_leaf_transmission_proxy_note": payload.get(
+            "single_leaf_transmission_proxy_note"
+        ),
+        "red_far_red_diagnostic_note": payload.get("red_far_red_diagnostic_note"),
+        "optional_hypotheses": payload.get("optional_hypotheses"),
+        "exposure_consistency": payload.get("exposure_consistency"),
+        "plant_summaries": payload.get("plant_summaries", []),
+        "leaf_summaries": payload.get("leaf_summaries", []),
+        "warnings": payload.get("warnings", []),
+        "limitations": payload.get("limitations", []),
+        "note": (
+            "Photoreceptor exposure artifact present. Values are spectral "
+            "lighting inputs, not response outcomes."
         ),
     }
 
@@ -454,6 +502,10 @@ def _metrics_payload_for_request(req: RadianceRunRequest, workspace_root: Path) 
     plant_photosynthesis_response = _load_plant_photosynthesis_response_summary(workspace_root)
     if plant_photosynthesis_response is not None:
         metrics["plant_photosynthesis_response"] = plant_photosynthesis_response
+
+    plant_photoreceptor_exposure = _load_plant_photoreceptor_exposure_summary(workspace_root)
+    if plant_photoreceptor_exposure is not None:
+        metrics["plant_photoreceptor_exposure"] = plant_photoreceptor_exposure
 
     plant_photomorphogenesis_response = _load_plant_photomorphogenesis_response_summary(workspace_root)
     if plant_photomorphogenesis_response is not None:

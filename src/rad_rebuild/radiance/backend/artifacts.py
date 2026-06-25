@@ -8,6 +8,9 @@ from pathlib import Path
 
 from rad_rebuild.radiance.config import MODE_COMPETITOR, MODE_SMD
 from rad_rebuild.radiance.engine.plants.artifacts import PLANT_ARTIFACT_FILENAMES
+from rad_rebuild.radiance.engine.plants.photoreceptor import (
+    PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME,
+)
 from rad_rebuild.radiance.paths import REPO_ROOT
 from rad_rebuild.radiance.settings import get_settings
 
@@ -235,6 +238,12 @@ def _live_workspace_sync_shell(req: RadianceRunRequest, workspace_root: Path, *,
                 workspace_root / "runtime_state" / filename,
             )
         )
+    copy_pairs.append(
+        (
+            ROOT / "runtime_state" / PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME,
+            workspace_root / "runtime_state" / PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME,
+        )
+    )
 
     for src, dst in copy_pairs:
         commands.append(

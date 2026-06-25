@@ -111,6 +111,11 @@ def test_photomorphogenesis_payload_combines_spectral_and_photosynthesis_inputs(
 
     assert payload["schema"] == PLANT_PHOTOMORPHOGENESIS_RESPONSE_SCHEMA
     assert payload["status"] == "computed"
+    assert payload["legacy_output"] is True
+    assert payload["morphology_hypothesis_status"] == "legacy_heuristic_response_potential"
+    assert payload["core_photoreceptor_exposure_artifact"] == (
+        "runtime_state/plant_photoreceptor_exposure.json"
+    )
     assert first_leaf["blue_compactness_response_index_0_1"] > second_leaf["blue_compactness_response_index_0_1"]
     assert second_leaf["shade_avoidance_response_index_0_1"] > first_leaf["shade_avoidance_response_index_0_1"]
     assert payload["shade_avoidance_leaf_count"] == 1

@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass
 import json
 import math
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 LEGACY_PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA = (
     "rad_rebuild.fspm.plant_photosynthesis_response.v1"
@@ -82,6 +82,64 @@ def _coefficient_of_variation(values: list[float]) -> float:
         return 0.0
     variance = sum((value - mean) ** 2 for value in values) / len(values)
     return math.sqrt(variance) / mean
+
+
+def _weighted_mean(values: Iterable[tuple[float, float]]) -> float:
+    total_weight = 0.0
+    weighted_sum = 0.0
+    for value, weight in values:
+        if weight <= 0.0:
+            continue
+        total_weight += weight
+        weighted_sum += value * weight
+    return weighted_sum / total_weight if total_weight > 0.0 else 0.0
+
+
+def _weighted_percentile(values: Iterable[tuple[float, float]], percentile: float) -> float:
+    weighted_values = sorted(
+        (value, weight)
+        for value, weight in values
+        if weight > 0.0
+    )
+    if not weighted_values:
+        return 0.0
+    fraction = min(1.0, max(0.0, percentile))
+    total_weight = sum(weight for _, weight in weighted_values)
+    threshold = total_weight * fraction
+    cumulative = 0.0
+    for value, weight in weighted_values:
+        cumulative += weight
+        if cumulative >= threshold:
+            return value
+    return weighted_values[-1][0]
+
+
+def _weighted_lower_tail_mean(
+    values: Iterable[tuple[float, float]],
+    tail_fraction: float,
+) -> float:
+    weighted_values = sorted(
+        (value, weight)
+        for value, weight in values
+        if weight > 0.0
+    )
+    if not weighted_values:
+        return 0.0
+    total_weight = sum(weight for _, weight in weighted_values)
+    target_weight = total_weight * min(1.0, max(0.0, tail_fraction))
+    if target_weight <= 0.0:
+        return weighted_values[0][0]
+
+    used_weight = 0.0
+    weighted_sum = 0.0
+    for value, weight in weighted_values:
+        remaining = target_weight - used_weight
+        if remaining <= 0.0:
+            break
+        take = min(weight, remaining)
+        weighted_sum += value * take
+        used_weight += take
+    return weighted_sum / used_weight if used_weight > 0.0 else 0.0
 
 
 def _visual_value(value: float, *, min_value: float, max_value: float) -> float:
@@ -166,16 +224,74 @@ def photosynthetic_net_rate_umol_co2_m2_s(
     return gross - parameters.dark_respiration_umol_co2_m2_s
 
 
-def _spectral_leaf_rows(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+def _max_net_rate_umol_co2_m2_s(parameters: PhotosynthesisResponseParameters) -> float:
+    return max(
+        0.0,
+        parameters.max_gross_assimilation_umol_co2_m2_s
+        - parameters.dark_respiration_umol_co2_m2_s,
+    )
+
+
+def _local_response_values(
+    absorbed_par_density: float,
+    parameters: PhotosynthesisResponseParameters,
+) -> dict[str, float]:
+    gross_rate = photosynthetic_gross_rate_umol_co2_m2_s(absorbed_par_density, parameters)
+    net_rate = photosynthetic_net_rate_umol_co2_m2_s(absorbed_par_density, parameters)
+    clipped_net_rate = max(0.0, net_rate)
+    max_net_rate = _max_net_rate_umol_co2_m2_s(parameters)
+    response_index = _ratio(clipped_net_rate, max_net_rate) if max_net_rate > 0.0 else 0.0
+    response_index = min(1.0, max(0.0, float(response_index or 0.0)))
+    return {
+        "gross_rate": gross_rate,
+        "net_rate": net_rate,
+        "clipped_net_rate": clipped_net_rate,
+        "response_index": response_index,
+    }
+
+
+def _compensation_absorbed_par_density(
+    parameters: PhotosynthesisResponseParameters,
+) -> float | None:
+    if parameters.dark_respiration_umol_co2_m2_s <= 0.0:
+        return 0.0
+    if _max_net_rate_umol_co2_m2_s(parameters) <= 0.0:
+        return None
+
+    low = 0.0
+    high = 1.0
+    while photosynthetic_net_rate_umol_co2_m2_s(high, parameters) < 0.0:
+        high *= 2.0
+        if high > 1_000_000.0:
+            return None
+
+    for _ in range(80):
+        mid = (low + high) / 2.0
+        if photosynthetic_net_rate_umol_co2_m2_s(mid, parameters) < 0.0:
+            low = mid
+        else:
+            high = mid
+    return high
+
+
+def _spectral_receiver_rows(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     if payload.get("schema") != PLANT_SPECTRAL_RESPONSE_SCHEMA:
         raise ValueError("Unsupported plant spectral-response schema.")
+
+    rows = payload.get("surface_summaries")
+    if isinstance(rows, list) and rows:
+        return rows
+
     rows = payload.get("leaf_summaries")
-    if not isinstance(rows, list) or not rows:
-        raise ValueError("Plant spectral-response payload must include leaf_summaries.")
-    return rows
+    if isinstance(rows, list) and rows:
+        return rows
+
+    raise ValueError(
+        "Plant spectral-response payload must include surface_summaries or leaf_summaries."
+    )
 
 
-def _leaf_photosynthesis_summary(
+def _surface_photosynthesis_summary(
     row: Mapping[str, Any],
     parameters: PhotosynthesisResponseParameters,
 ) -> dict[str, Any]:
@@ -186,33 +302,43 @@ def _leaf_photosynthesis_summary(
     if not isinstance(plant_id, str) or not plant_id:
         raise ValueError("Each spectral leaf summary must include plant_id.")
 
-    area = _finite_positive(f"area_m2[{leaf_id}]", row.get("area_m2"))
+    raw_surface_id = row.get("surface_id")
+    surface_id = (
+        raw_surface_id
+        if isinstance(raw_surface_id, str) and raw_surface_id
+        else f"{leaf_id}__aggregate_receiver"
+    )
+    receiver_scope = "surface" if surface_id == raw_surface_id else "leaf_summary"
+
+    area = _finite_positive(f"area_m2[{surface_id}]", row.get("area_m2"))
     absorbed_par_density = _finite_non_negative(
-        f"absorbed_par_photon_flux_density_umol_m2_s[{leaf_id}]",
+        f"absorbed_par_photon_flux_density_umol_m2_s[{surface_id}]",
         row.get("absorbed_par_photon_flux_density_umol_m2_s"),
     )
-    absorbed_par_flux = _finite_non_negative(
-        f"absorbed_par_photon_flux_umol_s[{leaf_id}]",
-        row.get("absorbed_par_photon_flux_umol_s"),
+    raw_absorbed_par_flux = row.get("absorbed_par_photon_flux_umol_s")
+    absorbed_par_flux = (
+        absorbed_par_density * area
+        if raw_absorbed_par_flux is None
+        else _finite_non_negative(
+            f"absorbed_par_photon_flux_umol_s[{surface_id}]",
+            raw_absorbed_par_flux,
+        )
     )
 
-    gross_rate = photosynthetic_gross_rate_umol_co2_m2_s(absorbed_par_density, parameters)
-    net_rate = photosynthetic_net_rate_umol_co2_m2_s(absorbed_par_density, parameters)
-    clipped_net_rate = max(0.0, net_rate)
-    max_net_rate = max(
-        0.0,
-        parameters.max_gross_assimilation_umol_co2_m2_s
-        - parameters.dark_respiration_umol_co2_m2_s,
-    )
-    response_index = _ratio(clipped_net_rate, max_net_rate) if max_net_rate > 0.0 else 0.0
-    response_index = min(1.0, max(0.0, float(response_index or 0.0)))
+    values = _local_response_values(absorbed_par_density, parameters)
+    gross_rate = values["gross_rate"]
+    net_rate = values["net_rate"]
+    clipped_net_rate = values["clipped_net_rate"]
+    response_index = values["response_index"]
     daily_seconds = parameters.photoperiod_hours * 3600.0
 
     return {
+        "surface_id": surface_id,
+        "receiver_scope": receiver_scope,
         "leaf_id": leaf_id,
         "plant_id": plant_id,
         "leaf_index": row.get("leaf_index"),
-        "surface_count": row.get("surface_count"),
+        "face_index": row.get("face_index"),
         "area_m2": area,
         "absorbed_par_photon_flux_umol_s": absorbed_par_flux,
         "absorbed_par_photon_flux_density_umol_m2_s": absorbed_par_density,
@@ -220,39 +346,59 @@ def _leaf_photosynthesis_summary(
         "net_photosynthetic_potential_umol_co2_m2_s": net_rate,
         "clipped_net_photosynthetic_potential_umol_co2_m2_s": clipped_net_rate,
         "gross_photosynthetic_potential_umol_co2_s": gross_rate * area,
+        "net_photosynthetic_potential_umol_co2_s": net_rate * area,
         "clipped_net_photosynthetic_potential_umol_co2_s": clipped_net_rate * area,
         "daily_clipped_net_photosynthetic_potential_mol_co2": (
             clipped_net_rate * area * daily_seconds / 1_000_000.0
         ),
         "photosynthetic_response_index_0_1": response_index,
+        "area_weighted_response_fraction_0_1": response_index,
         "photosynthetic_region": _response_region(response_index),
         "absorbed_blue_to_par_fraction": row.get("absorbed_blue_to_par_fraction"),
         "absorbed_red_to_far_red_ratio": row.get("absorbed_red_to_far_red_ratio"),
     }
 
 
-def _aggregate_plant_rows(leaf_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _aggregate_response_rows(
+    surface_rows: list[dict[str, Any]],
+    *,
+    key_name: str,
+) -> list[dict[str, Any]]:
     grouped: dict[str, dict[str, Any]] = {}
-    for row in leaf_rows:
-        plant_id = row["plant_id"]
+
+    for row in surface_rows:
+        key = row.get(key_name)
+        if not isinstance(key, str) or not key:
+            raise ValueError(f"Photosynthesis surface row missing {key_name}.")
+        area = float(row["area_m2"])
         item = grouped.setdefault(
-            plant_id,
+            key,
             {
-                "plant_id": plant_id,
-                "leaf_count": 0,
+                key_name: key,
+                "plant_id": row.get("plant_id"),
+                "leaf_id": row.get("leaf_id") if key_name == "leaf_id" else None,
+                "leaf_ids": set(),
                 "area_m2": 0.0,
+                "surface_count": 0,
                 "absorbed_par_photon_flux_umol_s": 0.0,
                 "gross_photosynthetic_potential_umol_co2_s": 0.0,
+                "net_photosynthetic_potential_umol_co2_s": 0.0,
                 "clipped_net_photosynthetic_potential_umol_co2_s": 0.0,
                 "daily_clipped_net_photosynthetic_potential_mol_co2": 0.0,
-                "response_index_sum": 0.0,
+                "response_area_sum": 0.0,
             },
         )
-        item["leaf_count"] += 1
-        item["area_m2"] += float(row["area_m2"])
+        item["surface_count"] += 1
+        item["area_m2"] += area
+        leaf_id = row.get("leaf_id")
+        if isinstance(leaf_id, str) and leaf_id:
+            item["leaf_ids"].add(leaf_id)
         item["absorbed_par_photon_flux_umol_s"] += float(row["absorbed_par_photon_flux_umol_s"])
         item["gross_photosynthetic_potential_umol_co2_s"] += float(
             row["gross_photosynthetic_potential_umol_co2_s"]
+        )
+        item["net_photosynthetic_potential_umol_co2_s"] += float(
+            row["net_photosynthetic_potential_umol_co2_s"]
         )
         item["clipped_net_photosynthetic_potential_umol_co2_s"] += float(
             row["clipped_net_photosynthetic_potential_umol_co2_s"]
@@ -260,28 +406,130 @@ def _aggregate_plant_rows(leaf_rows: list[dict[str, Any]]) -> list[dict[str, Any
         item["daily_clipped_net_photosynthetic_potential_mol_co2"] += float(
             row["daily_clipped_net_photosynthetic_potential_mol_co2"]
         )
-        item["response_index_sum"] += float(row["photosynthetic_response_index_0_1"])
+        item["response_area_sum"] += float(row["photosynthetic_response_index_0_1"]) * area
 
     rows: list[dict[str, Any]] = []
     for item in grouped.values():
-        leaf_count = int(item["leaf_count"])
         area = float(item["area_m2"])
-        response_index = float(item.pop("response_index_sum")) / leaf_count if leaf_count else 0.0
+        response_index = float(item.pop("response_area_sum")) / area if area > 0.0 else 0.0
+        leaf_ids = item.pop("leaf_ids")
+        if key_name == "plant_id":
+            item["leaf_count"] = len(leaf_ids)
         item["absorbed_par_photon_flux_density_umol_m2_s"] = (
             float(item["absorbed_par_photon_flux_umol_s"]) / area if area > 0.0 else 0.0
         )
+        item["gross_photosynthetic_potential_umol_co2_m2_s"] = (
+            float(item["gross_photosynthetic_potential_umol_co2_s"]) / area
+            if area > 0.0
+            else 0.0
+        )
+        item["net_photosynthetic_potential_umol_co2_m2_s"] = (
+            float(item["net_photosynthetic_potential_umol_co2_s"]) / area
+            if area > 0.0
+            else 0.0
+        )
+        item["clipped_net_photosynthetic_potential_umol_co2_m2_s"] = (
+            float(item["clipped_net_photosynthetic_potential_umol_co2_s"]) / area
+            if area > 0.0
+            else 0.0
+        )
         item["photosynthetic_response_index_0_1"] = response_index
+        item["area_weighted_response_fraction_0_1"] = response_index
+        item["normalized_response_fraction_0_1"] = response_index
         item["photosynthetic_region"] = _response_region(response_index)
         rows.append(item)
 
-    return sorted(rows, key=lambda item: item["plant_id"])
+    return sorted(rows, key=lambda item: str(item[key_name]))
 
 
-def _visualization_payload(leaf_rows: list[dict[str, Any]]) -> dict[str, Any]:
+def _response_system_metrics(
+    surface_rows: list[dict[str, Any]],
+    plant_rows: list[dict[str, Any]],
+    parameters: PhotosynthesisResponseParameters,
+) -> dict[str, Any]:
+    total_area = sum(float(row["area_m2"]) for row in surface_rows)
+    total_absorbed_par = sum(
+        float(row["absorbed_par_photon_flux_umol_s"])
+        for row in surface_rows
+    )
+    response_weighted_values = [
+        (float(row["photosynthetic_response_index_0_1"]), float(row["area_m2"]))
+        for row in surface_rows
+    ]
+    area_weighted_mean_response = _weighted_mean(response_weighted_values)
+    mean_absorbed_par_density = total_absorbed_par / total_area if total_area > 0.0 else 0.0
+    mean_light_response = _local_response_values(
+        mean_absorbed_par_density,
+        parameters,
+    )["response_index"]
+    retention = (
+        min(1.0, area_weighted_mean_response / mean_light_response)
+        if mean_light_response > 0.0
+        else None
+    )
+    plant_response_values = [
+        float(row["normalized_response_fraction_0_1"])
+        for row in plant_rows
+    ]
+    compensation_reference = _compensation_absorbed_par_density(parameters)
+    below_compensation_area = (
+        sum(
+            float(row["area_m2"])
+            for row in surface_rows
+            if float(row["absorbed_par_photon_flux_density_umol_m2_s"])
+            < compensation_reference
+        )
+        if compensation_reference is not None
+        else None
+    )
+    near_saturation_area = sum(
+        float(row["area_m2"])
+        for row in surface_rows
+        if row["photosynthetic_region"] == "near_saturation"
+    )
+
+    return {
+        "absorbed_par_area_weighted_mean_umol_m2_s": mean_absorbed_par_density,
+        "area_weighted_mean_local_response_0_1": area_weighted_mean_response,
+        "uniform_mean_light_response_0_1": mean_light_response,
+        "nonuniformity_response_retention_0_1": retention,
+        "equal_plant_mean_normalized_response_0_1": (
+            sum(plant_response_values) / len(plant_response_values)
+            if plant_response_values
+            else 0.0
+        ),
+        "plant_to_plant_normalized_response_cv": _coefficient_of_variation(
+            plant_response_values
+        ),
+        "local_response_p10_0_1": _weighted_percentile(response_weighted_values, 0.10),
+        "bottom_decile_area_weighted_response_0_1": _weighted_lower_tail_mean(
+            response_weighted_values,
+            0.10,
+        ),
+        "compensation_reference_absorbed_par_umol_m2_s": compensation_reference,
+        "area_fraction_below_compensation_reference": (
+            below_compensation_area / total_area
+            if below_compensation_area is not None and total_area > 0.0
+            else None
+        ),
+        "area_fraction_near_saturation_range": (
+            near_saturation_area / total_area if total_area > 0.0 else 0.0
+        ),
+        "area_fraction_above_profile_valid_range": None,
+    }
+
+
+def _visualization_payload(
+    leaf_rows: list[dict[str, Any]],
+    surface_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
     key = "photosynthetic_response_index_0_1"
     values = [float(row[key]) for row in leaf_rows]
     min_value = min(values) if values else 0.0
     max_value = max(values) if values else 0.0
+    surface_values = [float(row[key]) for row in surface_rows]
+    surface_min_value = min(surface_values) if surface_values else 0.0
+    surface_max_value = max(surface_values) if surface_values else 0.0
 
     return {
         "color_metric": key,
@@ -289,6 +537,10 @@ def _visualization_payload(leaf_rows: list[dict[str, Any]]) -> dict[str, Any]:
         "leaf_scale": {
             "min": min_value,
             "max": max_value,
+        },
+        "surface_scale": {
+            "min": surface_min_value,
+            "max": surface_max_value,
         },
         "leaf_values": [
             {
@@ -306,6 +558,24 @@ def _visualization_payload(leaf_rows: list[dict[str, Any]]) -> dict[str, Any]:
                 ),
             }
             for row in leaf_rows
+        ],
+        "surface_values": [
+            {
+                "surface_id": row["surface_id"],
+                "leaf_id": row["leaf_id"],
+                "plant_id": row["plant_id"],
+                "photosynthetic_region": row["photosynthetic_region"],
+                key: row[key],
+                "absorbed_par_photon_flux_density_umol_m2_s": row[
+                    "absorbed_par_photon_flux_density_umol_m2_s"
+                ],
+                "visual_intensity_0_1": _visual_value(
+                    float(row[key]),
+                    min_value=surface_min_value,
+                    max_value=surface_max_value,
+                ),
+            }
+            for row in surface_rows
         ],
     }
 
@@ -326,8 +596,8 @@ def _contract_payload(method: str) -> dict[str, Any]:
         },
         "input_basis": {
             "source_artifact": "runtime_state/plant_spectral_response.json",
-            "driver": "absorbed_par_photon_flux_density_umol_m2_s",
-            "basis": "absorbed_PAR_from_leaf_spectral_response",
+            "driver": "surface absorbed_par_photon_flux_density_umol_m2_s",
+            "basis": "surface_absorbed_PAR_from_leaf_spectral_response",
         },
         "evidence_quality_tier": "unvalidated_default",
         "uncertainty_note": (
@@ -348,13 +618,25 @@ def build_plant_photosynthesis_response_payload(
     method: str = PLANT_PHOTOSYNTHESIS_RESPONSE_METHOD,
 ) -> dict[str, Any]:
     params = parameters or default_photosynthesis_response_parameters()
-    source_leaf_rows = _spectral_leaf_rows(spectral_response_payload)
-    leaf_rows = [
-        _leaf_photosynthesis_summary(row, params)
-        for row in source_leaf_rows
+    source_receiver_rows = _spectral_receiver_rows(spectral_response_payload)
+    surface_rows = [
+        _surface_photosynthesis_summary(row, params)
+        for row in source_receiver_rows
     ]
-    plant_rows = _aggregate_plant_rows(leaf_rows)
+    leaf_rows = _aggregate_response_rows(
+        surface_rows,
+        key_name="leaf_id",
+    )
+    plant_rows = _aggregate_response_rows(
+        surface_rows,
+        key_name="plant_id",
+    )
+    system_response_metrics = _response_system_metrics(surface_rows, plant_rows, params)
 
+    plant_response_values = [
+        float(row["normalized_response_fraction_0_1"])
+        for row in plant_rows
+    ]
     plant_net_values = [
         float(row["clipped_net_photosynthetic_potential_umol_co2_s"])
         for row in plant_rows
@@ -380,8 +662,8 @@ def build_plant_photosynthesis_response_payload(
         },
         "input_basis": {
             "source_artifact": "runtime_state/plant_spectral_response.json",
-            "driver": "absorbed_par_photon_flux_density_umol_m2_s",
-            "basis": "absorbed_PAR_from_leaf_spectral_response",
+            "driver": "surface absorbed_par_photon_flux_density_umol_m2_s",
+            "basis": "surface_absorbed_PAR_from_leaf_spectral_response",
         },
         "evidence_quality_tier": "unvalidated_default",
         "uncertainty_notes": [
@@ -410,32 +692,44 @@ def build_plant_photosynthesis_response_payload(
             "photosynthetic_rate": "umol_CO2/s",
             "daily_potential": "mol_CO2/photoperiod",
             "area": "m2",
+            "response_fraction": "0..1",
+            "area_fraction": "0..1",
         },
         "plant_count": spectral_response_payload.get("plant_count"),
         "leaf_count": spectral_response_payload.get("leaf_count"),
         "surface_count": spectral_response_payload.get("surface_count"),
         "total_absorbed_par_photon_flux_umol_s": sum(
             float(row["absorbed_par_photon_flux_umol_s"])
-            for row in leaf_rows
+            for row in surface_rows
         ),
         "total_gross_photosynthetic_potential_umol_co2_s": sum(
             float(row["gross_photosynthetic_potential_umol_co2_s"])
-            for row in leaf_rows
+            for row in surface_rows
+        ),
+        "total_net_photosynthetic_potential_umol_co2_s": sum(
+            float(row["net_photosynthetic_potential_umol_co2_s"])
+            for row in surface_rows
         ),
         "total_clipped_net_photosynthetic_potential_umol_co2_s": sum(
             float(row["clipped_net_photosynthetic_potential_umol_co2_s"])
-            for row in leaf_rows
+            for row in surface_rows
         ),
         "daily_clipped_net_photosynthetic_potential_mol_co2": sum(
             float(row["daily_clipped_net_photosynthetic_potential_mol_co2"])
-            for row in leaf_rows
+            for row in surface_rows
         ),
+        **system_response_metrics,
         "mean_leaf_photosynthetic_response_index_0_1": (
             sum(leaf_response_values) / len(leaf_response_values)
             if leaf_response_values
             else 0.0
         ),
-        "plant_to_plant_photosynthetic_response_cv": _coefficient_of_variation(plant_net_values),
+        "plant_to_plant_photosynthetic_response_cv": _coefficient_of_variation(
+            plant_response_values
+        ),
+        "plant_to_plant_total_clipped_net_potential_cv": _coefficient_of_variation(
+            plant_net_values
+        ),
         "light_limited_leaf_count": sum(
             1 for row in leaf_rows if row["photosynthetic_region"] == "light_limited"
         ),
@@ -444,7 +738,8 @@ def build_plant_photosynthesis_response_payload(
         ),
         "plant_summaries": plant_rows,
         "leaf_summaries": leaf_rows,
-        "visualization": _visualization_payload(leaf_rows),
+        "surface_summaries": surface_rows,
+        "visualization": _visualization_payload(leaf_rows, surface_rows),
         "outputs_do_not_predict": list(NO_CROP_OUTPUT_TERMS),
         "warnings": [
             "Photosynthetic response potential is computed from absorbed PAR using explicit model parameters.",

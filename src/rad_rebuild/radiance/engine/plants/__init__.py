@@ -32,6 +32,13 @@ from rad_rebuild.radiance.engine.plants.photomorphogenesis import (
     shade_avoidance_response_index,
     write_plant_photomorphogenesis_response_artifact,
 )
+from rad_rebuild.radiance.engine.plants.photoreceptor import (
+    PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME,
+    PLANT_PHOTORECEPTOR_EXPOSURE_METHOD,
+    PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA,
+    build_plant_photoreceptor_exposure_payload,
+    write_plant_photoreceptor_exposure_artifact,
+)
 from rad_rebuild.radiance.engine.plants.photosynthesis import (
     PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME,
     PLANT_PHOTOSYNTHESIS_RESPONSE_METHOD,
@@ -105,6 +112,11 @@ __all__ = [
     "photosynthetic_gross_rate_umol_co2_m2_s",
     "photosynthetic_net_rate_umol_co2_m2_s",
     "write_plant_photosynthesis_response_artifact",
+    "PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME",
+    "PLANT_PHOTORECEPTOR_EXPOSURE_METHOD",
+    "PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA",
+    "build_plant_photoreceptor_exposure_payload",
+    "write_plant_photoreceptor_exposure_artifact",
     "PLANT_PHOTOMORPHOGENESIS_RESPONSE_FILENAME",
     "PLANT_PHOTOMORPHOGENESIS_RESPONSE_METHOD",
     "PLANT_PHOTOMORPHOGENESIS_RESPONSE_SCHEMA",

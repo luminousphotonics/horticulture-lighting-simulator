@@ -358,7 +358,18 @@ Next recommended implementation step:
 
 ### Step 3 — Surface-Local Phase 15 Aggregation
 
-Status: pending.
+Status: complete.
+
+Completed checklist:
+
+* Refactored Phase 15 photosynthetic response potential to evaluate the nonlinear response curve per spectral surface/receiver row before aggregation.
+* Preserved compatibility with legacy leaf-only spectral summaries by treating each leaf summary as an aggregate receiver.
+* Added surface-level photosynthesis summaries while keeping existing leaf, plant, total, and visualization fields.
+* Changed plant-to-plant photosynthetic response CV to use normalized plant response rather than total plant size, with a separate total-potential CV retained for comparison.
+* Added area-weighted mean local response, equal-plant mean normalized response, lower-tail metrics, compensation-reference area fraction, near-saturation area fraction, and nonuniformity response retention.
+* Preserved signed net response-potential fields alongside clipped/bounded visualization fractions.
+* Added hotspot, uniform surface-subdivision, plant-size normalization, and legacy leaf-only compatibility tests.
+* Left request schemas, routes, fingerprints, OpenAPI, baseline PPFD, DOU, CV, mean PPFD, heatmaps, fixture-output metrics, source data, generated artifacts, bundles, and numerical goldens unchanged.
 
 Goal:
 
@@ -372,9 +383,51 @@ Acceptance criteria:
 * Plant consistency metrics use normalized response, not total plant size.
 * Area-weighted and equal-plant summaries are both available.
 
+Validation run:
+
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_photosynthesis_response.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_photomorphogenesis_response.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_spectral_optics.py tests/radiance/test_plant_photomorphogenesis_response.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_fspm_plants.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_import_boundaries.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_config_contracts.py`
+* `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance/engine/plants/photosynthesis.py tests/radiance/test_plant_photosynthesis_response.py`
+* `git diff --check`
+
+Validation results:
+
+* Photosynthesis artifact tests: passed, 11 tests.
+* Photomorphogenesis artifact tests: passed, 5 tests.
+* Spectral plus photomorphogenesis artifact tests: passed, 19 tests.
+* Plant/FSPM tests: passed, 44 tests.
+* Import-boundary tests: passed, 6 tests, 33 subtests, with existing third-party matplotlib/pyparsing deprecation warnings.
+* Config-contract tests: passed, 9 tests, 6 subtests.
+* Focused Ruff check: passed.
+* `git diff --check`: passed.
+
+Unresolved issues:
+
+* None for Step 3.
+
+Next recommended implementation step:
+
+* Step 4 — Phase 16 Exposure Split.
+
 ### Step 4 — Phase 16 Exposure Split
 
-Status: pending.
+Status: complete.
+
+Completed checklist:
+
+* Added `plant_photoreceptor_exposure.json` as the core Phase 16 exposure-input artifact.
+* Wired the new artifact into live artifact generation, stale-runtime cleanup, workspace sync, and backend metrics loading.
+* Preserved `plant_photomorphogenesis_response.json` as a legacy compatibility artifact and marked it as heuristic response-potential output.
+* Reported blue, green, red, far-red, blue fraction of PAR, far-red fraction, and explicitly diagnostic absorbed R:FR exposure inputs.
+* Reported recipe-timing blue dose and phytochrome/PSS proxy as null-with-reason when required timing or wavelength-dependent method inputs are not present.
+* Labeled transmission diagnostics as single-leaf proxies, not canopy penetration.
+* Added plant-to-plant exposure consistency metrics.
+* Added tests for core exposure artifact presence, null-with-reason PSS behavior, prohibited wording absence in the core artifact, deterministic writes, metrics loading, and legacy compatibility fields.
+* Left request schemas, route fingerprints, OpenAPI, frontend types, public baseline PPFD, DOU, CV, mean PPFD, heatmaps, fixture-output behavior, formulas, source data, generated artifacts, bundles, and numerical goldens unchanged.
 
 Goal:
 
@@ -388,6 +441,38 @@ Acceptance criteria:
 * PSS/phytochrome proxy is only emitted when method inputs exist.
 * Single-leaf transmission is not called canopy penetration.
 * No default artifact claims actual compactness, elongation, expansion, biomass, yield, or growth.
+
+Validation run:
+
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_photoreceptor_exposure.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_photomorphogenesis_response.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_fspm_plants.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_import_boundaries.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_config_contracts.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_workspace_keys.py tests/radiance/test_api_contracts.py tests/radiance/test_route_query_contracts.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_phase07_metrics_scaffold.py tests/radiance/test_fspm_basis_skip.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_spectral_optics.py tests/radiance/test_plant_photosynthesis_response.py tests/radiance/test_plant_photoreceptor_exposure.py tests/radiance/test_plant_photomorphogenesis_response.py`
+* `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance/engine/plants/photoreceptor.py src/rad_rebuild/radiance/engine/plants/photomorphogenesis.py src/rad_rebuild/radiance/engine/plants/__init__.py src/rad_rebuild/radiance/cli/scripts.py src/rad_rebuild/radiance/backend/artifacts.py src/rad_rebuild/radiance/backend/metrics.py tests/radiance/test_plant_photoreceptor_exposure.py tests/radiance/test_plant_photomorphogenesis_response.py`
+
+Validation results:
+
+* Photoreceptor exposure tests: passed, 5 tests.
+* Photomorphogenesis artifact tests: passed, 5 tests.
+* Plant/FSPM tests: passed, 44 tests.
+* Import-boundary tests: passed, 6 tests, 33 subtests, with existing third-party matplotlib/pyparsing deprecation warnings.
+* Config-contract tests: passed, 9 tests, 6 subtests.
+* Workspace/API/route contract tests: passed, 35 tests, 38 subtests.
+* Metrics scaffold and basis-skip tests: passed, 11 tests.
+* Spectral, photosynthesis, photoreceptor, and photomorphogenesis artifact tests: passed, 35 tests.
+* Focused Ruff check: passed.
+
+Unresolved issues:
+
+* Optional broad CLI orchestration check `tests/radiance/test_phase125b_cli_orchestration.py` still has two stale failures unrelated to the Phase 16 exposure split: one fake-octree live `rtrace` path and one expectation that plant geometry is appended to the baseline PPFD octree.
+
+Next recommended implementation step:
+
+* Step 5 — Workshop Demo Hardening.
 
 ### Step 5 — Workshop Demo Hardening
 

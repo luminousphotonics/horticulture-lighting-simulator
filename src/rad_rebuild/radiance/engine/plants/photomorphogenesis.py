@@ -375,6 +375,11 @@ def build_plant_photomorphogenesis_response_payload(
         "schema_version": PLANT_PHOTOMORPHOGENESIS_RESPONSE_SCHEMA_VERSION,
         "status": "computed",
         "method": method,
+        "legacy_output": True,
+        "morphology_hypothesis_status": "legacy_heuristic_response_potential",
+        "core_photoreceptor_exposure_artifact": (
+            "runtime_state/plant_photoreceptor_exposure.json"
+        ),
         "source_spectral_response_schema": spectral_response_payload.get("schema"),
         "source_spectral_response_method": spectral_response_payload.get("method"),
         "source_photosynthesis_response_schema": photosynthesis_response_payload.get("schema"),
@@ -414,6 +419,7 @@ def build_plant_photomorphogenesis_response_payload(
         "visualization": _visualization_payload(leaf_rows),
         "outputs_do_not_predict": list(NO_CROP_OUTPUT_TERMS),
         "warnings": [
+            "This legacy artifact is retained for compatibility; core photoreceptor exposure inputs are reported separately.",
             "Photomorphogenic response values are spectral response potentials from explicit threshold parameters.",
             "This artifact is intended for relative lighting-analysis comparisons, not crop-output prediction.",
         ],
