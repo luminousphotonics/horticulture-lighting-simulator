@@ -164,6 +164,11 @@ def test_metrics_payload_prefers_surface_flux_artifact_when_available(tmp_path) 
     assert absorption["source_artifact"] == "runtime_state/plant_surface_flux.json"
     assert absorption["status"] == "proxy"
     assert absorption["method"] == "baseline_ppfd_spatial_interpolation_orientation_proxy_v1"
+    assert absorption["target_ppfd_umol_m2_s"] == 275.0
+    assert absorption["target_tolerance_umol_m2_s"] == 20.0
+    assert absorption["target_classification_source"] == "interpolated_runtime_ppfd_map"
+    assert "target_range_leaf_count" in absorption
+    assert "target_capped_incident_flux_total_umol_s" in absorption
     assert absorption["total_absorbed_photon_flux_umol_s"] > 0
     assert absorption["plant_to_plant_absorbed_photon_flux_cv"] >= 0
     assert absorption["leaf_summaries"]

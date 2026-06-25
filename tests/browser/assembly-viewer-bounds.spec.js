@@ -330,7 +330,24 @@ test("FSPM panel formatter summarizes available plant metrics", async ({ page })
         plant_surface_absorption: {
           status: "computed",
           method: "radiance_leaf_surface_receiver_v1",
+          target_ppfd_umol_m2_s: 275,
+          target_tolerance_umol_m2_s: 20,
+          target_classification_basis_label: "canopy-plane equivalent incident PPFD",
+          target_classification_source: "interpolated_runtime_ppfd_map",
+          target_range_leaf_count: 5,
+          under_lit_leaf_count: 2,
+          over_lit_leaf_count: 1,
+          target_classification_mean_ppfd_umol_m2_s: 274.2,
+          target_capped_incident_flux_total_umol_s: 34,
+          excess_incident_flux_above_target_umol_s: 4,
+          deficit_to_target_incident_flux_umol_s: 7,
+          plant_to_plant_target_capped_incident_flux_cv: 0.06,
+          lower_tail_raw_flux_density_umol_m2_s: 150,
+          lower_tail_target_classification_ppfd_umol_m2_s: 180,
+          target_capped_incident_mean_flux_density_umol_m2_s: 274.2,
           total_absorbed_photon_flux_umol_s: 42,
+          total_incident_photon_flux_umol_s: 60,
+          mean_absorbed_fraction_of_incident: 0.7,
           mean_absorbed_photon_flux_density_umol_m2_s: 338.71,
           lower_tail_absorbed_photon_flux_density_umol_m2_s: 120,
           plant_to_plant_absorbed_photon_flux_cv: 0.08,
@@ -391,6 +408,12 @@ test("FSPM panel formatter summarizes available plant metrics", async ({ page })
   expect(result.sectionTitles).toContain("spectral exposure");
   expect(result.sectionTitles).toContain("photosynthetic light-response potential");
   expect(result.sectionTitles).toContain("photoreceptor exposure");
+  expect(result.text).toContain("Target PPFD");
+  expect(result.text).toContain("Target-range leaves");
+  expect(result.text).toContain("Target classification basis");
+  expect(result.text).toContain("Excess incident above target");
+  expect(result.text).toContain("Plant-to-plant target-capped incident CV");
+  expect(result.text).toContain("5 leaves");
   expect(result.text).toContain("8.0%");
   expect(result.text).not.toContain("undefined");
   expect(result.text).not.toContain("null");

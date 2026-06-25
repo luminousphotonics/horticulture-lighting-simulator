@@ -24,13 +24,22 @@ from rad_rebuild.web.app import load_web_settings  # noqa: E402
 class _FakeRequest:
     headers: dict[str, str] = {}
 
-    def __init__(self, session_id: str = "route-contract", method: str = "GET") -> None:
-        self.query_params = {"session_id": session_id}
+    def __init__(
+        self,
+        session_id: str = "route-contract",
+        method: str = "GET",
+        query_params: dict[str, str] | None = None,
+    ) -> None:
+        self.query_params = {"session_id": session_id, **(query_params or {})}
         self.method = method
 
 
-def _request(session_id: str = "route-contract", method: str = "GET") -> Request:
-    return cast(Request, _FakeRequest(session_id, method))
+def _request(
+    session_id: str = "route-contract",
+    method: str = "GET",
+    query_params: dict[str, str] | None = None,
+) -> Request:
+    return cast(Request, _FakeRequest(session_id, method, query_params))
 
 
 class RadianceRouteQueryContractTests(unittest.TestCase):
@@ -105,6 +114,44 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         self.assertEqual(captured.req.hps_ies_variant, "karma")
         self.assertEqual(captured.req.w_min, 10.0)
 
+    def test_metrics_workspace_lookup_preserves_fspm_target_query_fields(self) -> None:
+        captured = SimpleNamespace(req=None)
+
+        def fake_authorize(_request: object, req: object) -> Path:
+            captured.req = req
+            return Path(tempfile.mkdtemp(prefix="rad_rebuild_metrics_fspm_contract_"))
+
+        with (
+            patch.object(
+                metrics_route,
+                "authorize_workspace_from_request",
+                side_effect=fake_authorize,
+            ),
+            patch.object(
+                metrics_route,
+                "get_metrics_payload",
+                return_value={"ok": True},
+            ),
+        ):
+            payload = metrics_route.radiance_metrics(
+                _request(
+                    query_params={
+                        "plants_enabled": "true",
+                        "fspm_target_ppfd_umol_m2_s": "275",
+                        "fspm_target_tolerance_umol_m2_s": "20",
+                    }
+                ),
+                execution_mode=EXECUTION_MODE_LIVE_DOCKER,
+                length_ft=10,
+                width_ft=12,
+                target_ppfd=1000,
+            )
+
+        self.assertEqual(payload, {"ok": True})
+        self.assertTrue(captured.req.plants_enabled)
+        self.assertEqual(captured.req.fspm_target_ppfd_umol_m2_s, 275.0)
+        self.assertEqual(captured.req.fspm_target_tolerance_umol_m2_s, 20.0)
+
     def test_metrics_rejects_removed_hps_ies_variant(self) -> None:
         with self.assertRaises(HTTPException) as raised:
             metrics_route.radiance_metrics(
@@ -148,7 +195,13 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
             ),
         ):
             response = artifacts_route.radiance_ppfd_csv(
-                _request(),
+                _request(
+                    query_params={
+                        "plants_enabled": "true",
+                        "fspm_target_ppfd_umol_m2_s": "275",
+                        "fspm_target_tolerance_umol_m2_s": "20",
+                    }
+                ),
                 mode=MODE_HPS,
                 execution_mode=EXECUTION_MODE_LIVE_DOCKER,
                 length_ft=10,
@@ -162,6 +215,9 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         self.assertEqual(Path(response.path), csv_file)
         self.assertEqual(captured.req.hps_ies_variant, "karma")
         self.assertEqual(captured.req.w_min, 10.0)
+        self.assertTrue(captured.req.plants_enabled)
+        self.assertEqual(captured.req.fspm_target_ppfd_umol_m2_s, 275.0)
+        self.assertEqual(captured.req.fspm_target_tolerance_umol_m2_s, 20.0)
 
     def test_scatter_request_workspace_lookup_preserves_karma_hps_ies_variant(
         self,
@@ -265,7 +321,13 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
             ),
         ):
             payload = artifacts_route.radiance_images(
-                _request(),
+                _request(
+                    query_params={
+                        "plants_enabled": "true",
+                        "fspm_target_ppfd_umol_m2_s": "275",
+                        "fspm_target_tolerance_umol_m2_s": "20",
+                    }
+                ),
                 mode=MODE_HPS,
                 execution_mode=EXECUTION_MODE_LIVE_DOCKER,
                 length_ft=10,
@@ -278,12 +340,17 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
 
         self.assertEqual(captured.req.hps_ies_variant, "karma")
         self.assertEqual(captured.req.w_min, 10.0)
+        self.assertTrue(captured.req.plants_enabled)
+        self.assertEqual(captured.req.fspm_target_ppfd_umol_m2_s, 275.0)
+        self.assertEqual(captured.req.fspm_target_tolerance_umol_m2_s, 20.0)
         overlay_query = parse_qs(urlparse(payload["overlay"]).query)
         annot_query = parse_qs(urlparse(payload["annot"]).query)
         self.assertEqual(overlay_query["hps_ies_variant"], ["karma"])
         self.assertEqual(annot_query["hps_ies_variant"], ["karma"])
         self.assertEqual(overlay_query["w_min"], ["10"])
         self.assertEqual(annot_query["w_min"], ["10"])
+        self.assertEqual(overlay_query["fspm_target_ppfd_umol_m2_s"], ["275"])
+        self.assertEqual(annot_query["fspm_target_tolerance_umol_m2_s"], ["20"])
 
     def test_image_workspace_lookup_preserves_karma_hps_ies_variant(self) -> None:
         captured = SimpleNamespace(req=None)

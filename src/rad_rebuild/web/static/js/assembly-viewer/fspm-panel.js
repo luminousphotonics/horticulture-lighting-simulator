@@ -35,6 +35,14 @@ function formatPercent(value, digits = 1) {
   return number === null ? UNAVAILABLE : `${(number * 100).toFixed(digits)}%`;
 }
 
+function formatTarget(value, tolerance) {
+  const target = formatNumber(value, 0);
+  const tol = formatNumber(tolerance, 0);
+  return target === UNAVAILABLE || tol === UNAVAILABLE
+    ? UNAVAILABLE
+    : `${target} umol/m2/s +/- ${tol}`;
+}
+
 function labelStatus(value) {
   if (typeof value !== "string" || !value) {
     return UNAVAILABLE;
@@ -133,16 +141,96 @@ export function buildFspmPanelSections(scene) {
       rows: [
         ["Status", labelStatus(absorption.status)],
         ["Method", labelStatus(absorption.method)],
-        ["Total absorbed flux", formatMetric(absorption.total_absorbed_photon_flux_umol_s, "umol/s", 2)],
         [
-          "Mean absorbed flux density",
-          formatMetric(absorption.mean_absorbed_photon_flux_density_umol_m2_s, "umol/m2/s", 1),
+          "Target PPFD",
+          formatTarget(absorption.target_ppfd_umol_m2_s, absorption.target_tolerance_umol_m2_s),
         ],
         [
-          "Lower-tail absorbed flux density",
-          formatMetric(absorption.lower_tail_absorbed_photon_flux_density_umol_m2_s, "umol/m2/s", 1),
+          "Target classification basis",
+          labelStatus(
+            absorption.target_classification_basis_label ||
+              absorption.target_classification_basis ||
+              absorption.target_basis_label ||
+              absorption.target_basis,
+          ),
         ],
-        ["Plant-to-plant absorbed-flux CV", formatPercent(absorption.plant_to_plant_absorbed_photon_flux_cv, 1)],
+        [
+          "Target classification source",
+          labelStatus(absorption.target_classification_source),
+        ],
+        ["Target-range leaves", formatCount(absorption.target_range_leaf_count, "leaf", "leaves")],
+        ["Under-lit leaves", formatCount(absorption.under_lit_leaf_count, "leaf", "leaves")],
+        ["Over-lit leaves", formatCount(absorption.over_lit_leaf_count, "leaf", "leaves")],
+        [
+          "Target-classification mean PPFD",
+          formatMetric(absorption.target_classification_mean_ppfd_umol_m2_s, "umol/m2/s", 1),
+        ],
+        [
+          "Target-capped incident flux",
+          formatMetric(
+            absorption.target_capped_incident_flux_total_umol_s ??
+              absorption.target_capped_flux_total_umol_s,
+            "umol/s",
+            2,
+          ),
+        ],
+        [
+          "Excess incident above target",
+          formatMetric(
+            absorption.excess_incident_flux_above_target_umol_s ??
+              absorption.excess_flux_above_target_umol_s,
+            "umol/s",
+            2,
+          ),
+        ],
+        [
+          "Deficit to target incident flux",
+          formatMetric(
+            absorption.deficit_to_target_incident_flux_umol_s ??
+              absorption.under_target_deficit_umol_s,
+            "umol/s",
+            2,
+          ),
+        ],
+        [
+          "Plant-to-plant target-capped incident CV",
+          formatPercent(
+            absorption.plant_to_plant_target_capped_incident_flux_cv ??
+              absorption.plant_to_plant_target_capped_flux_cv,
+            1,
+          ),
+        ],
+        [
+          "Lower-tail raw flux density",
+          formatMetric(absorption.lower_tail_raw_flux_density_umol_m2_s, "umol/m2/s", 1),
+        ],
+        [
+          "Lower-tail target-classification PPFD",
+          formatMetric(
+            absorption.lower_tail_target_classification_ppfd_umol_m2_s,
+            "umol/m2/s",
+            1,
+          ),
+        ],
+        [
+          "Target-capped incident mean density",
+          formatMetric(
+            absorption.target_capped_incident_mean_flux_density_umol_m2_s ??
+              absorption.target_capped_mean_flux_density_umol_m2_s,
+            "umol/m2/s",
+            1,
+          ),
+        ],
+        [
+          "Raw/uncapped absorbed flux",
+          formatMetric(absorption.total_absorbed_photon_flux_umol_s, "umol/s", 2),
+        ],
+        [
+          "Raw/uncapped incident flux",
+          formatMetric(absorption.total_incident_photon_flux_umol_s, "umol/s", 2),
+        ],
+        ["Raw absorbed fraction", formatPercent(absorption.mean_absorbed_fraction_of_incident, 1)],
+        ["Raw plant-to-plant absorbed-flux CV", formatPercent(absorption.plant_to_plant_absorbed_photon_flux_cv, 1)],
       ],
     });
   }

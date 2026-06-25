@@ -502,6 +502,8 @@ Validation run:
 * `npm run typecheck:js`
 * `npm run lint:js`
 * `npm run test:browser`
+* `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance tests/radiance`
+* `git diff --check`
 
 Validation results:
 
@@ -519,6 +521,64 @@ Validation results:
 Unresolved issues:
 
 * None for Step 4.5.
+
+Next recommended implementation step:
+
+* Step 5 — Workshop Demo Hardening.
+
+### Step 4.6 — FSPM Target PPFD and Target-Capped Absorption Metrics
+
+Status: complete.
+
+Completed checklist:
+
+* Added FSPM target PPFD and tolerance controls inside the FSPM Plant Geometry panel, with target defaulting from the run target until edited.
+* Added optional `fspm_target_ppfd_umol_m2_s` and `fspm_target_tolerance_umol_m2_s` request fields with finite-positive validation.
+* Included target/tolerance in plant-enabled request fingerprints while keeping disabled-plant/no-plant fingerprints stable.
+* Threaded target/tolerance through metrics, artifact, image, CSV/scatter, assembly-scene, and photometric-layer request reconstruction paths.
+* Corrected under-lit/over-lit target classification to use per-surface `target_classification_ppfd_umol_m2_s`, area-weighted into leaf/plant summaries.
+* Preferred interpolated runtime `ppfd_map.txt` values at plant-surface XY positions for target classification, with a labeled plant-surface receiver fallback when no PPFD map is available.
+* Added target-range leaf/surface/plant counts and target metadata to `plant_surface_flux.json`.
+* Added target-capped incident flux, excess incident above target, deficit-to-target incident flux, lower-tail target-classification PPFD, and plant-to-plant target-capped incident CV metrics.
+* Updated the external `PLANT PHOTON ABSORPTION` block and 3D Assembly viewer `FSPM Panel` to label target classification basis/source separately from raw receiver incident/absorbed totals.
+* Preserved baseline PPFD, DOU, CV, mean PPFD, heatmap, fixture-output, and no-plant public behavior.
+
+Validation run:
+
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_surface_flux_artifact.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_fspm_absorption_phase07.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_assembly_scene.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_phase07_metrics_scaffold.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_fspm_plants.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_import_boundaries.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_config_contracts.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_workspace_keys.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_route_query_contracts.py`
+* `npm run typecheck:js`
+* `npm run lint:js`
+* `npm run test:browser`
+* `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance/fspm_targets.py src/rad_rebuild/radiance/engine/plants/absorption.py src/rad_rebuild/radiance/engine/plants/surface_flux.py src/rad_rebuild/radiance/backend/metrics.py src/rad_rebuild/radiance/assembly/fspm_panel.py tests/radiance/test_plant_surface_flux_artifact.py tests/radiance/test_assembly_scene.py tests/radiance/test_phase07_metrics_scaffold.py`
+* `git diff --check`
+
+Validation results:
+
+* Surface-flux artifact tests: passed, 18 tests.
+* FSPM absorption helper tests: passed, 5 tests.
+* Workspace-key tests: passed, 13 tests, 42 subtests.
+* Route query contract tests: passed, 11 tests.
+* Assembly scene tests: passed, 19 tests.
+* Metrics scaffold tests: passed, 5 tests.
+* Plant/FSPM tests: passed, 44 tests.
+* Import-boundary and config-contract tests: passed, 15 tests, 39 subtests, with existing third-party matplotlib/pyparsing deprecation warnings.
+* TypeScript and ESLint checks: passed.
+* Browser smoke: passed, 52 tests. Initial sandboxed run could not start the local Flask server; rerun with local-server escalation passed.
+* Focused Ruff check: passed.
+* Diff whitespace check: passed.
+* OpenAPI/type export checks were not rerun; this correction did not change request schemas, routes, or OpenAPI contracts.
+
+Unresolved issues:
+
+* None for Step 4.6.
 
 Next recommended implementation step:
 

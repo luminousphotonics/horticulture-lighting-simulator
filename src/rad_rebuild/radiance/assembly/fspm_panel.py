@@ -110,7 +110,85 @@ def _surface_absorption(payload: Mapping[str, Any] | None) -> dict[str, object] 
         "leaf_count": payload.get("leaf_count"),
         "surface_count": payload.get("surface_count"),
         "one_sided_leaf_area_m2": payload.get("one_sided_leaf_area_m2"),
+        "target": payload.get("target"),
+        "target_ppfd_umol_m2_s": payload.get("target_ppfd_umol_m2_s"),
+        "target_tolerance_umol_m2_s": payload.get("target_tolerance_umol_m2_s"),
+        "target_classification_basis": payload.get("target_classification_basis"),
+        "target_classification_basis_label": payload.get(
+            "target_classification_basis_label"
+        ),
+        "target_classification_source": payload.get("target_classification_source"),
+        "target_classification_note": payload.get("target_classification_note"),
+        "target_basis": payload.get("target_basis"),
+        "target_basis_label": payload.get("target_basis_label"),
+        "target_lower_threshold_umol_m2_s": payload.get("target_lower_threshold_umol_m2_s"),
+        "target_upper_threshold_umol_m2_s": payload.get("target_upper_threshold_umol_m2_s"),
+        "target_capping_enabled": payload.get("target_capping_enabled"),
+        "under_lit_leaf_count": payload.get("under_lit_leaf_count"),
+        "target_range_leaf_count": payload.get("target_range_leaf_count"),
+        "over_lit_leaf_count": payload.get("over_lit_leaf_count"),
+        "under_lit_surface_count": payload.get("under_lit_surface_count"),
+        "target_range_surface_count": payload.get("target_range_surface_count"),
+        "over_lit_surface_count": payload.get("over_lit_surface_count"),
+        "under_lit_plant_count": payload.get("under_lit_plant_count"),
+        "target_range_plant_count": payload.get("target_range_plant_count"),
+        "over_lit_plant_count": payload.get("over_lit_plant_count"),
+        "raw_mean_flux_density_umol_m2_s": payload.get("raw_mean_flux_density_umol_m2_s"),
+        "target_classification_mean_ppfd_umol_m2_s": payload.get(
+            "target_classification_mean_ppfd_umol_m2_s"
+        ),
+        "target_classification_total_incident_flux_umol_s": payload.get(
+            "target_classification_total_incident_flux_umol_s"
+        ),
+        "target_capped_incident_mean_flux_density_umol_m2_s": payload.get(
+            "target_capped_incident_mean_flux_density_umol_m2_s"
+        ),
+        "target_capped_incident_flux_total_umol_s": payload.get(
+            "target_capped_incident_flux_total_umol_s"
+        ),
+        "target_capped_incident_total_flux_umol_s": payload.get(
+            "target_capped_incident_total_flux_umol_s"
+        ),
+        "excess_incident_flux_above_target_umol_s": payload.get(
+            "excess_incident_flux_above_target_umol_s"
+        ),
+        "excess_incident_flux_fraction": payload.get("excess_incident_flux_fraction"),
+        "deficit_to_target_incident_flux_umol_s": payload.get(
+            "deficit_to_target_incident_flux_umol_s"
+        ),
+        "deficit_to_target_incident_flux_fraction": payload.get(
+            "deficit_to_target_incident_flux_fraction"
+        ),
+        "target_capped_mean_flux_density_umol_m2_s": payload.get(
+            "target_capped_mean_flux_density_umol_m2_s"
+        ),
+        "raw_total_flux_umol_s": payload.get("raw_total_flux_umol_s"),
+        "target_capped_flux_total_umol_s": payload.get("target_capped_flux_total_umol_s"),
+        "excess_flux_above_target_umol_s": payload.get("excess_flux_above_target_umol_s"),
+        "excess_flux_fraction": payload.get("excess_flux_fraction"),
+        "under_target_deficit_umol_s": payload.get("under_target_deficit_umol_s"),
+        "under_target_deficit_fraction": payload.get("under_target_deficit_fraction"),
+        "lower_tail_raw_flux_density_umol_m2_s": payload.get(
+            "lower_tail_raw_flux_density_umol_m2_s"
+        ),
+        "lower_tail_target_classification_ppfd_umol_m2_s": payload.get(
+            "lower_tail_target_classification_ppfd_umol_m2_s"
+        ),
+        "lower_tail_target_capped_incident_flux_density_umol_m2_s": payload.get(
+            "lower_tail_target_capped_incident_flux_density_umol_m2_s"
+        ),
+        "lower_tail_target_capped_flux_density_umol_m2_s": payload.get(
+            "lower_tail_target_capped_flux_density_umol_m2_s"
+        ),
+        "plant_to_plant_target_capped_incident_flux_cv": payload.get(
+            "plant_to_plant_target_capped_incident_flux_cv"
+        ),
+        "plant_to_plant_target_capped_flux_cv": payload.get(
+            "plant_to_plant_target_capped_flux_cv"
+        ),
         "total_absorbed_photon_flux_umol_s": absorbed,
+        "total_incident_photon_flux_umol_s": payload.get("total_incident_photon_flux_umol_s"),
+        "mean_absorbed_fraction_of_incident": payload.get("mean_absorbed_fraction_of_incident"),
         "mean_absorbed_photon_flux_density_umol_m2_s": mean_density,
         "plant_to_plant_absorbed_photon_flux_cv": payload.get(
             "plant_to_plant_absorbed_photon_flux_cv"

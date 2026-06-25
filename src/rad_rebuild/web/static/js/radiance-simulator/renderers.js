@@ -582,6 +582,25 @@ function formatPlantPhotonAbsorption(metrics, used) {
   const source = scaffold.source_artifact ? ` · ${scaffold.source_artifact}` : "";
   lines.push(`status: ${status}${source}`);
 
+  const targetPpfd = formatNumber(scaffold.target_ppfd_umol_m2_s, 0);
+  const targetTolerance = formatNumber(scaffold.target_tolerance_umol_m2_s, 0);
+  if (targetPpfd && targetTolerance) {
+    lines.push(`target_ppfd: ${targetPpfd} umol/m2/s +/- ${targetTolerance}`);
+  }
+  const targetBasis =
+    scaffold.target_classification_basis_label ||
+    scaffold.target_classification_basis ||
+    scaffold.target_basis_label ||
+    scaffold.target_basis;
+  if (targetBasis) {
+    lines.push(`target_classification_basis: ${String(targetBasis).replaceAll("_", " ")}`);
+  }
+  if (scaffold.target_classification_source) {
+    lines.push(
+      `target_classification_source: ${String(scaffold.target_classification_source).replaceAll("_", " ")}`,
+    );
+  }
+
   const counts = [];
   const plantCount = Number(scaffold.plant_count);
   const leafCount = Number(scaffold.leaf_count);
@@ -613,16 +632,53 @@ function formatPlantPhotonAbsorption(metrics, used) {
   }
 
   if (hasAbsorbedFlux) {
+    const targetClassificationMean = formatNumber(
+      scaffold.target_classification_mean_ppfd_umol_m2_s,
+      1,
+    );
+    const targetCapped = formatNumber(
+      scaffold.target_capped_incident_flux_total_umol_s ?? scaffold.target_capped_flux_total_umol_s,
+      3,
+    );
+    const excess = formatNumber(
+      scaffold.excess_incident_flux_above_target_umol_s ?? scaffold.excess_flux_above_target_umol_s,
+      3,
+    );
+    const deficit = formatNumber(
+      scaffold.deficit_to_target_incident_flux_umol_s ?? scaffold.under_target_deficit_umol_s,
+      3,
+    );
+    const targetCv = formatPercent(
+      scaffold.plant_to_plant_target_capped_incident_flux_cv ??
+        scaffold.plant_to_plant_target_capped_flux_cv,
+      1,
+    );
+    const rawMean = formatNumber(scaffold.raw_mean_flux_density_umol_m2_s, 1);
+    const cappedMean = formatNumber(
+      scaffold.target_capped_incident_mean_flux_density_umol_m2_s ??
+        scaffold.target_capped_mean_flux_density_umol_m2_s,
+      1,
+    );
     const absorbed = formatNumber(scaffold.total_absorbed_photon_flux_umol_s, 3);
     const incident = formatNumber(scaffold.total_incident_photon_flux_umol_s, 3);
     const absorbedFraction = formatPercent(scaffold.mean_absorbed_fraction_of_incident, 1);
     const plantCv = formatPercent(scaffold.plant_to_plant_absorbed_photon_flux_cv, 1);
-    if (absorbed) lines.push(`absorbed_flux_total: ${absorbed} umol/s`);
-    if (incident) lines.push(`incident_flux_total: ${incident} umol/s`);
+    lines.push(`target_range_leaves: ${Number(scaffold.target_range_leaf_count ?? scaffold.target_range_leaves ?? 0)}`);
+    lines.push(`under_lit_leaves: ${Number(scaffold.under_lit_leaf_count ?? scaffold.under_lit_leaves ?? 0)}`);
+    lines.push(`over_lit_leaves: ${Number(scaffold.over_lit_leaf_count ?? scaffold.over_lit_leaves ?? 0)}`);
+    if (targetClassificationMean) {
+      lines.push(`target_classification_mean_ppfd: ${targetClassificationMean} umol/m2/s`);
+    }
+    if (targetCapped) lines.push(`target_capped_incident_flux_total: ${targetCapped} umol/s`);
+    if (excess) lines.push(`excess_incident_flux_above_target: ${excess} umol/s`);
+    if (deficit) lines.push(`deficit_to_target_incident_flux: ${deficit} umol/s`);
+    if (targetCv) lines.push(`plant_to_plant_target_capped_incident_CV: ${targetCv}`);
+    if (cappedMean) lines.push(`target_capped_incident_mean_density: ${cappedMean} umol/m2/s`);
+    if (rawMean) lines.push(`raw_mean_flux_density: ${rawMean} umol/m2/s`);
+    if (absorbed) lines.push(`raw_absorbed_flux_total: ${absorbed} umol/s`);
+    if (incident) lines.push(`raw_incident_flux_total: ${incident} umol/s`);
     if (absorbedFraction) lines.push(`absorbed_fraction: ${absorbedFraction}`);
-    if (plantCv) lines.push(`plant_to_plant_absorption_CV: ${plantCv}`);
-    lines.push(`under_lit_leaves: ${Number(scaffold.under_lit_leaf_count || 0)}`);
-    lines.push(`over_lit_leaves: ${Number(scaffold.over_lit_leaf_count || 0)}`);
+    if (plantCv) lines.push(`raw_plant_to_plant_absorption_CV: ${plantCv}`);
   } else {
     lines.push("absorbed_flux: not computed");
   }

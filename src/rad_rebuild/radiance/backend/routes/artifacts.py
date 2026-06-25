@@ -90,6 +90,8 @@ _FLOAT_PLANT_QUERY_FIELDS = {
     "plant_height_m",
     "plant_canopy_radius_m",
     "plant_growth_stage",
+    "fspm_target_ppfd_umol_m2_s",
+    "fspm_target_tolerance_umol_m2_s",
 }
 
 
@@ -170,6 +172,8 @@ def _plant_query_fragment(req: RadianceRunRequest) -> str:
         "plant_canopy_radius_m",
         "plant_leaf_count",
         "plant_growth_stage",
+        "fspm_target_ppfd_umol_m2_s",
+        "fspm_target_tolerance_umol_m2_s",
     ):
         value = getattr(req, field_name, None)
         if value is not None:
@@ -443,6 +447,8 @@ def radiance_ppfd_csv(
             basis_backend=basis_backend,
         )
     )
+    req = _apply_artifact_plant_query_overrides(req, request)
+    req = _canonicalize_mode_request(req)
     matched_req = precomputed_request_for_available_bundle(req) if _request_uses_precomputed(req) else None
     if matched_req is not None:
         req = matched_req

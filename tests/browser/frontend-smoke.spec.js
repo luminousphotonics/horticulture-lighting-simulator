@@ -412,6 +412,8 @@ test("live-supported FSPM controls feed plant fields through payload and artifac
   await page.locator("#rad-plant-columns").fill("2");
   await page.locator("#rad-plant-leaf-count").fill("5");
   await page.locator("#rad-plant-spacing-m").fill("0.34");
+  await page.locator("#rad-fspm-target-ppfd").fill("275");
+  await page.locator("#rad-fspm-target-tolerance").fill("20");
 
   const result = await page.evaluate(async () => {
     const forms = await import("/static/js/radiance-simulator/forms.js");
@@ -429,6 +431,8 @@ test("live-supported FSPM controls feed plant fields through payload and artifac
   expect(result.parsed.plantColumns).toBe(2);
   expect(result.parsed.plantLeafCount).toBe(5);
   expect(result.parsed.plantSpacingM).toBe(0.34);
+  expect(result.parsed.fspmTargetPpfdUmolM2S).toBe(275);
+  expect(result.parsed.fspmTargetToleranceUmolM2S).toBe(20);
 
   expect(result.runPayload.mode).toBe("Competitor");
   expect(result.runPayload.execution_mode).toBe("live_local");
@@ -438,6 +442,8 @@ test("live-supported FSPM controls feed plant fields through payload and artifac
   expect(result.runPayload.plant_columns).toBe(2);
   expect(result.runPayload.plant_leaf_count).toBe(5);
   expect(result.runPayload.plant_spacing_m).toBe(0.34);
+  expect(result.runPayload.fspm_target_ppfd_umol_m2_s).toBe(275);
+  expect(result.runPayload.fspm_target_tolerance_umol_m2_s).toBe(20);
 
   expect(result.artifactParams).toContain("plants_enabled=true");
   expect(result.artifactParams).toContain("plant_seed=77");
@@ -445,6 +451,8 @@ test("live-supported FSPM controls feed plant fields through payload and artifac
   expect(result.artifactParams).toContain("plant_columns=2");
   expect(result.artifactParams).toContain("plant_leaf_count=5");
   expect(result.artifactParams).toContain("plant_spacing_m=0.34");
+  expect(result.artifactParams).toContain("fspm_target_ppfd_umol_m2_s=275");
+  expect(result.artifactParams).toContain("fspm_target_tolerance_umol_m2_s=20");
 });
 
 test("metrics panel formats plant absorption scaffold without object dumps", async ({ page }) => {
@@ -528,6 +536,65 @@ test("metrics panel formats plant absorption scaffold without object dumps", asy
   await expect(metrics).toContainText("absorbed_flux: not computed");
   await expect(metrics).toContainText("absorptance=70.0%");
   await expect(metrics).not.toContainText("[object Object]");
+});
+
+test("metrics formatter prioritizes target-aware plant absorption fields", async ({ page }) => {
+  await routeLiveSimulatorPage(page);
+  await page.goto("/radiance-simulator");
+
+  const text = await page.evaluate(async () => {
+    const { formatMetrics } = await import("/static/js/radiance-simulator/renderers.js");
+    return formatMetrics({
+      mean: 1000,
+      min: 900,
+      max: 1100,
+      plant_photon_absorption: {
+        schema: "rad_rebuild.fspm.plant_surface_flux.v1",
+        schema_version: 1,
+        status: "computed",
+        source_artifact: "runtime_state/plant_surface_flux.json",
+        target_ppfd_umol_m2_s: 275,
+        target_tolerance_umol_m2_s: 20,
+        target_classification_basis_label: "canopy-plane equivalent incident PPFD",
+        target_classification_source: "interpolated_runtime_ppfd_map",
+        plant_count: 1,
+        leaf_count: 4,
+        surface_count: 64,
+        one_sided_leaf_area_m2: 0.123456,
+        target_range_leaf_count: 2,
+        under_lit_leaf_count: 1,
+        over_lit_leaf_count: 1,
+        target_classification_mean_ppfd_umol_m2_s: 270,
+        target_capped_incident_flux_total_umol_s: 30,
+        excess_incident_flux_above_target_umol_s: 5,
+        deficit_to_target_incident_flux_umol_s: 7,
+        plant_to_plant_target_capped_incident_flux_cv: 0.08,
+        raw_mean_flux_density_umol_m2_s: 320,
+        target_capped_incident_mean_flux_density_umol_m2_s: 244,
+        total_absorbed_photon_flux_umol_s: 26,
+        total_incident_photon_flux_umol_s: 37,
+        mean_absorbed_fraction_of_incident: 0.7,
+        plant_to_plant_absorbed_photon_flux_cv: 0.12,
+        note: "Target-capped values are lighting-analysis inputs, not biological validation.",
+      },
+    });
+  });
+
+  expect(text).toContain("PLANT PHOTON ABSORPTION");
+  expect(text).toContain("target_ppfd: 275 umol/m2/s +/- 20");
+  expect(text).toContain("target_classification_basis: canopy-plane equivalent incident PPFD");
+  expect(text).toContain("target_classification_source: interpolated runtime ppfd map");
+  expect(text).toContain("target_range_leaves: 2");
+  expect(text).toContain("under_lit_leaves: 1");
+  expect(text).toContain("over_lit_leaves: 1");
+  expect(text).toContain("target_classification_mean_ppfd: 270.0 umol/m2/s");
+  expect(text).toContain("target_capped_incident_flux_total: 30.000 umol/s");
+  expect(text).toContain("raw_absorbed_flux_total: 26.000 umol/s");
+  expect(text.indexOf("target_capped_incident_flux_total")).toBeLessThan(
+    text.indexOf("raw_absorbed_flux_total"),
+  );
+  expect(text).not.toContain("[object Object]");
+  expect(text).not.toMatch(/yield|biomass|harvest|crop output|growth prediction/i);
 });
 
 test("precomputed stays quiet and ready Proposed live mode is allowed", async ({ page }) => {
@@ -841,7 +908,7 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
                 {
                   leaf_id: "plant_r000_c000_leaf_000",
                   plant_id: "plant_r000_c000",
-                  lighting_region: "nominal",
+                  lighting_region: "target_range",
                   absorbed_photon_flux_density_umol_m2_s: 650,
                   visual_intensity_0_1: 0.78,
                 },
@@ -884,7 +951,24 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
           plant_surface_absorption: {
             status: "computed",
             method: "radiance_leaf_surface_receiver_v1",
+            target_ppfd_umol_m2_s: 275,
+            target_tolerance_umol_m2_s: 20,
+            target_classification_basis_label: "canopy-plane equivalent incident PPFD",
+            target_classification_source: "interpolated_runtime_ppfd_map",
+            target_range_leaf_count: 1,
+            under_lit_leaf_count: 0,
+            over_lit_leaf_count: 0,
+            target_classification_mean_ppfd_umol_m2_s: 275,
+            target_capped_incident_flux_total_umol_s: 3.3,
+            excess_incident_flux_above_target_umol_s: 0,
+            deficit_to_target_incident_flux_umol_s: 0,
+            plant_to_plant_target_capped_incident_flux_cv: 0,
+            lower_tail_raw_flux_density_umol_m2_s: 275,
+            lower_tail_target_classification_ppfd_umol_m2_s: 275,
+            target_capped_incident_mean_flux_density_umol_m2_s: 275,
             total_absorbed_photon_flux_umol_s: 6,
+            total_incident_photon_flux_umol_s: 8.57,
+            mean_absorbed_fraction_of_incident: 0.7,
             mean_absorbed_photon_flux_density_umol_m2_s: 500,
             lower_tail_absorbed_photon_flux_density_umol_m2_s: 450,
             plant_to_plant_absorbed_photon_flux_cv: 0,
@@ -1262,7 +1346,8 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
     await expect(frame.locator("#assembly-fspm-panel")).toContainText("spectral exposure");
     await expect(frame.locator("#assembly-fspm-panel")).toContainText("photosynthetic light-response potential");
     await expect(frame.locator("#assembly-fspm-panel")).toContainText("photoreceptor exposure");
-    await expect(frame.locator("#assembly-fspm-panel")).toContainText("Plant-to-plant absorbed-flux CV");
+    await expect(frame.locator("#assembly-fspm-panel")).toContainText("Plant-to-plant target-capped incident CV");
+    await expect(frame.locator("#assembly-fspm-panel")).toContainText("Target-range leaves");
     await expect(frame.locator("#assembly-fspm-panel")).not.toContainText("undefined");
     await expect(frame.locator("#assembly-fspm-panel")).not.toContainText("crop output");
     await frame.getByRole("button", { name: /Hide FSPM Panel/ }).click();

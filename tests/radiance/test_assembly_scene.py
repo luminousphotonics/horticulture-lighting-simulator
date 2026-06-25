@@ -319,7 +319,30 @@ def test_builder_attaches_sanitized_fspm_panel_metrics(tmp_path: Path) -> None:
                 "leaf_count": 1,
                 "surface_count": 2,
                 "one_sided_leaf_area_m2": 0.012,
+                "target_ppfd_umol_m2_s": 275.0,
+                "target_tolerance_umol_m2_s": 20.0,
+                "target_classification_basis": "canopy_plane_equivalent_incident_ppfd",
+                "target_classification_basis_label": "canopy-plane equivalent incident PPFD",
+                "target_classification_source": "interpolated_runtime_ppfd_map",
+                "target_range_leaf_count": 1,
+                "under_lit_leaf_count": 0,
+                "over_lit_leaf_count": 0,
+                "target_classification_mean_ppfd_umol_m2_s": 275.0,
+                "target_capped_incident_flux_total_umol_s": 3.3,
+                "excess_incident_flux_above_target_umol_s": 0.0,
+                "deficit_to_target_incident_flux_umol_s": 0.0,
+                "plant_to_plant_target_capped_incident_flux_cv": 0.0,
+                "lower_tail_target_classification_ppfd_umol_m2_s": 275.0,
+                "target_capped_incident_mean_flux_density_umol_m2_s": 275.0,
+                "target_capped_flux_total_umol_s": 3.3,
+                "excess_flux_above_target_umol_s": 0.0,
+                "under_target_deficit_umol_s": 0.0,
+                "plant_to_plant_target_capped_flux_cv": 0.0,
+                "lower_tail_raw_flux_density_umol_m2_s": 275.0,
+                "target_capped_mean_flux_density_umol_m2_s": 275.0,
                 "total_absorbed_photon_flux_umol_s": 6.0,
+                "total_incident_photon_flux_umol_s": 8.57,
+                "mean_absorbed_fraction_of_incident": 0.7,
                 "plant_to_plant_absorbed_photon_flux_cv": 0.0,
                 "leaf_summaries": [
                     {
@@ -409,6 +432,12 @@ def test_builder_attaches_sanitized_fspm_panel_metrics(tmp_path: Path) -> None:
     scene = build_assembly_scene(tmp_path, _smd_req(plants_enabled=True, plant_seed=17, plant_rows=1, plant_columns=1, plant_leaf_count=1))
 
     panel = scene["fspm_metrics"]
+    assert panel["plant_surface_absorption"]["target_ppfd_umol_m2_s"] == 275.0
+    assert (
+        panel["plant_surface_absorption"]["target_classification_source"]
+        == "interpolated_runtime_ppfd_map"
+    )
+    assert panel["plant_surface_absorption"]["target_range_leaf_count"] == 1
     assert panel["plant_surface_absorption"]["mean_absorbed_photon_flux_density_umol_m2_s"] == 500.0
     assert panel["spectral_exposure"]["total_absorbed_par_photon_flux_umol_s"] == 5.0
     assert panel["photosynthetic_light_response_potential"]["local_response_p10_0_1"] == 0.58

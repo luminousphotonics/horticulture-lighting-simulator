@@ -68,6 +68,10 @@ from rad_rebuild.radiance.engine.plants.surface_flux import (
     write_radiance_receiver_plant_surface_flux_artifact,
 )
 from rad_rebuild.radiance.engine.simulation.basis_backends import canonicalize_basis_backend
+from rad_rebuild.radiance.fspm_targets import (
+    resolve_fspm_target_ppfd,
+    resolve_fspm_target_tolerance,
+)
 from rad_rebuild.radiance.paths import REPO_ROOT
 
 
@@ -878,6 +882,13 @@ def _float_env(env: Mapping[str, str], key: str, default: str = "0") -> float:
     return float(_env_text(env, key, default))
 
 
+def _optional_float_env(env: Mapping[str, str], key: str) -> float | None:
+    raw = env.get(key)
+    if raw is None or not raw.strip():
+        return None
+    return float(raw)
+
+
 def _int_env(env: Mapping[str, str], key: str, default: int) -> int:
     try:
         return int(_env_text(env, key, str(default)))
@@ -1013,6 +1024,17 @@ def _fspm_plant_config_from_env(env: Mapping[str, str]) -> PlantGeometryConfig:
             ),
         ),
     )
+
+
+def _fspm_target_settings_from_env(env: Mapping[str, str]) -> tuple[float, float]:
+    target_ppfd = resolve_fspm_target_ppfd(
+        _optional_float_env(env, "FSPM_TARGET_PPFD_UMOL_M2_S"),
+        fallback_target_ppfd=_optional_float_env(env, "TARGET_PPFD"),
+    )
+    tolerance = resolve_fspm_target_tolerance(
+        _optional_float_env(env, "FSPM_TARGET_TOLERANCE_UMOL_M2_S")
+    )
+    return target_ppfd, tolerance
 
 
 def _prepare_optional_plant_artifacts(
@@ -1286,6 +1308,7 @@ def _write_optional_plant_surface_flux_artifact(
         return int(RadianceScriptExit.OK)
 
     plant_config = _fspm_plant_config_from_env(config.env)
+    target_ppfd, target_tolerance = _fspm_target_settings_from_env(config.env)
     scene = generate_plant_scene(plant_config)
     samples = build_radiance_receiver_samples(scene, two_sided=True)
 
@@ -1316,6 +1339,9 @@ def _write_optional_plant_surface_flux_artifact(
             receiver_densities,
             receiver_scale_multiplier=receiver_scale_multiplier,
             source_octree=str(octree),
+            target_ppfd_umol_m2_s=target_ppfd,
+            target_tolerance_umol_m2_s=target_tolerance,
+            target_classification_ppfd_map_path=ppfd_map,
         )
         spectral_mode = _infer_fixture_spectral_mode(config.env, octree=octree, mode=mode)
         spectral_distribution = _spectral_distribution_from_env(

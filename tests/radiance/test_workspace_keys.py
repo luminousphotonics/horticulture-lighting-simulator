@@ -204,6 +204,8 @@ class RadianceWorkspaceKeyTests(unittest.TestCase):
             plant_canopy_radius_m=0.21,
             plant_leaf_count=8,
             plant_growth_stage=0.7,
+            fspm_target_ppfd_umol_m2_s=320.0,
+            fspm_target_tolerance_umol_m2_s=25.0,
         )
         payload = canonical_request_fingerprint_payload(disabled)
         fields = cast(dict[str, object], payload["fields"])
@@ -226,6 +228,8 @@ class RadianceWorkspaceKeyTests(unittest.TestCase):
                 "plant_canopy_radius_m",
                 "plant_leaf_count",
                 "plant_growth_stage",
+                "fspm_target_ppfd_umol_m2_s",
+                "fspm_target_tolerance_umol_m2_s",
             },
         )
         base = self._base_request(plants_enabled=True)
@@ -246,6 +250,8 @@ class RadianceWorkspaceKeyTests(unittest.TestCase):
             "plant_canopy_radius_m": 0.24,
             "plant_leaf_count": 8,
             "plant_growth_stage": 0.5,
+            "fspm_target_ppfd_umol_m2_s": 320.0,
+            "fspm_target_tolerance_umol_m2_s": 25.0,
         }
         for field, value in changes.items():
             with self.subTest(field=field):
@@ -254,6 +260,19 @@ class RadianceWorkspaceKeyTests(unittest.TestCase):
                     overrides["plants_enabled"] = True
                 changed = self._base_request(**overrides)
                 self.assertNotEqual(request_fingerprint(changed), base_fingerprint)
+
+    def test_fspm_target_fields_validate_as_positive_numbers(self) -> None:
+        req = self._base_request(
+            plants_enabled=True,
+            fspm_target_ppfd_umol_m2_s=275.0,
+            fspm_target_tolerance_umol_m2_s=20.0,
+        )
+        self.assertEqual(req.fspm_target_ppfd_umol_m2_s, 275.0)
+        self.assertEqual(req.fspm_target_tolerance_umol_m2_s, 20.0)
+
+        for field in ("fspm_target_ppfd_umol_m2_s", "fspm_target_tolerance_umol_m2_s"):
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                self._base_request(**{field: 0.0})
 
     def test_equivalent_normalized_requests_share_fingerprint(self) -> None:
         canonical = self._base_request(

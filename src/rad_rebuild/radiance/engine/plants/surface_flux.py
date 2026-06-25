@@ -23,6 +23,12 @@ from rad_rebuild.radiance.engine.plants.absorption import (
     leaf_absorption_surfaces,
 )
 from rad_rebuild.radiance.engine.plants.models import PlantScene, Vector3
+from rad_rebuild.radiance.fspm_targets import (
+    FSPM_TARGET_CLASSIFICATION_BASIS_CANOPY,
+    FSPM_TARGET_CLASSIFICATION_BASIS_CANOPY_LABEL,
+    FSPM_TARGET_CLASSIFICATION_NOTE_CANOPY_MAP,
+    FSPM_TARGET_CLASSIFICATION_SOURCE_PPFD_MAP,
+)
 
 PLANT_SURFACE_FLUX_SCHEMA = "rad_rebuild.fspm.plant_surface_flux.v1"
 PLANT_SURFACE_FLUX_SCHEMA_VERSION = 1
@@ -463,6 +469,9 @@ def write_radiance_receiver_plant_surface_flux_artifact(
     *,
     receiver_scale_multiplier: float = 1.0,
     source_octree: str | None = None,
+    target_ppfd_umol_m2_s: float | None = None,
+    target_tolerance_umol_m2_s: float | None = None,
+    target_classification_ppfd_map_path: str | Path | None = None,
 ) -> Path:
     samples = list(receiver_samples)
     rows = build_radiance_receiver_surface_flux_rows(
@@ -482,6 +491,9 @@ def write_radiance_receiver_plant_surface_flux_artifact(
             "source_octree": source_octree,
             "receiver_scale_multiplier": receiver_scale_multiplier,
         },
+        target_ppfd_umol_m2_s=target_ppfd_umol_m2_s,
+        target_tolerance_umol_m2_s=target_tolerance_umol_m2_s,
+        target_classification_ppfd_map_path=target_classification_ppfd_map_path,
     )
     return write_plant_surface_flux_artifact(target_dir, payload)
 
@@ -554,6 +566,35 @@ def _normalize_surface_rows(
     return normalized, incident_by_surface_id
 
 
+def _target_classification_from_ppfd_map(
+    normalized_rows: Iterable[Mapping[str, Any]],
+    ppfd_map_path: str | Path,
+) -> tuple[dict[str, float], dict[str, Any]]:
+    field = read_ppfd_map_field(ppfd_map_path)
+    classification: dict[str, float] = {}
+    for row in normalized_rows:
+        surface_id = row.get("surface_id")
+        centroid = row.get("centroid_m")
+        if not isinstance(surface_id, str) or not surface_id:
+            raise ValueError("Target classification row is missing surface_id.")
+        if (
+            not isinstance(centroid, list)
+            or len(centroid) < 2
+            or not all(isinstance(value, int | float) for value in centroid[:2])
+        ):
+            raise ValueError(
+                f"Surface {surface_id!r} is missing centroid_m for PPFD map sampling."
+            )
+        classification[surface_id] = field.sample(float(centroid[0]), float(centroid[1]))
+    return classification, {
+        "target_classification_basis": FSPM_TARGET_CLASSIFICATION_BASIS_CANOPY,
+        "target_classification_basis_label": FSPM_TARGET_CLASSIFICATION_BASIS_CANOPY_LABEL,
+        "target_classification_source": FSPM_TARGET_CLASSIFICATION_SOURCE_PPFD_MAP,
+        "target_classification_note": FSPM_TARGET_CLASSIFICATION_NOTE_CANOPY_MAP,
+        "target_classification_ppfd_field_summary": field.summary(),
+    }
+
+
 def _visual_value(value: float, *, min_value: float, max_value: float) -> float:
     if max_value <= min_value:
         return 0.5
@@ -609,6 +650,7 @@ def _visualization_payload(
                 "surface_id": row["surface_id"],
                 "leaf_id": row["leaf_id"],
                 "plant_id": row["plant_id"],
+                "lighting_region": row["lighting_region"],
                 "absorbed_photon_flux_density_umol_m2_s": row[key],
                 "visual_intensity_0_1": _visual_value(row[key], min_value=surface_min, max_value=surface_max),
             }
@@ -625,12 +667,44 @@ def build_plant_surface_flux_payload(
     source_ppfd_map: str | None = None,
     baseline_ppfd_mean_umol_m2_s: float | None = None,
     ppfd_field_summary: Mapping[str, Any] | None = None,
+    target_ppfd_umol_m2_s: float | None = None,
+    target_tolerance_umol_m2_s: float | None = None,
+    target_classification_ppfd_map_path: str | Path | None = None,
+    target_classification_ppfd_by_surface_id: Mapping[str, float] | None = None,
+    target_classification_metadata: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     normalized_rows, incident_by_surface_id = _normalize_surface_rows(scene, surface_flux_rows)
+    classification_by_surface_id = target_classification_ppfd_by_surface_id
+    metadata_keys = {
+        "target_classification_basis",
+        "target_classification_basis_label",
+        "target_classification_source",
+        "target_classification_note",
+    }
+    classification_metadata = {
+        key: value
+        for key, value in dict(target_classification_metadata or {}).items()
+        if key in metadata_keys
+    }
+    classification_field_summary: Mapping[str, Any] | None = None
+    if target_classification_ppfd_map_path is not None:
+        classification_by_surface_id, map_metadata = _target_classification_from_ppfd_map(
+            normalized_rows,
+            target_classification_ppfd_map_path,
+        )
+        classification_field_summary = map_metadata.pop(
+            "target_classification_ppfd_field_summary",
+            None,
+        )
+        classification_metadata = {**map_metadata, **classification_metadata}
     absorption_metrics = compute_photon_absorption_metrics(
         scene,
         incident_by_surface_id,
         method=method,
+        target_ppfd_umol_m2_s=target_ppfd_umol_m2_s,
+        target_tolerance_umol_m2_s=target_tolerance_umol_m2_s,
+        target_classification_ppfd_by_surface_id=classification_by_surface_id,
+        target_classification_metadata=classification_metadata,
     )
 
     surface_by_id = {row["surface_id"]: row for row in normalized_rows}
@@ -656,6 +730,66 @@ def build_plant_surface_flux_payload(
     leaf_summaries = list(absorption_metrics["leaf_summaries"])
     visualization = _visualization_payload(leaf_summaries, plant_summaries, surface_summaries)
 
+    target_keys = (
+        "target",
+        "target_ppfd_umol_m2_s",
+        "target_tolerance_umol_m2_s",
+        "target_classification_basis",
+        "target_classification_basis_label",
+        "target_classification_source",
+        "target_classification_note",
+        "target_basis",
+        "target_basis_label",
+        "target_lower_threshold_umol_m2_s",
+        "target_upper_threshold_umol_m2_s",
+        "target_capping_enabled",
+        "under_lit_leaf_count",
+        "target_range_leaf_count",
+        "over_lit_leaf_count",
+        "under_lit_leaf_fraction",
+        "target_range_leaf_fraction",
+        "over_lit_leaf_fraction",
+        "under_lit_leaves",
+        "target_range_leaves",
+        "over_lit_leaves",
+        "under_lit_surface_count",
+        "target_range_surface_count",
+        "over_lit_surface_count",
+        "under_lit_surface_fraction",
+        "target_range_surface_fraction",
+        "over_lit_surface_fraction",
+        "under_lit_plant_count",
+        "target_range_plant_count",
+        "over_lit_plant_count",
+        "under_lit_plant_fraction",
+        "target_range_plant_fraction",
+        "over_lit_plant_fraction",
+        "raw_mean_flux_density_umol_m2_s",
+        "target_classification_mean_ppfd_umol_m2_s",
+        "target_classification_total_incident_flux_umol_s",
+        "target_capped_incident_mean_flux_density_umol_m2_s",
+        "target_capped_incident_flux_total_umol_s",
+        "target_capped_incident_total_flux_umol_s",
+        "excess_incident_flux_above_target_umol_s",
+        "excess_incident_flux_fraction",
+        "deficit_to_target_incident_flux_umol_s",
+        "deficit_to_target_incident_flux_fraction",
+        "target_capped_mean_flux_density_umol_m2_s",
+        "raw_total_flux_umol_s",
+        "target_capped_flux_total_umol_s",
+        "target_capped_total_flux_umol_s",
+        "excess_flux_above_target_umol_s",
+        "excess_flux_fraction",
+        "under_target_deficit_umol_s",
+        "under_target_deficit_fraction",
+        "lower_tail_raw_flux_density_umol_m2_s",
+        "lower_tail_target_classification_ppfd_umol_m2_s",
+        "lower_tail_target_capped_incident_flux_density_umol_m2_s",
+        "lower_tail_target_capped_flux_density_umol_m2_s",
+        "plant_to_plant_target_capped_incident_flux_cv",
+        "plant_to_plant_target_capped_flux_cv",
+    )
+
     return {
         "schema": PLANT_SURFACE_FLUX_SCHEMA,
         "schema_version": PLANT_SURFACE_FLUX_SCHEMA_VERSION,
@@ -664,11 +798,15 @@ def build_plant_surface_flux_payload(
         "source_ppfd_map": source_ppfd_map,
         "baseline_ppfd_mean_umol_m2_s": baseline_ppfd_mean_umol_m2_s,
         "ppfd_field_summary": dict(ppfd_field_summary or {}),
+        "target_classification_ppfd_field_summary": dict(
+            classification_field_summary or {}
+        ),
         "units": {
             "area": "m2",
             "incident_photon_flux": "umol/s",
             "absorbed_photon_flux": "umol/s",
             "photon_flux_density": "umol/m2/s",
+            "target_classification_ppfd": "umol/m2/s",
         },
         "plant_count": absorption_metrics["plant_count"],
         "leaf_count": absorption_metrics["leaf_count"],
@@ -686,8 +824,7 @@ def build_plant_surface_flux_payload(
         "plant_to_plant_absorbed_photon_flux_cv": absorption_metrics[
             "plant_to_plant_absorbed_photon_flux_cv"
         ],
-        "under_lit_leaf_count": absorption_metrics["under_lit_leaf_count"],
-        "over_lit_leaf_count": absorption_metrics["over_lit_leaf_count"],
+        **{key: absorption_metrics[key] for key in target_keys if key in absorption_metrics},
         "plant_summaries": plant_summaries,
         "leaf_summaries": leaf_summaries,
         "surface_summaries": surface_summaries,
@@ -721,6 +858,8 @@ def write_baseline_proxy_plant_surface_flux_artifact(
     *,
     baseline_ppfd_mean_umol_m2_s: float,
     source_ppfd_map: str = "ppfd_map.txt",
+    target_ppfd_umol_m2_s: float | None = None,
+    target_tolerance_umol_m2_s: float | None = None,
 ) -> Path:
     rows = build_baseline_proxy_surface_flux_rows(scene, baseline_ppfd_mean_umol_m2_s)
     payload = build_plant_surface_flux_payload(
@@ -729,6 +868,8 @@ def write_baseline_proxy_plant_surface_flux_artifact(
         method=BASELINE_PPFD_PROXY_METHOD,
         source_ppfd_map=source_ppfd_map,
         baseline_ppfd_mean_umol_m2_s=baseline_ppfd_mean_umol_m2_s,
+        target_ppfd_umol_m2_s=target_ppfd_umol_m2_s,
+        target_tolerance_umol_m2_s=target_tolerance_umol_m2_s,
     )
     return write_plant_surface_flux_artifact(target_dir, payload)
 
@@ -739,6 +880,8 @@ def write_spatial_proxy_plant_surface_flux_artifact(
     *,
     ppfd_map_path: str | Path,
     source_ppfd_map: str = "ppfd_map.txt",
+    target_ppfd_umol_m2_s: float | None = None,
+    target_tolerance_umol_m2_s: float | None = None,
 ) -> Path:
     field = read_ppfd_map_field(ppfd_map_path)
     rows = build_spatial_proxy_surface_flux_rows(scene, ppfd_map_path)
@@ -749,5 +892,8 @@ def write_spatial_proxy_plant_surface_flux_artifact(
         source_ppfd_map=source_ppfd_map,
         baseline_ppfd_mean_umol_m2_s=field.mean_umol_m2_s,
         ppfd_field_summary=field.summary(),
+        target_ppfd_umol_m2_s=target_ppfd_umol_m2_s,
+        target_tolerance_umol_m2_s=target_tolerance_umol_m2_s,
+        target_classification_ppfd_map_path=ppfd_map_path,
     )
     return write_plant_surface_flux_artifact(target_dir, payload)

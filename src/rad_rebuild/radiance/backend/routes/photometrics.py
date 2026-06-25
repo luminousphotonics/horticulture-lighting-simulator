@@ -104,6 +104,8 @@ def _photometric_request(
     plant_canopy_radius_m: float | None,
     plant_leaf_count: int | None,
     plant_growth_stage: float | None,
+    fspm_target_ppfd_umol_m2_s: float | None,
+    fspm_target_tolerance_umol_m2_s: float | None,
 ) -> RadianceRunRequest:
     mode = _normalize_mode(mode)
     peak_capping_enabled = request_bool_query_param(request, "peak_capping_enabled", peak_capping_enabled)
@@ -143,6 +145,8 @@ def _photometric_request(
             plant_canopy_radius_m=plant_canopy_radius_m,
             plant_leaf_count=plant_leaf_count,
             plant_growth_stage=plant_growth_stage,
+            fspm_target_ppfd_umol_m2_s=fspm_target_ppfd_umol_m2_s,
+            fspm_target_tolerance_umol_m2_s=fspm_target_tolerance_umol_m2_s,
         )
     )
     matched_req = precomputed_request_for_available_bundle(req) if _request_uses_precomputed(req) else None
@@ -178,6 +182,8 @@ def _authorized_layer_payload(
     plant_canopy_radius_m: float | None,
     plant_leaf_count: int | None,
     plant_growth_stage: float | None,
+    fspm_target_ppfd_umol_m2_s: float | None,
+    fspm_target_tolerance_umol_m2_s: float | None,
 ) -> tuple[dict[str, Any], bytes]:
     req = _photometric_request(
         request,
@@ -207,6 +213,8 @@ def _authorized_layer_payload(
         plant_canopy_radius_m=plant_canopy_radius_m,
         plant_leaf_count=plant_leaf_count,
         plant_growth_stage=plant_growth_stage,
+        fspm_target_ppfd_umol_m2_s=fspm_target_ppfd_umol_m2_s,
+        fspm_target_tolerance_umol_m2_s=fspm_target_tolerance_umol_m2_s,
     )
     workspace_root = authorize_workspace_from_request(request, req)
     try:
@@ -252,6 +260,8 @@ def radiance_assembly_photometric_layer(
     plant_canopy_radius_m: float | None = None,
     plant_leaf_count: int | None = None,
     plant_growth_stage: float | None = None,
+    fspm_target_ppfd_umol_m2_s: float | None = None,
+    fspm_target_tolerance_umol_m2_s: float | None = None,
     session_id: str | None = None,
     artifact_token: str | None = None,
 ) -> Any:
@@ -285,6 +295,8 @@ def radiance_assembly_photometric_layer(
         plant_canopy_radius_m=plant_canopy_radius_m,
         plant_leaf_count=plant_leaf_count,
         plant_growth_stage=plant_growth_stage,
+        fspm_target_ppfd_umol_m2_s=fspm_target_ppfd_umol_m2_s,
+        fspm_target_tolerance_umol_m2_s=fspm_target_tolerance_umol_m2_s,
     )
     if request.method == "HEAD":
         return Response(status_code=200, headers=NO_STORE_HEADERS)
@@ -328,6 +340,8 @@ def radiance_assembly_photometric_layer_binary(
     plant_canopy_radius_m: float | None = None,
     plant_leaf_count: int | None = None,
     plant_growth_stage: float | None = None,
+    fspm_target_ppfd_umol_m2_s: float | None = None,
+    fspm_target_tolerance_umol_m2_s: float | None = None,
     session_id: str | None = None,
     artifact_token: str | None = None,
 ) -> Response:
@@ -361,6 +375,8 @@ def radiance_assembly_photometric_layer_binary(
         plant_canopy_radius_m=plant_canopy_radius_m,
         plant_leaf_count=plant_leaf_count,
         plant_growth_stage=plant_growth_stage,
+        fspm_target_ppfd_umol_m2_s=fspm_target_ppfd_umol_m2_s,
+        fspm_target_tolerance_umol_m2_s=fspm_target_tolerance_umol_m2_s,
     )
     if request.method == "HEAD":
         return Response(status_code=200, headers=NO_STORE_HEADERS, media_type="application/octet-stream")

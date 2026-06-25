@@ -13,6 +13,7 @@ from typing import Annotated, Any, Literal, TypeAlias
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from rad_rebuild.radiance.engine.plants.config import PlantGeometryConfig
+from rad_rebuild.radiance.fspm_targets import optional_positive_finite_float
 
 
 class DomainValueError(ValueError):
@@ -421,6 +422,8 @@ class RadianceRunRequest(StrictBoundaryModel):
     plant_canopy_radius_m: float | None = None
     plant_leaf_count: int | None = None
     plant_growth_stage: float | None = None
+    fspm_target_ppfd_umol_m2_s: float | None = None
+    fspm_target_tolerance_umol_m2_s: float | None = None
 
     @field_validator(
         "length_ft",
@@ -441,6 +444,19 @@ class RadianceRunRequest(StrictBoundaryModel):
     @classmethod
     def finite_numbers(cls, value: object, info: ValidationInfo) -> float:
         return _finite_number(value, str(info.field_name))
+
+    @field_validator(
+        "fspm_target_ppfd_umol_m2_s",
+        "fspm_target_tolerance_umol_m2_s",
+        mode="before",
+    )
+    @classmethod
+    def finite_optional_fspm_target_numbers(
+        cls,
+        value: object,
+        info: ValidationInfo,
+    ) -> float | None:
+        return optional_positive_finite_float(str(info.field_name), value)
 
     @field_validator("subpatch_grid", "smd_base_ring", mode="before")
     @classmethod

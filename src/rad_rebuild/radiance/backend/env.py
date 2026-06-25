@@ -26,6 +26,10 @@ from rad_rebuild.radiance.config import (
     overlay_for_mode as _config_overlay_for_mode,
 )
 from rad_rebuild.radiance.domain import plant_geometry_config_from_request
+from rad_rebuild.radiance.fspm_targets import (
+    resolve_fspm_target_ppfd,
+    resolve_fspm_target_tolerance,
+)
 from rad_rebuild.radiance.paths import (
     RADIANCE_CURVE_DATA_ROOT,
     RADIANCE_DATA_ROOT,
@@ -106,6 +110,8 @@ PLANT_ENV_KEYS = (
     "FSPM_PLANT_REFLECTANCE",
     "FSPM_PLANT_TRANSMITTANCE",
     "FSPM_PLANT_ABSORPTANCE",
+    "FSPM_TARGET_PPFD_UMOL_M2_S",
+    "FSPM_TARGET_TOLERANCE_UMOL_M2_S",
 )
 
 
@@ -412,6 +418,13 @@ def _apply_plant_request_env(env: dict[str, str], req: Any) -> None:
     leaf_length_min, leaf_length_max = config.leaf_length_range_m
     leaf_width_min, leaf_width_max = config.leaf_width_range_m
     leaf_tilt_min, leaf_tilt_max = config.leaf_tilt_range_deg
+    target_ppfd = resolve_fspm_target_ppfd(
+        getattr(req, "fspm_target_ppfd_umol_m2_s", None),
+        fallback_target_ppfd=getattr(req, "target_ppfd", None),
+    )
+    target_tolerance = resolve_fspm_target_tolerance(
+        getattr(req, "fspm_target_tolerance_umol_m2_s", None)
+    )
     env.update(
         {
             "FSPM_PLANTS_ENABLED": "1",
@@ -433,6 +446,8 @@ def _apply_plant_request_env(env: dict[str, str], req: Any) -> None:
             "FSPM_PLANT_REFLECTANCE": f"{optical.reflectance:g}",
             "FSPM_PLANT_TRANSMITTANCE": f"{optical.transmittance:g}",
             "FSPM_PLANT_ABSORPTANCE": f"{optical.absorptance:g}",
+            "FSPM_TARGET_PPFD_UMOL_M2_S": f"{target_ppfd:g}",
+            "FSPM_TARGET_TOLERANCE_UMOL_M2_S": f"{target_tolerance:g}",
         }
     )
 

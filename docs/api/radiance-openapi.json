@@ -824,6 +824,28 @@
             "title": "Execution Mode",
             "type": "string"
           },
+          "fspm_target_ppfd_umol_m2_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fspm Target Ppfd Umol M2 S"
+          },
+          "fspm_target_tolerance_umol_m2_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fspm Target Tolerance Umol M2 S"
+          },
           "hps_coverage_ft": {
             "default": 4.0,
             "exclusiveMinimum": 0.0,
@@ -1666,6 +1688,28 @@
             ],
             "title": "Execution Mode",
             "type": "string"
+          },
+          "fspm_target_ppfd_umol_m2_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fspm Target Ppfd Umol M2 S"
+          },
+          "fspm_target_tolerance_umol_m2_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fspm Target Tolerance Umol M2 S"
           },
           "hps_coverage_ft": {
             "default": 4.0,
@@ -3443,6 +3487,38 @@
           },
           {
             "in": "query",
+            "name": "fspm_target_ppfd_umol_m2_s",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fspm Target Ppfd Umol M2 S"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fspm_target_tolerance_umol_m2_s",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fspm Target Tolerance Umol M2 S"
+            }
+          },
+          {
+            "in": "query",
             "name": "session_id",
             "required": false,
             "schema": {
@@ -3899,6 +3975,38 @@
           },
           {
             "in": "query",
+            "name": "fspm_target_ppfd_umol_m2_s",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fspm Target Ppfd Umol M2 S"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fspm_target_tolerance_umol_m2_s",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fspm Target Tolerance Umol M2 S"
+            }
+          },
+          {
+            "in": "query",
             "name": "session_id",
             "required": false,
             "schema": {
@@ -4344,6 +4452,38 @@
                 }
               ],
               "title": "Plant Growth Stage"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fspm_target_ppfd_umol_m2_s",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fspm Target Ppfd Umol M2 S"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fspm_target_tolerance_umol_m2_s",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fspm Target Tolerance Umol M2 S"
             }
           },
           {

@@ -103,6 +103,8 @@ def radiance_assembly_scene(
     plant_canopy_radius_m: float | None = None,
     plant_leaf_count: int | None = None,
     plant_growth_stage: float | None = None,
+    fspm_target_ppfd_umol_m2_s: float | None = None,
+    fspm_target_tolerance_umol_m2_s: float | None = None,
     session_id: str | None = None,
     artifact_token: str | None = None,
 ) -> Any:
@@ -146,6 +148,8 @@ def radiance_assembly_scene(
             plant_canopy_radius_m=plant_canopy_radius_m,
             plant_leaf_count=plant_leaf_count,
             plant_growth_stage=plant_growth_stage,
+            fspm_target_ppfd_umol_m2_s=fspm_target_ppfd_umol_m2_s,
+            fspm_target_tolerance_umol_m2_s=fspm_target_tolerance_umol_m2_s,
         )
     )
     matched_req = precomputed_request_for_available_bundle(req) if _request_uses_precomputed(req) else None

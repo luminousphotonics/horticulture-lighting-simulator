@@ -132,6 +132,8 @@ _FLOAT_PLANT_QUERY_FIELDS = {
     "plant_height_m",
     "plant_canopy_radius_m",
     "plant_growth_stage",
+    "fspm_target_ppfd_umol_m2_s",
+    "fspm_target_tolerance_umol_m2_s",
 }
 
 

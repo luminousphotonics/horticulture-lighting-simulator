@@ -20,6 +20,10 @@ from typing import Any, Iterator
 from fastapi import HTTPException
 
 from rad_rebuild.radiance.domain import plant_geometry_config_from_request
+from rad_rebuild.radiance.fspm_targets import (
+    resolve_fspm_target_ppfd,
+    resolve_fspm_target_tolerance,
+)
 from rad_rebuild.radiance.config import (
     COMPETITOR_FIXTURE_PPE_UMOL_PER_J,
     COMPETITOR_FIXTURE_PPF_UMOL_S,
@@ -135,6 +139,8 @@ PLANT_REQUEST_FINGERPRINT_FIELDS = (
     "plant_canopy_radius_m",
     "plant_leaf_count",
     "plant_growth_stage",
+    "fspm_target_ppfd_umol_m2_s",
+    "fspm_target_tolerance_umol_m2_s",
 )
 
 
@@ -436,6 +442,19 @@ def canonical_request_fingerprint_payload(source: Any) -> dict[str, object]:
                 "plant_growth_stage": _canonical_number(
                     "plant_growth_stage",
                     plant_config.growth_stage,
+                ),
+                "fspm_target_ppfd_umol_m2_s": _canonical_number(
+                    "fspm_target_ppfd_umol_m2_s",
+                    resolve_fspm_target_ppfd(
+                        getter("fspm_target_ppfd_umol_m2_s", None),
+                        fallback_target_ppfd=getter("target_ppfd", None),
+                    ),
+                ),
+                "fspm_target_tolerance_umol_m2_s": _canonical_number(
+                    "fspm_target_tolerance_umol_m2_s",
+                    resolve_fspm_target_tolerance(
+                        getter("fspm_target_tolerance_umol_m2_s", None)
+                    ),
                 ),
             }
         )

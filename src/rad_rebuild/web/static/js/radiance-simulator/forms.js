@@ -87,6 +87,8 @@ export function syncFspmControls() {
     els.radPlantCanopyRadiusM,
     els.radPlantLeafCount,
     els.radPlantGrowthStage,
+    els.radFspmTargetPpfd,
+    els.radFspmTargetTolerance,
   ].filter(Boolean);
 
   if (els.radFspmFieldset) {
@@ -105,6 +107,20 @@ export function syncFspmControls() {
   }
 
   return fspmAvailable;
+}
+
+export function markFspmTargetEdited() {
+  if (els.radFspmTargetPpfd) {
+    els.radFspmTargetPpfd.dataset.fspmTargetEdited = "true";
+  }
+}
+
+export function syncFspmTargetDefault() {
+  if (!els.radFspmTargetPpfd || els.radFspmTargetPpfd.dataset.fspmTargetEdited === "true") {
+    return;
+  }
+  const target = parsePositive(els.radTarget, 275);
+  els.radFspmTargetPpfd.value = `${target}`;
 }
 
 function parsePlantPayload(_mode, executionMode) {
@@ -126,6 +142,8 @@ function parsePlantPayload(_mode, executionMode) {
     plantCanopyRadiusM: parseFinite(els.radPlantCanopyRadiusM, 0.18),
     plantLeafCount: parseInteger(els.radPlantLeafCount, 12),
     plantGrowthStage: parseFinite(els.radPlantGrowthStage, 1.0),
+    fspmTargetPpfdUmolM2S: parsePositive(els.radFspmTargetPpfd, parsePositive(els.radTarget, 275)),
+    fspmTargetToleranceUmolM2S: parsePositive(els.radFspmTargetTolerance, 20),
   };
 }
 
@@ -205,6 +223,8 @@ export function radiancePayload(action) {
       plant_canopy_radius_m: values.plantCanopyRadiusM,
       plant_leaf_count: values.plantLeafCount,
       plant_growth_stage: values.plantGrowthStage,
+      fspm_target_ppfd_umol_m2_s: values.fspmTargetPpfdUmolM2S,
+      fspm_target_tolerance_umol_m2_s: values.fspmTargetToleranceUmolM2S,
     });
   }
   return payload;
@@ -234,6 +254,8 @@ export function runKeyForPayload(payload) {
     plantCanopyRadiusM: payload.plantCanopyRadiusM,
     plantLeafCount: payload.plantLeafCount,
     plantGrowthStage: payload.plantGrowthStage,
+    fspmTargetPpfdUmolM2S: payload.fspmTargetPpfdUmolM2S,
+    fspmTargetToleranceUmolM2S: payload.fspmTargetToleranceUmolM2S,
   });
 }
 

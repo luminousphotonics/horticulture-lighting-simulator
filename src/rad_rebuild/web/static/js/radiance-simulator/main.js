@@ -12,8 +12,10 @@ import {
 import { openAssemblyViewer } from "./assembly.js";
 import {
   invalidateRenderedRunState,
+  markFspmTargetEdited,
   syncDimensionWarnings,
   syncFspmControls,
+  syncFspmTargetDefault,
   syncModeControls,
 } from "./forms.js";
 import { runRadiance } from "./jobs.js";
@@ -63,6 +65,7 @@ async function boot() {
     els.radMatchSystemPpe.checked = true;
   }
   syncModeControls();
+  syncFspmTargetDefault();
   syncFspmControls();
   await ensureBackend();
   syncPpfdCsvButtonState();
@@ -121,9 +124,11 @@ export function initRadianceSimulator() {
   }
   if (els.radTarget) {
     els.radTarget.addEventListener("input", () => {
+      syncFspmTargetDefault();
       invalidateRenderedRunAndSyncActions();
     });
     els.radTarget.addEventListener("blur", () => {
+      syncFspmTargetDefault();
       invalidateRenderedRunAndSyncActions();
     });
   }
@@ -131,6 +136,10 @@ export function initRadianceSimulator() {
     els.radPeakCapping.addEventListener("change", () => {
       invalidateRenderedRunAndSyncActions();
     });
+  }
+  if (els.radFspmTargetPpfd) {
+    els.radFspmTargetPpfd.addEventListener("input", markFspmTargetEdited);
+    els.radFspmTargetPpfd.addEventListener("change", markFspmTargetEdited);
   }
   if (els.radMatchSystemPpe) {
     els.radMatchSystemPpe.addEventListener("change", () => {

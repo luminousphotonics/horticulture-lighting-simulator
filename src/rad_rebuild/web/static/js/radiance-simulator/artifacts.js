@@ -33,6 +33,8 @@ const OPTIONAL_PLANT_QUERY_FIELDS = [
   ["plantCanopyRadiusM", "plant_canopy_radius_m"],
   ["plantLeafCount", "plant_leaf_count"],
   ["plantGrowthStage", "plant_growth_stage"],
+  ["fspmTargetPpfdUmolM2S", "fspm_target_ppfd_umol_m2_s"],
+  ["fspmTargetToleranceUmolM2S", "fspm_target_tolerance_umol_m2_s"],
 ];
 
 function hpsArtifactMountHeightM(payload) {
