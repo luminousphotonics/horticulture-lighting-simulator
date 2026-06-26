@@ -389,6 +389,7 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         rows = list(csv.DictReader(StringIO(text)))
         self.assertEqual(list(rows[0].keys()), list(FSPM_CSV_HEADERS))
         self.assertEqual(len(rows), 1)
+        self.assertNotIn("raw_incident_vs_target_capacity_percent", rows[0])
         row = rows[0]
         self.assertEqual(row["run_id"], "fspm-csv-contract")
         self.assertEqual(row["mode"], MODE_SMD)
@@ -416,10 +417,6 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
             34.1,
         )
         self.assertEqual(row["raw_incident_flux_total_umol_s"], "60")
-        self.assertAlmostEqual(
-            float(row["raw_incident_vs_target_capacity_percent"]),
-            60.0 / 34.1 * 100.0,
-        )
         self.assertEqual(row["raw_absorbed_flux_total_umol_s"], "42")
         self.assertEqual(row["absorbed_fraction_percent"], "70")
         self.assertAlmostEqual(
@@ -458,6 +455,11 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
             row["target_classification_source"],
             "interpolated_runtime_ppfd_map",
         )
+        self.assertIn(
+            "Raw receiver incident flux is physical receiver accounting",
+            row["note"],
+        )
+        self.assertIn("not target-equivalent PPFD classification", row["note"])
         for key, value in row.items():
             if key in {
                 "run_id",
@@ -529,12 +531,21 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         self.assertEqual(row["plant_count"], "1")
         self.assertEqual(row["target_range_leaf_percent"], "100")
         self.assertEqual(row["target_capacity_incident_flux_umol_s"], "0")
-        self.assertEqual(row["raw_incident_vs_target_capacity_percent"], "")
         self.assertEqual(row["target_capped_incident_fraction_of_capacity_percent"], "")
         self.assertEqual(row["deficit_to_target_capacity_percent"], "")
         self.assertEqual(row["blue_pfd_umol_m2_s"], "")
         self.assertEqual(row["photosynthetic_light_response_mean"], "")
         self.assertEqual(row["calibration_status"], "")
+
+    def test_fspm_csv_export_has_single_header_for_manual_combining(self) -> None:
+        header = ",".join(FSPM_CSV_HEADERS)
+        body = ",".join("" for _ in FSPM_CSV_HEADERS)
+        exported_text = f"{header}\n{body}\n"
+
+        self.assertEqual(exported_text.count(header), 1)
+        rows = list(csv.DictReader(StringIO(exported_text)))
+        self.assertEqual(len(rows), 1)
+        self.assertNotEqual(rows[0]["run_id"], "run_id")
 
     def test_scatter_request_workspace_lookup_preserves_karma_hps_ies_variant(
         self,

@@ -40,7 +40,6 @@ FSPM_CSV_HEADERS = (
     "target_capped_incident_flux_total_umol_s",
     "target_capacity_incident_flux_umol_s",
     "raw_incident_flux_total_umol_s",
-    "raw_incident_vs_target_capacity_percent",
     "raw_absorbed_flux_total_umol_s",
     "absorbed_fraction_percent",
     "excess_incident_flux_above_target_umol_s",
@@ -132,6 +131,10 @@ def _summary_row(
         "Lighting-analysis input only; unvalidated response-potential scaffold, "
         "not biological-output prediction."
     )
+    note = (
+        f"{note} Raw receiver incident flux is physical receiver accounting, "
+        "not target-equivalent PPFD classification."
+    )
     target_ppfd = absorption.get("target_ppfd_umol_m2_s")
     leaf_area = counts.get("one_sided_leaf_area_m2")
     target_capacity = _product(target_ppfd, leaf_area)
@@ -200,10 +203,6 @@ def _summary_row(
             "target_capped_incident_flux_total_umol_s": target_capped_incident,
             "target_capacity_incident_flux_umol_s": target_capacity,
             "raw_incident_flux_total_umol_s": raw_incident,
-            "raw_incident_vs_target_capacity_percent": _ratio_percent(
-                raw_incident,
-                target_capacity,
-            ),
             "raw_absorbed_flux_total_umol_s": absorption.get(
                 "total_absorbed_photon_flux_umol_s"
             ),
