@@ -56,6 +56,15 @@ from rad_rebuild.radiance.engine.plants.models import (
     PlantGeometry,
     PlantScene,
 )
+from rad_rebuild.radiance.engine.plants.optical_profiles import (
+    REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
+    REX_LEAF_OPTICS_TREATMENT_ID,
+    LeafOpticalProfile,
+    LeafOpticalTreatmentProfile,
+    list_leaf_optical_profiles,
+    load_leaf_optical_profile,
+    load_rex_green_butterhead_mature_leaf_optics_v1,
+)
 from rad_rebuild.radiance.engine.plants.radiance_export import (
     export_scene_to_radiance,
 )
@@ -141,6 +150,13 @@ __all__ = [
     "PLANT_SURFACE_FLUX_FILENAME",
     "PLANT_SURFACE_FLUX_SCHEMA",
     "PlantScene",
+    "REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1",
+    "REX_LEAF_OPTICS_TREATMENT_ID",
+    "LeafOpticalProfile",
+    "LeafOpticalTreatmentProfile",
+    "list_leaf_optical_profiles",
+    "load_leaf_optical_profile",
+    "load_rex_green_butterhead_mature_leaf_optics_v1",
     "LeafSpectralOpticalBand",
     "SpectralPhotonDistribution",
     "SpectralPhotonFraction",

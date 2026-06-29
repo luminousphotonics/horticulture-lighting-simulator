@@ -644,6 +644,51 @@ Next recommended implementation step:
 
 * Step 5 — Workshop Demo Hardening.
 
+### Step 4.8 — Source-Bound Leaf Optical Profiles
+
+Status: complete.
+
+Completed checklist:
+
+* Added `src/rad_rebuild/radiance/engine/plants/optical_profiles.py` as an opt-in leaf optical profile loader.
+* Registered `rex_green_butterhead_mature_leaf_optics_v1` without wiring it into the simulator default path.
+* Loaded the Rex profile from `data/radiance/plant_optics/lettuce_rex/rex_leaf_optical_properties_digitized_v0_2.csv` with metadata from the v0.2 manifest.
+* Exposed typed profile and treatment curves with wavelength, model absorptance, model transmittance, model reflectance, raw digitized values, implied absorptance, absorptance basis flags, provenance, and validation metadata.
+* Kept the main profile curve on the manifest-backed `mean_of_treatments` model while retaining per-treatment curves for raw-versus-implied absorptance auditability.
+* Preserved v0.2 behavior that reflectance/transmittance are not clipped to the direct raw absorptance range because wavelengths beyond direct absorptance coverage still have R/T support and use implied absorptance rather than treating missing raw absorptance as zero.
+* Added focused loader tests in `tests/radiance/test_plant_optical_profiles.py`.
+* Left baseline PPFD, uniformity, fixture-output metrics, browser assets, routes, numerical goldens, and protected data unchanged.
+
+Limitations and assumptions:
+
+* The Rex optical profile is research-derived digitized data and remains unvalidated in this simulator.
+* The loader trusts the v0.2 model columns as source of truth and validates source-choice consistency; it does not implement new wavelength-binned absorption math.
+* This profile supports modeled absorbed photon flux only, not photosynthesis, morphology, biomass, or yield prediction.
+
+Validation run:
+
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_optical_profiles.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_fspm_plants.py tests/radiance/test_plant_spectral_optics.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_import_boundaries.py tests/radiance/test_config_contracts.py`
+* `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance/engine/plants/optical_profiles.py src/rad_rebuild/radiance/engine/plants/__init__.py tests/radiance/test_plant_optical_profiles.py`
+* `git diff --check`
+
+Validation results:
+
+* Optical-profile loader tests: passed, 5 tests.
+* Plant/FSPM and spectral optics tests: passed, 58 tests.
+* Import-boundary and config-contract tests: passed, 15 tests, 39 subtests, with existing third-party matplotlib/pyparsing deprecation warnings.
+* Focused Ruff check: passed.
+* Diff whitespace check: passed.
+
+Unresolved issues:
+
+* None for Step 4.8.
+
+Next recommended implementation step:
+
+* Phase 2 — wavelength-binned spectral absorption artifacts using explicit incident spectral photon flux and selected optical profile curves.
+
 ### Step 5 — Workshop Demo Hardening
 
 Status: pending.

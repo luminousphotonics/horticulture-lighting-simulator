@@ -1,0 +1,13 @@
+optical_property,treatment_id,treatment_label,raw_rows,clean_points,min_wavelength_nm,max_wavelength_nm,min_value_percent,max_value_percent,normalization
+absorptance,o_plus_fr,O+FR,135,133,401.10557630713726,732.5462521133102,1.1269238143488138,91.35997766772896,percent_to_fraction_only_no_peak_normalization
+absorptance,orange,Orange,146,144,403.1721128948976,737.7920757591633,0.7879952832011696,94.43593949825107,percent_to_fraction_only_no_peak_normalization
+absorptance,r_plus_fr,R+FR,140,136,402.8541841890883,725.8697492913154,0.6141340290267294,90.25301776708363,percent_to_fraction_only_no_peak_normalization
+absorptance,red,Red,144,141,401.10557630713726,730.6386798784546,1.4668614904211807,93.06254931930437,percent_to_fraction_only_no_peak_normalization
+reflectance,o_plus_fr,O+FR,117,117,403.73211517801286,800.1023556300108,5.439926413335968,44.50460118368022,percent_to_fraction_only_no_peak_normalization
+reflectance,orange,Orange,125,125,400.854666294055,800.1248289466173,4.378386338054881,46.83998934929863,percent_to_fraction_only_no_peak_normalization
+reflectance,r_plus_fr,R+FR,119,119,401.3750100093277,799.7119537838345,6.798697709695773,53.33661461001892,percent_to_fraction_only_no_peak_normalization
+reflectance,red,Red,127,127,401.3513842149465,798.7280258836927,4.84546397117856,50.61907201729933,percent_to_fraction_only_no_peak_normalization
+transmittance,o_plus_fr,O+FR,129,129,401.58113055928106,798.496963935057,2.584690923334591,69.4831739831885,percent_to_fraction_only_no_peak_normalization
+transmittance,orange,Orange,118,118,403.3840947546531,798.0204743391678,1.0427336137582015,64.7277139360759,percent_to_fraction_only_no_peak_normalization
+transmittance,r_plus_fr,R+FR,115,115,403.9635785387275,797.6311336717429,2.9756106898052934,71.1388412144216,percent_to_fraction_only_no_peak_normalization
+transmittance,red,Red,121,121,402.0576201551704,798.496963935057,1.4904604430279278,67.01977833415492,percent_to_fraction_only_no_peak_normalization
