@@ -15,6 +15,7 @@ from tests.radiance.runtime_env import configure_test_runtime
 configure_test_runtime()
 
 from rad_rebuild.radiance.assembly.scene import AssemblySceneError, build_assembly_scene  # noqa: E402
+from rad_rebuild.radiance.assembly.fspm_panel import _spectral_absorption  # noqa: E402
 from rad_rebuild.radiance.backend.models import AssemblySceneResponse, RadianceRunRequest  # noqa: E402
 from rad_rebuild.radiance.backend.routes import assembly as assembly_route  # noqa: E402
 from rad_rebuild.radiance.backend.workspace import (  # noqa: E402
@@ -487,6 +488,61 @@ def test_builder_attaches_sanitized_fspm_panel_metrics(tmp_path: Path) -> None:
     assert panel["photoreceptor_exposure"]["mean_absorbed_blue_pfd_umol_m2_s"] == 83.3
     assert "plants" in scene
     assert str(tmp_path) not in json.dumps(scene)
+
+
+def test_fspm_panel_reads_banded_spectral_absorption_aliases() -> None:
+    payload = {
+        "schema": PLANT_SPECTRAL_ABSORPTION_SCHEMA,
+        "schema_version": 1,
+        "status": "computed",
+        "method": "banded_5_radiance_leaf_receiver_transport_v1",
+        "fspm_spectral_transport_mode": "banded_5",
+        "optical_profile": {
+            "profile_id": "rex_green_butterhead_mature_leaf_optics_v1",
+            "profile_version": "0.2",
+        },
+        "source_spectrum": {
+            "distribution_id": "curve_data_smd",
+            "source_spectral_basis": "wavelength_resolved_spd",
+        },
+        "source_spectral_basis": "wavelength_resolved_spd",
+        "scalar_flux_basis": "par_ppfd_umol_m2_s",
+        "receiver_trace_count": 5,
+        "receiver_sample_count": 3072,
+        "receiver_granularity": "leaf_quadrature_4",
+        "plant_count": 64,
+        "leaf_count": 768,
+        "surface_count": 3072,
+        "crop_summary": {
+            "area_m2": 12.5,
+            "scalar_incident_par_ppfd_umol_m2_s": 163.3,
+            "incident_par_ppfd_umol_m2_s": 163.3,
+            "absorbed_par_ppfd_umol_m2_s": 128.0,
+            "absorbed_epar_ppfd_umol_m2_s": 129.0,
+            "absorbed_blue_ppfd_umol_m2_s": 18.0,
+            "absorbed_green_ppfd_umol_m2_s": 42.0,
+            "absorbed_orange_ppfd_umol_m2_s": 11.0,
+            "absorbed_red_ppfd_umol_m2_s": 57.0,
+            "absorbed_far_red_ppfd_umol_m2_s": 1.0,
+            "absorbed_fraction": 0.784,
+            "reflected_fraction": 0.103,
+            "transmitted_fraction": 0.114,
+        },
+    }
+
+    summary = _spectral_absorption(payload)
+
+    assert summary is not None
+    assert (
+        summary["optical_profile_id"]
+        == "rex_green_butterhead_mature_leaf_optics_v1"
+    )
+    assert summary["source_spectral_basis"] == "wavelength_resolved_spd"
+    assert summary["scalar_incident_par_ppfd_umol_m2_s"] == 163.3
+    assert summary["absorbed_par_ppfd_umol_m2_s"] == 128.0
+    assert summary["absorbed_fraction"] == 0.784
+    assert summary["reflected_fraction"] == 0.103
+    assert summary["transmitted_fraction"] == 0.114
 
 
 def test_builder_rejects_malformed_plant_viewer_payload(tmp_path: Path) -> None:

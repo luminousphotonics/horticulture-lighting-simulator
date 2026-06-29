@@ -1,8 +1,8 @@
 # FSPM Transmissive Leaf Material Design
 
-Status: Phase 4B Level 2 implemented for scalar source-weighted receiver
-transport. Level 3A banded-transport scaffold implemented; Level 3B live
-banded receiver execution remains future work.
+Status: Phase 4B Level 2 scalar source-weighted transport and Level 3B
+five-band receiver transport are implemented. Full 1 nm hyperspectral Radiance
+transport remains out of scope.
 
 ## Purpose
 
@@ -216,11 +216,10 @@ Recommended initial default:
 scalar_source_weighted
 ```
 
-`scalar_source_weighted` should mean one FSPM receiver trace using the Level 2
-source-weighted material. `banded_5` should mean five FSPM receiver traces,
-each with a band-specific emitter scale and a band-specific Rex leaf material.
-Level 3A only defines, validates, and plans that banded metadata; it does not
-run the five receiver traces.
+`scalar_source_weighted` means one FSPM receiver trace using the Level 2
+source-weighted material. `banded_5` means one FSPM receiver trace per active
+source band, each with a band-specific source scale and a band-specific Rex leaf
+material.
 
 Level 3 bands:
 
@@ -285,10 +284,42 @@ Zero-source band policy:
 * set `receiver_trace_required: false`.
 * do not fail the whole plan.
 
-`banded_5` is recognized by config parsing, but live five-band receiver
-execution is intentionally not implemented in Level 3A. Runtime receiver
-preparation reports a clear validation error if `banded_5` is requested before
-Level 3B is implemented.
+Level 3B implements live `banded_5` receiver execution.
+
+### Level 3B Execution
+
+Implemented `banded_5` behavior:
+
+* Requires `FSPM_LEAF_RADIANCE_MATERIAL_MODE=rex_source_weighted_trans`.
+* Requires `FSPM_LEAF_OPTICAL_PROFILE_ID=rex_green_butterhead_mature_leaf_optics_v1`.
+* Uses the Level 3A band plan; it does not duplicate band coefficient math.
+* Writes one receiver-only plant Radiance file per active band, for example
+  `runtime_state/plants_fspm_receiver_blue.rad`.
+* Builds one plant-inclusive FSPM receiver octree per active band.
+* Reuses the same receiver sample set for all active bands.
+* Runs one receiver trace per active band.
+* Skips receiver tracing for zero-source bands.
+* Does not run the scalar receiver trace in addition to band traces.
+* Applies the source scale exactly once by multiplying each band trace result
+  by `source_photon_fraction_relative_to_par`.
+
+`plant_surface_flux.json` remains the incident leaf-surface receiver-flux
+contract. In `banded_5`, its incident fields are the PAR aggregate derived from
+blue + green + orange + red band receiver results. Far-red is not included in
+PAR surface flux.
+
+`plant_spectral_absorption.json` is written from the banded receiver rows. For
+each band:
+
+```text
+absorbed_band_pfd = incident_band_pfd * band_effective_absorptance
+reflected_band_pfd = incident_band_pfd * band_effective_reflectance
+transmitted_band_pfd = incident_band_pfd * band_effective_transmittance
+```
+
+It reports band-level incident, absorbed, reflected, and transmitted PFD
+summaries, plus absorbed PAR and absorbed ePAR. ePAR includes far-red; PAR does
+not.
 
 ## Implemented Level 2 Runtime Impact
 
@@ -363,11 +394,13 @@ The metadata must state whether coefficients are PAR-weighted or band-specific.
 If any future ePAR weighting is used with scalar PAR receiver output, the
 artifact must include a warning field naming that compromise.
 
-Level 3A prepares this top-level metadata shape for future `banded_5` outputs:
+Level 3B uses this top-level metadata shape for `banded_5` outputs:
 
 ```json
 {
   "fspm_spectral_transport_mode": "banded_5",
+  "leaf_radiance_material_mode": "rex_source_weighted_trans",
+  "leaf_material_weighting_basis": "band_source_weighted",
   "band_scaling_basis": "source_band_photon_fraction_relative_to_par",
   "banded_transport_band_count": 5,
   "banded_transport_bands": [],
@@ -376,8 +409,29 @@ Level 3A prepares this top-level metadata shape for future `banded_5` outputs:
   "scalar_flux_basis": "par_ppfd_umol_m2_s",
   "leaf_material_profile_id": "rex_green_butterhead_mature_leaf_optics_v1",
   "leaf_material_profile_version": "v0_2",
+  "leaf_material_source_spectrum_id": "curve_data_smd",
+  "leaf_material_source_spectrum_source": "curve_data_spd:...",
+  "source_spectral_basis": "wavelength_resolved_spd",
+  "source_spectrum_basis": "wavelength_resolved_spd",
   "source_spectrum_id": "curve_data_smd",
   "source_spectrum_source": "curve_data_spd:..."
+}
+```
+
+`plant_spectral_absorption.json` also carries compatibility blocks used by the
+FSPM panel and CSV/report readers:
+
+```json
+{
+  "optical_profile": {
+    "profile_id": "rex_green_butterhead_mature_leaf_optics_v1",
+    "profile_version": "v0_2"
+  },
+  "source_spectrum": {
+    "distribution_id": "curve_data_smd",
+    "source_spectral_basis": "wavelength_resolved_spd",
+    "scalar_flux_basis": "par_ppfd_umol_m2_s"
+  }
 }
 ```
 
@@ -480,8 +534,12 @@ Focused tests before Level 3 implementation:
 * zero-source bands emit zero metadata and require no receiver trace.
 * Level 3B banded transport runs one receiver trace per active band and does
   not rebuild or retrace baseline PPFD/uniformity artifacts.
-* `plant_spectral_absorption.json` band totals reconcile with the five traced
-  band fields once Level 3B execution is implemented.
+* `plant_spectral_absorption.json` band totals reconcile with the traced
+  active-band fields in Level 3B.
+* `plant_spectral_absorption.json` exposes panel/report aliases for
+  `scalar_incident_par_ppfd_umol_m2_s`, PAR/ePAR incident/absorbed/reflected/
+  transmitted totals, generic fraction keys, `optical_profile`, and
+  `source_spectrum`.
 
 Live validation after implementation:
 
@@ -490,8 +548,10 @@ Live validation after implementation:
 * At least one `mesh_patch` reference run for final workshop data.
 * Compare Level 2 `opaque_occluder` versus `rex_source_weighted_trans` receiver
   incident PAR and spectral absorption metadata.
-* Before Level 3B, compare planned band metadata against selected source SPD
-  and Rex profile.
+* For Level 3B, compare planned band metadata against selected source SPD and
+  Rex profile.
+* Confirm the FSPM panel does not show unavailable optical/source metadata or
+  zero incident PAR when banded absorbed PAR is nonzero.
 * Confirm baseline heatmaps, fixture overlays, 3D scatter, and assembly-viewer
   heatmap overlays are unchanged.
 
@@ -504,7 +564,7 @@ Live validation after implementation:
 * no automatic regeneration of Rex optics data.
 * no replacement of `plant_spectral_absorption.json` with Radiance spectral
   transport in Level 2.
-* no full five-band live Radiance execution in Level 3A.
+* no full 1 nm hyperspectral live Radiance execution.
 * no specular leaf transmission unless a reviewed data basis is added.
 
 ## Open Questions
@@ -514,6 +574,6 @@ Live validation after implementation:
   requires otherwise.
 * Level 3A zero-source policy is implemented: skip material fitting, emit zero
   metadata, and do not require a receiver trace.
-* Should banded transport use five separate octrees, or can one geometry file
-  be rewritten per band with cached room/emitter inputs? The design should
-  prioritize clarity and no baseline artifact multiplication.
+* Level 3B currently uses one plant-inclusive receiver octree per active band.
+  This prioritizes clarity and baseline artifact isolation. Future optimization
+  may reduce octree rebuild cost if it preserves the same contracts.

@@ -58,6 +58,26 @@ LEAF_MATERIAL_METADATA_KEYS: tuple[str, ...] = (
     "leaf_material_radiance_trans",
     "leaf_material_radiance_tspec",
 )
+BANDED_TRANSPORT_METADATA_KEYS: tuple[str, ...] = (
+    "fspm_spectral_transport_mode",
+    "leaf_radiance_material_mode",
+    "leaf_material_weighting_basis",
+    "leaf_material_profile_id",
+    "leaf_material_profile_version",
+    "leaf_material_source_spectrum_id",
+    "leaf_material_source_spectrum_source",
+    "band_scaling_basis",
+    "banded_transport_band_count",
+    "banded_transport_active_trace_count",
+    "banded_transport_bands",
+    "par_band_ids",
+    "epar_band_ids",
+    "scalar_flux_basis",
+    "source_spectrum_id",
+    "source_spectrum_source",
+    "source_spectral_basis",
+    "source_spectrum_basis",
+)
 
 SPECTRAL_ABSORPTION_BANDS: tuple[dict[str, Any], ...] = (
     {
@@ -424,6 +444,268 @@ def write_plant_spectral_absorption_artifact(
     path = output_dir / PLANT_SPECTRAL_ABSORPTION_FILENAME
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path
+
+
+def build_banded_plant_spectral_absorption_payload(
+    surface_flux_payload: Mapping[str, Any],
+    band_surface_flux_rows: Mapping[str, Iterable[Mapping[str, Any]]],
+    banded_transport_metadata: Mapping[str, Any],
+    *,
+    method: str = "banded_5_radiance_leaf_receiver_transport_v1",
+) -> dict[str, Any]:
+    """Aggregate Level 3B band-traced receiver rows into spectral absorption."""
+
+    band_metadata = {
+        str(band.get("band_id")): band
+        for band in banded_transport_metadata.get("banded_transport_bands", ())
+        if isinstance(band, Mapping) and band.get("band_id")
+    }
+    band_summaries = [
+        _banded_absorption_summary(
+            band_id,
+            list(rows),
+            band_metadata.get(band_id, {}),
+        )
+        for band_id, rows in band_surface_flux_rows.items()
+    ]
+    band_summaries_by_id = {summary["band_id"]: summary for summary in band_summaries}
+    par_band_ids = list(banded_transport_metadata.get("par_band_ids", ()))
+    epar_band_ids = list(banded_transport_metadata.get("epar_band_ids", ()))
+    crop_summary = _banded_crop_summary(
+        band_summaries_by_id,
+        par_band_ids=par_band_ids,
+        epar_band_ids=epar_band_ids,
+    )
+    optical_profile = _banded_optical_profile_payload(surface_flux_payload)
+    source_spectrum = _banded_source_spectrum_payload(surface_flux_payload)
+
+    return {
+        "schema": PLANT_SPECTRAL_ABSORPTION_SCHEMA,
+        "schema_version": PLANT_SPECTRAL_ABSORPTION_SCHEMA_VERSION,
+        "artifact_role": "modeled_banded_spectral_leaf_photon_absorption",
+        "artifact_description": (
+            "Modeled five-band absorbed, reflected, and transmitted leaf photon "
+            "flux from band-specific FSPM receiver traces."
+        ),
+        "status": "computed",
+        "method": method,
+        "source_artifact": "runtime_state/plant_surface_flux.json",
+        "source_surface_flux_schema": surface_flux_payload.get("schema"),
+        "source_surface_flux_method": surface_flux_payload.get("method"),
+        "source_surface_flux_status": surface_flux_payload.get("status"),
+        "baseline_transport_scene": surface_flux_payload.get("baseline_transport_scene"),
+        "fspm_receiver_transport_scene": surface_flux_payload.get(
+            "fspm_receiver_transport_scene"
+        ),
+        "receiver_trace_count": surface_flux_payload.get("receiver_trace_count"),
+        "receiver_sample_count": surface_flux_payload.get("receiver_sample_count"),
+        "receiver_granularity": surface_flux_payload.get("receiver_granularity"),
+        "receiver_samples_per_leaf": surface_flux_payload.get(
+            "receiver_samples_per_leaf"
+        ),
+        "receiver_generation_basis": surface_flux_payload.get(
+            "receiver_generation_basis"
+        ),
+        "receiver_granularity_role": surface_flux_payload.get(
+            "receiver_granularity_role"
+        ),
+        **{
+            key: surface_flux_payload.get(key)
+            for key in BANDED_TRANSPORT_METADATA_KEYS
+            if key in surface_flux_payload
+        },
+        "optical_profile": optical_profile,
+        "source_spectrum": source_spectrum,
+        "units": {
+            "wavelength": "nm",
+            "photon_flux": "umol/s",
+            "photon_flux_density": "umol/m2/s",
+            "area": "m2",
+            "optical_coefficients": "fraction",
+        },
+        "plant_count": surface_flux_payload.get("plant_count"),
+        "leaf_count": surface_flux_payload.get("leaf_count"),
+        "surface_count": surface_flux_payload.get("surface_count"),
+        "crop_summary": crop_summary,
+        "band_summaries": band_summaries,
+        "outputs_do_not_predict": list(NO_CROP_OUTPUT_TERMS),
+        "warnings": [
+            "Banded transport uses one FSPM receiver trace per active source band.",
+            "Far-red contributes to ePAR summaries but is not included in PAR summaries.",
+        ],
+        "limitations": [
+            "This artifact computes modeled spectral leaf photon absorption, not photosynthesis, morphology, biomass, or yield.",
+        ],
+    }
+
+
+def write_banded_plant_spectral_absorption_artifact(
+    target_dir: str | Path,
+    surface_flux_payload: Mapping[str, Any],
+    band_surface_flux_rows: Mapping[str, Iterable[Mapping[str, Any]]],
+    banded_transport_metadata: Mapping[str, Any],
+) -> Path:
+    output_dir = Path(target_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    payload = build_banded_plant_spectral_absorption_payload(
+        surface_flux_payload,
+        band_surface_flux_rows,
+        banded_transport_metadata,
+    )
+    path = output_dir / PLANT_SPECTRAL_ABSORPTION_FILENAME
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
+def _banded_absorption_summary(
+    band_id: str,
+    rows: list[Mapping[str, Any]],
+    metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    reflectance = _finite_unit_interval(
+        metadata.get("effective_reflectance", 0.0),
+        f"{band_id}.effective_reflectance",
+    )
+    transmittance = _finite_unit_interval(
+        metadata.get("effective_transmittance", 0.0),
+        f"{band_id}.effective_transmittance",
+    )
+    absorptance = _finite_unit_interval(
+        metadata.get("effective_absorptance", 0.0),
+        f"{band_id}.effective_absorptance",
+    )
+    area = sum(float(row.get("area_m2", 0.0)) for row in rows)
+    incident_flux = sum(
+        float(row.get("incident_photon_flux_umol_s", 0.0)) for row in rows
+    )
+    incident_density_weighted = (
+        incident_flux / area if area > 0.0 else 0.0
+    )
+    absorbed_flux = incident_flux * absorptance
+    reflected_flux = incident_flux * reflectance
+    transmitted_flux = incident_flux * transmittance
+    return {
+        "band_id": band_id,
+        "wavelength_min_nm": metadata.get("wavelength_min_nm"),
+        "wavelength_max_nm": metadata.get("wavelength_max_nm"),
+        "included_in_par": bool(metadata.get("included_in_par")),
+        "included_in_epar": bool(metadata.get("included_in_epar")),
+        "source_photon_fraction_relative_to_par": float(
+            metadata.get("source_photon_fraction_relative_to_par", 0.0)
+        ),
+        "band_has_source_photons": bool(metadata.get("band_has_source_photons")),
+        "receiver_trace_required": bool(metadata.get("receiver_trace_required")),
+        "receiver_trace_executed": bool(metadata.get("receiver_trace_executed")),
+        "effective_reflectance": reflectance,
+        "effective_transmittance": transmittance,
+        "effective_absorptance": absorptance,
+        "area_m2": area,
+        "incident_pfd_umol_m2_s": incident_density_weighted,
+        "absorbed_pfd_umol_m2_s": incident_density_weighted * absorptance,
+        "reflected_pfd_umol_m2_s": incident_density_weighted * reflectance,
+        "transmitted_pfd_umol_m2_s": incident_density_weighted * transmittance,
+        "incident_photon_flux_umol_s": incident_flux,
+        "absorbed_photon_flux_umol_s": absorbed_flux,
+        "reflected_photon_flux_umol_s": reflected_flux,
+        "transmitted_photon_flux_umol_s": transmitted_flux,
+    }
+
+
+def _banded_crop_summary(
+    band_summaries_by_id: Mapping[str, Mapping[str, Any]],
+    *,
+    par_band_ids: Iterable[str],
+    epar_band_ids: Iterable[str],
+) -> dict[str, Any]:
+    summary: dict[str, Any] = {}
+    area_candidates: list[float] = []
+    for band_id, band in band_summaries_by_id.items():
+        area_candidates.append(float(band.get("area_m2", 0.0)))
+        summary[f"incident_{band_id}_ppfd_umol_m2_s"] = band[
+            "incident_pfd_umol_m2_s"
+        ]
+        summary[f"absorbed_{band_id}_ppfd_umol_m2_s"] = band[
+            "absorbed_pfd_umol_m2_s"
+        ]
+        summary[f"reflected_{band_id}_ppfd_umol_m2_s"] = band[
+            "reflected_pfd_umol_m2_s"
+        ]
+        summary[f"transmitted_{band_id}_ppfd_umol_m2_s"] = band[
+            "transmitted_pfd_umol_m2_s"
+        ]
+
+    for label, band_ids in (("par", par_band_ids), ("epar", epar_band_ids)):
+        selected = [
+            band_summaries_by_id[band_id]
+            for band_id in band_ids
+            if band_id in band_summaries_by_id
+        ]
+        for quantity, source_key in (
+            ("incident", "incident_pfd_umol_m2_s"),
+            ("absorbed", "absorbed_pfd_umol_m2_s"),
+            ("reflected", "reflected_pfd_umol_m2_s"),
+            ("transmitted", "transmitted_pfd_umol_m2_s"),
+        ):
+            summary[f"{quantity}_{label}_ppfd_umol_m2_s"] = sum(
+                float(band[source_key]) for band in selected
+            )
+    summary["area_m2"] = next((area for area in area_candidates if area > 0.0), 0.0)
+    summary["scalar_incident_par_ppfd_umol_m2_s"] = summary.get(
+        "incident_par_ppfd_umol_m2_s",
+        0.0,
+    )
+    for label in ("par", "epar"):
+        incident = float(summary.get(f"incident_{label}_ppfd_umol_m2_s", 0.0))
+        if incident > 0.0:
+            summary[f"absorbed_fraction_of_incident_{label}"] = (
+                float(summary.get(f"absorbed_{label}_ppfd_umol_m2_s", 0.0))
+                / incident
+            )
+            summary[f"reflected_fraction_of_incident_{label}"] = (
+                float(summary.get(f"reflected_{label}_ppfd_umol_m2_s", 0.0))
+                / incident
+            )
+            summary[f"transmitted_fraction_of_incident_{label}"] = (
+                float(summary.get(f"transmitted_{label}_ppfd_umol_m2_s", 0.0))
+                / incident
+            )
+        else:
+            summary[f"absorbed_fraction_of_incident_{label}"] = 0.0
+            summary[f"reflected_fraction_of_incident_{label}"] = 0.0
+            summary[f"transmitted_fraction_of_incident_{label}"] = 0.0
+    summary["fraction_basis"] = "par"
+    summary["absorbed_fraction"] = summary["absorbed_fraction_of_incident_par"]
+    summary["reflected_fraction"] = summary["reflected_fraction_of_incident_par"]
+    summary["transmitted_fraction"] = summary["transmitted_fraction_of_incident_par"]
+    return summary
+
+
+def _banded_optical_profile_payload(surface_flux_payload: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "profile_id": surface_flux_payload.get("leaf_material_profile_id"),
+        "profile_version": surface_flux_payload.get("leaf_material_profile_version"),
+    }
+
+
+def _banded_source_spectrum_payload(surface_flux_payload: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "distribution_id": surface_flux_payload.get("source_spectrum_id")
+        or surface_flux_payload.get("leaf_material_source_spectrum_id"),
+        "source_spectral_basis": surface_flux_payload.get("source_spectral_basis")
+        or surface_flux_payload.get("source_spectrum_basis"),
+        "scalar_flux_basis": surface_flux_payload.get("scalar_flux_basis"),
+        "source": surface_flux_payload.get("source_spectrum_source")
+        or surface_flux_payload.get("leaf_material_source_spectrum_source"),
+    }
+
+
+def _finite_unit_interval(value: Any, name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ValueError(f"{name} must be a number.")
+    number = float(value)
+    if not math.isfinite(number) or number < 0.0 or number > 1.0:
+        raise ValueError(f"{name} must be in [0, 1].")
+    return number
 
 
 def _mode_dir_name(mode: str | None) -> str:

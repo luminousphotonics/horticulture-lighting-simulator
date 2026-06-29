@@ -642,6 +642,214 @@ def test_smd_simulation_includes_plants_only_when_gate_enabled(
     assert not (runtime / "plants_fspm_receiver_material.rad").exists()
 
 
+def test_smd_banded_transport_traces_active_bands_without_scalar_receiver(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    env = _base_env(tmp_path)
+    env.update(
+        {
+            "FSPM_PLANTS_ENABLED": "1",
+            "FSPM_PLANT_SEED": "99",
+            "FSPM_PLANT_ROWS": "1",
+            "FSPM_PLANT_COLUMNS": "1",
+            "FSPM_PLANT_LEAF_COUNT": "1",
+            "FSPM_RECEIVER_GRANULARITY": "leaf_centroid",
+            "FSPM_LEAF_OPTICAL_PROFILE_ID": REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
+            "FSPM_LEAF_RADIANCE_MATERIAL_MODE": (
+                LEAF_RADIANCE_MATERIAL_MODE_REX_SOURCE_WEIGHTED_TRANS
+            ),
+            "FSPM_SPECTRAL_TRANSPORT_MODE": "banded_5",
+            "FSPM_SPECTRAL_PHOTON_FRACTIONS": (
+                "blue=0.2,green=0.3,red=0.5,far_red=0.0"
+            ),
+            "RADIANCE_CURVE_DATA_ROOT": str(tmp_path / "empty_curve_data"),
+            "MODE": "direct",
+        }
+    )
+    octree_argvs: list[tuple[str, ...]] = []
+    receiver_trace_octrees: list[str] = []
+
+    def fake_python_module(
+        config: scripts.RuntimeConfig,
+        module: str,
+        args: Sequence[str] = (),
+        extra_env: Mapping[str, str] | None = None,
+    ) -> int:
+        assert module == "rad_rebuild.radiance.engine.emitters.generate_emitters_smd"
+        assert args == ()
+        assert extra_env is not None
+        (config.runtime_state_root / "emitters_smd_ALL_umol.rad").write_text(
+            "# emitters\n", encoding="utf-8"
+        )
+        return int(scripts.RadianceScriptExit.OK)
+
+    def fake_prepare_static_scene(
+        _config: scripts.RuntimeConfig,
+        *,
+        room: Path,
+        sensors: Path,
+        reuse: bool,
+    ) -> int:
+        assert reuse is False
+        room.write_text("# room\n", encoding="utf-8")
+        sensors.write_text("0 0 0\n", encoding="utf-8")
+        return int(scripts.RadianceScriptExit.OK)
+
+    def fake_build_octree(
+        _config: scripts.RuntimeConfig,
+        argv: Sequence[str],
+        out_path: Path,
+    ) -> int:
+        octree_argvs.append(tuple(argv))
+        out_path.write_text("octree\n", encoding="utf-8")
+        return int(scripts.RadianceScriptExit.OK)
+
+    def fake_trace_ppfd(
+        _config: scripts.RuntimeConfig,
+        *,
+        octree: Path,
+        dirs: Path,
+        snake_os: Path,
+        out_map: Path,
+        oversample: int,
+        nthreads: int,
+        options: Sequence[str],
+        tag: str,
+    ) -> int:
+        del octree, dirs, snake_os, oversample, nthreads, options, tag
+        _write_ppfd(out_map)
+        return int(scripts.RadianceScriptExit.OK)
+
+    def fake_trace_plant_receivers(
+        _config: scripts.RuntimeConfig,
+        *,
+        receiver_input_path: Path,
+        receiver_rgb_path: Path,
+        octree: Path,
+        options: Sequence[str],
+        nthreads: int,
+    ) -> int:
+        assert octree.name != "smd_fspm_receiver.oct"
+        assert options
+        assert nthreads == 1
+        receiver_trace_octrees.append(octree.name)
+        sample_count = len(receiver_input_path.read_text(encoding="utf-8").splitlines())
+        value = {
+            "blue": 10.0,
+            "green": 20.0,
+            "orange": 30.0,
+            "red": 40.0,
+            "far_red": 50.0,
+        }[next(band for band in ("blue", "green", "orange", "red", "far_red") if band in octree.name)]
+        receiver_rgb_path.write_text(
+            "".join(f"{value} {value} {value}\n" for _ in range(sample_count)),
+            encoding="utf-8",
+        )
+        return int(scripts.RadianceScriptExit.OK)
+
+    def fake_symmetrize(
+        _config: scripts.RuntimeConfig,
+        *,
+        in_map: Path,
+        out_map: Path,
+        enabled: bool,
+        axes_only: bool,
+    ) -> int:
+        assert in_map == out_map
+        assert enabled is True
+        assert axes_only is False
+        return int(scripts.RadianceScriptExit.OK)
+
+    monkeypatch.setattr(scripts, "_run_python_module", fake_python_module)
+    monkeypatch.setattr(scripts, "_prepare_static_scene", fake_prepare_static_scene)
+    monkeypatch.setattr(scripts, "_build_octree", fake_build_octree)
+    monkeypatch.setattr(scripts, "_trace_ppfd", fake_trace_ppfd)
+    monkeypatch.setattr(scripts, "_trace_plant_surface_receivers", fake_trace_plant_receivers)
+    monkeypatch.setattr(scripts, "_symmetrize_if_requested", fake_symmetrize)
+
+    assert scripts.run_simulation_smd(env) == int(scripts.RadianceScriptExit.OK)
+
+    runtime = tmp_path / "runtime_state"
+    surface_flux = json.loads(
+        (runtime / "plant_surface_flux.json").read_text(encoding="utf-8")
+    )
+    spectral_absorption = json.loads(
+        (runtime / "plant_spectral_absorption.json").read_text(encoding="utf-8")
+    )
+    active_bands = [
+        band
+        for band in surface_flux["banded_transport_bands"]
+        if band["receiver_trace_required"]
+    ]
+    expected_octree_count = 1 + len(active_bands)
+
+    assert len(octree_argvs) == expected_octree_count
+    assert all("smd_fspm_receiver.oct" not in name for name in receiver_trace_octrees)
+    assert len(receiver_trace_octrees) == len(active_bands)
+    assert surface_flux["fspm_spectral_transport_mode"] == "banded_5"
+    assert surface_flux["receiver_trace_count"] == len(active_bands)
+    assert surface_flux["banded_transport_active_trace_count"] == len(active_bands)
+    assert surface_flux["receiver_granularity"] == "leaf_centroid"
+    assert surface_flux["par_band_ids"] == ["blue", "green", "orange", "red"]
+    assert surface_flux["epar_band_ids"] == [
+        "blue",
+        "green",
+        "orange",
+        "red",
+        "far_red",
+    ]
+    assert any(
+        band["band_id"] == "far_red"
+        and band["receiver_trace_required"] is False
+        and band["receiver_trace_executed"] is False
+        for band in surface_flux["banded_transport_bands"]
+    )
+    assert all(
+        band["source_scale_applied_once"] is True
+        for band in surface_flux["banded_transport_bands"]
+    )
+    assert spectral_absorption["fspm_spectral_transport_mode"] == "banded_5"
+    assert spectral_absorption["receiver_trace_count"] == len(active_bands)
+    assert spectral_absorption["receiver_sample_count"] == surface_flux[
+        "receiver_sample_count"
+    ]
+    assert spectral_absorption["receiver_granularity"] == surface_flux[
+        "receiver_granularity"
+    ]
+    assert spectral_absorption["leaf_radiance_material_mode"] == surface_flux[
+        "leaf_radiance_material_mode"
+    ]
+    assert spectral_absorption["leaf_material_profile_id"] == surface_flux[
+        "leaf_material_profile_id"
+    ]
+    assert spectral_absorption["leaf_material_weighting_basis"] == (
+        "band_source_weighted"
+    )
+    assert spectral_absorption["source_spectral_basis"] == surface_flux[
+        "source_spectral_basis"
+    ]
+    assert spectral_absorption["optical_profile"]["profile_id"] == surface_flux[
+        "leaf_material_profile_id"
+    ]
+    assert spectral_absorption["source_spectrum"]["distribution_id"] == surface_flux[
+        "leaf_material_source_spectrum_id"
+    ]
+    assert spectral_absorption["crop_summary"]["incident_par_ppfd_umol_m2_s"] == (
+        pytest.approx(surface_flux["raw_mean_flux_density_umol_m2_s"])
+    )
+    assert spectral_absorption["crop_summary"][
+        "scalar_incident_par_ppfd_umol_m2_s"
+    ] == pytest.approx(surface_flux["raw_mean_flux_density_umol_m2_s"])
+    assert spectral_absorption["crop_summary"]["absorbed_fraction"] > 0.0
+    assert spectral_absorption["crop_summary"]["reflected_fraction"] > 0.0
+    assert spectral_absorption["crop_summary"]["transmitted_fraction"] > 0.0
+    assert (
+        spectral_absorption["crop_summary"]["incident_epar_ppfd_umol_m2_s"]
+        >= spectral_absorption["crop_summary"]["incident_par_ppfd_umol_m2_s"]
+    )
+
+
 def test_static_room_octree_keeps_baseline_and_fspm_receiver_inputs_separate(
     tmp_path: Path,
 ) -> None:
@@ -757,6 +965,31 @@ def test_rex_source_weighted_leaf_material_is_receiver_scene_only(
             + metadata["leaf_material_effective_transmittance"]
         )
     )
+
+
+def test_banded_transport_requires_rex_material_and_profile(tmp_path: Path) -> None:
+    env = _base_env(tmp_path)
+    env.update(
+        {
+            "FSPM_SPECTRAL_TRANSPORT_MODE": "banded_5",
+            "RADIANCE_CURVE_DATA_ROOT": str(tmp_path / "empty_curve_data"),
+        }
+    )
+    config = scripts._runtime_config(env)
+
+    with pytest.raises(ValueError, match="requires FSPM_LEAF_RADIANCE_MATERIAL_MODE"):
+        scripts._prepare_banded_transport_plan(config, spectral_mode="smd")
+
+    env.update(
+        {
+            "FSPM_LEAF_RADIANCE_MATERIAL_MODE": (
+                LEAF_RADIANCE_MATERIAL_MODE_REX_SOURCE_WEIGHTED_TRANS
+            )
+        }
+    )
+    config = scripts._runtime_config(env)
+    with pytest.raises(ValueError, match="FSPM_LEAF_OPTICAL_PROFILE_ID is required"):
+        scripts._prepare_banded_transport_plan(config, spectral_mode="smd")
 
 
 def test_live_workspace_sync_shell_optionally_copies_plant_artifacts(

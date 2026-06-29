@@ -1118,7 +1118,7 @@ Runtime impact:
 * `rex_source_weighted_trans` still performs one FSPM receiver trace. It may
   make individual Radiance rays more expensive, but it does not multiply
   receiver traces.
-* Level 3 `banded_5` remains unimplemented.
+* Level 3 `banded_5` execution is implemented later in Step 4.18.
 
 Validation:
 
@@ -1181,14 +1181,13 @@ Zero-source band policy:
 
 Runtime impact:
 
-* Level 3A does not implement full five-band live Radiance execution.
-* `banded_5` is accepted by config parsing and reported as scaffold-only if a
-  live receiver run tries to execute it before Level 3B.
+* Level 3A did not implement full five-band live Radiance execution.
+* Step 4.18 implements the live `banded_5` receiver execution path.
 * No band-specific receiver `.rad` files are written in Level 3A.
 * No baseline PPFD/uniformity octree inputs are changed.
 * No duplicate receiver tracing is introduced.
 
-Remaining Level 3B work:
+Remaining Level 3B work at the end of Step 4.17, later completed in Step 4.18:
 
 * Write band-specific receiver `.rad` files.
 * Scale receiver transport per band.
@@ -1212,6 +1211,110 @@ Validation results:
   with existing third-party matplotlib/pyparsing deprecation warnings.
 * CLI orchestration tests: passed, 28 tests, with existing third-party
   matplotlib/pyparsing deprecation warnings.
+* Focused Python Ruff check: passed.
+* `git diff --check`: passed.
+
+### Step 4.18 — Level 3B Five-Band Receiver Execution
+
+Status: complete.
+
+Implemented behavior:
+
+* `FSPM_SPECTRAL_TRANSPORT_MODE=scalar_source_weighted` keeps the existing
+  Level 2 single-trace behavior.
+* `FSPM_SPECTRAL_TRANSPORT_MODE=banded_5` now runs one FSPM receiver trace per
+  active source band.
+* `banded_5` requires
+  `FSPM_LEAF_RADIANCE_MATERIAL_MODE=rex_source_weighted_trans` and
+  `FSPM_LEAF_OPTICAL_PROFILE_ID=rex_green_butterhead_mature_leaf_optics_v1`.
+* Each active band writes a receiver-only plant Radiance file with that band's
+  Rex `trans` material and builds a band-specific plant-inclusive FSPM receiver
+  octree.
+* The same receiver sample set is reused across active bands.
+* The scalar receiver trace is not run in addition to the band traces.
+* Zero-source bands skip material fitting and receiver tracing, remain present
+  in metadata, and set `receiver_trace_required: false`.
+
+Aggregation behavior:
+
+* Source scaling is applied exactly once to each band trace result using
+  `source_photon_fraction_relative_to_par`.
+* `plant_surface_flux.json` in `banded_5` derives PAR aggregate incident fields
+  from blue + green + orange + red band receiver rows.
+* Far-red is included in ePAR summaries but not PAR surface flux.
+* `plant_spectral_absorption.json` aggregates from the banded receiver rows and
+  reports band-level incident, absorbed, reflected, and transmitted PFD
+  summaries, absorbed PAR, absorbed ePAR, and band effective R/T/A metadata.
+* Banded PAR summaries use blue + green + orange + red. Banded ePAR summaries
+  use PAR + far-red. Generic absorbed/reflected/transmitted fraction keys use
+  PAR as their documented basis and retain explicit ePAR fraction keys.
+* `plant_spectral_absorption.json` exposes the panel/report-compatible aliases
+  `scalar_incident_par_ppfd_umol_m2_s`, `absorbed_fraction`,
+  `reflected_fraction`, `transmitted_fraction`, nested `optical_profile`, and
+  nested `source_spectrum`.
+
+Manual validation bug found after the first Level 3B implementation:
+
+* `plant_surface_flux.json` was correct for `banded_5`, including receiver
+  sample count, active trace count, and leaf material mode.
+* `plant_spectral_absorption.json` contained correct band incident and absorbed
+  values, but omitted scalar-compatible panel/report aliases and nested
+  optical/source metadata.
+* The FSPM panel therefore read `scalar_incident_par_ppfd_umol_m2_s` and
+  generic fraction fields as missing, displayed incident PAR and fractions as
+  zero, and displayed optical/source metadata as unavailable.
+* The fix is metadata and aggregation/reporting compatibility only. The banded
+  receiver execution loop remains one FSPM receiver trace per active band, and
+  the scalar receiver trace is not run in addition to those band traces.
+
+Baseline isolation:
+
+* `_octree_scene_inputs()` remains plant-free.
+* Baseline PPFD/uniformity octree inputs, heatmaps, fixture overlays, 3D
+  scatter, and assembly-viewer heatmap overlays are not multiplied by band
+  count.
+* Only the FSPM receiver transport loop multiplies by active spectral band.
+
+Manual live test instructions:
+
+```bash
+FSPM_LEAF_OPTICAL_PROFILE_ID=rex_green_butterhead_mature_leaf_optics_v1
+FSPM_LEAF_RADIANCE_MATERIAL_MODE=rex_source_weighted_trans
+FSPM_SPECTRAL_TRANSPORT_MODE=banded_5
+FSPM_RECEIVER_GRANULARITY=leaf_quadrature_4
+```
+
+Remaining work:
+
+* Live comparison of scalar Level 2 versus banded Level 3.
+* Optional `mesh_patch` reference runs.
+* Live retest of the FSPM panel and CSV/report outputs after the aggregation
+  alias fix.
+* Full 1 nm hyperspectral Radiance transport remains out of scope.
+
+Validation:
+
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_phase125b_cli_orchestration.py::test_smd_banded_transport_traces_active_bands_without_scalar_receiver tests/radiance/test_plant_spectral_absorption.py::test_banded_spectral_absorption_aggregates_par_and_epar`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_spectral_absorption.py::test_banded_spectral_absorption_aggregates_par_and_epar tests/radiance/test_phase125b_cli_orchestration.py::test_smd_banded_transport_traces_active_bands_without_scalar_receiver tests/radiance/test_assembly_scene.py::test_fspm_panel_reads_banded_spectral_absorption_aliases`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_phase125b_cli_orchestration.py tests/radiance/test_plant_spectral_absorption.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_assembly_scene.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_leaf_materials.py tests/radiance/test_plant_spectral_absorption.py tests/radiance/test_plant_surface_flux_artifact.py tests/radiance/test_plant_optical_profiles.py tests/radiance/test_fspm_baseline_octree.py tests/radiance/test_phase125b_cli_orchestration.py tests/radiance/test_import_boundaries.py tests/radiance/test_config_contracts.py`
+* `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance/cli/scripts.py src/rad_rebuild/radiance/engine/plants/leaf_materials.py src/rad_rebuild/radiance/engine/plants/spectral_absorption.py src/rad_rebuild/radiance/engine/plants/surface_flux.py src/rad_rebuild/radiance/engine/plants/__init__.py tests/radiance/test_phase125b_cli_orchestration.py tests/radiance/test_plant_spectral_absorption.py tests/radiance/test_plant_leaf_materials.py tests/radiance/test_plant_surface_flux_artifact.py`
+* `git diff --check`
+
+Validation results:
+
+* Targeted Level 3B orchestration and aggregation tests: passed, 2 tests.
+* Targeted Level 3B aggregation and FSPM panel alias regression tests: passed,
+  3 tests.
+* CLI orchestration and spectral absorption tests: passed, 38 tests, with
+  existing third-party matplotlib/pyparsing deprecation warnings.
+* Assembly/FSPM panel, backend metrics, and CSV/report tests: passed, 78 tests,
+  with existing third-party matplotlib/pyparsing deprecation warnings.
+* Requested material, spectral absorption, receiver, optical profile,
+  baseline-octree, orchestration, import, and config tests: passed, 100 tests
+  and 39 subtests, with existing third-party matplotlib/pyparsing deprecation
+  warnings.
 * Focused Python Ruff check: passed.
 * `git diff --check`: passed.
 

@@ -23,6 +23,7 @@ from rad_rebuild.radiance.engine.plants.spectral_absorption import (  # noqa: E4
     PLANT_SPECTRAL_ABSORPTION_FILENAME,
     PLANT_SPECTRAL_ABSORPTION_SCHEMA,
     SOURCE_SPECTRAL_BASIS_BAND_FRACTION_LEGACY,
+    build_banded_plant_spectral_absorption_payload,
     build_plant_spectral_absorption_payload,
     leaf_optical_profile_from_env,
     wavelength_photon_distribution_from_band_fractions,
@@ -259,6 +260,147 @@ def test_spectral_absorption_payload_contains_profile_metadata_and_basis_audit()
         > 0.0
     )
     assert "yield" in payload["outputs_do_not_predict"]
+
+
+def test_banded_spectral_absorption_aggregates_par_and_epar() -> None:
+    surface_flux_payload = {
+        **_surface_flux_payload(density=300.0, area=2.0),
+        "receiver_trace_count": 3,
+        "fspm_spectral_transport_mode": "banded_5",
+        "band_scaling_basis": "source_band_photon_fraction_relative_to_par",
+        "banded_transport_band_count": 5,
+        "banded_transport_active_trace_count": 3,
+        "par_band_ids": ["blue", "green", "orange", "red"],
+        "epar_band_ids": ["blue", "green", "orange", "red", "far_red"],
+        "scalar_flux_basis": "par_ppfd_umol_m2_s",
+        "leaf_radiance_material_mode": "rex_source_weighted_trans",
+        "leaf_material_weighting_basis": "band_source_weighted",
+        "leaf_material_profile_id": "fake_profile",
+        "leaf_material_profile_version": "test",
+        "leaf_material_source_spectrum_id": "fake_spd",
+        "leaf_material_source_spectrum_source": "unit_test",
+        "source_spectrum_id": "fake_spd",
+        "source_spectrum_source": "unit_test",
+        "source_spectral_basis": "wavelength_resolved_spd",
+        "source_spectrum_basis": "wavelength_resolved_spd",
+        "banded_transport_bands": [
+            {
+                "band_id": "blue",
+                "wavelength_min_nm": 400,
+                "wavelength_max_nm": 499,
+                "included_in_par": True,
+                "included_in_epar": True,
+                "source_photon_fraction_relative_to_par": 0.2,
+                "band_has_source_photons": True,
+                "receiver_trace_required": True,
+                "receiver_trace_executed": True,
+                "effective_reflectance": 0.1,
+                "effective_transmittance": 0.2,
+                "effective_absorptance": 0.7,
+            },
+            {
+                "band_id": "red",
+                "wavelength_min_nm": 625,
+                "wavelength_max_nm": 699,
+                "included_in_par": True,
+                "included_in_epar": True,
+                "source_photon_fraction_relative_to_par": 0.8,
+                "band_has_source_photons": True,
+                "receiver_trace_required": True,
+                "receiver_trace_executed": True,
+                "effective_reflectance": 0.3,
+                "effective_transmittance": 0.1,
+                "effective_absorptance": 0.6,
+            },
+            {
+                "band_id": "far_red",
+                "wavelength_min_nm": 700,
+                "wavelength_max_nm": 750,
+                "included_in_par": False,
+                "included_in_epar": True,
+                "source_photon_fraction_relative_to_par": 0.5,
+                "band_has_source_photons": True,
+                "receiver_trace_required": True,
+                "receiver_trace_executed": True,
+                "effective_reflectance": 0.4,
+                "effective_transmittance": 0.2,
+                "effective_absorptance": 0.4,
+            },
+        ],
+    }
+    row_template = {
+        "surface_id": "plant_000_leaf_000_face_0000",
+        "plant_id": "plant_000",
+        "leaf_id": "plant_000_leaf_000",
+        "area_m2": 2.0,
+    }
+
+    payload = build_banded_plant_spectral_absorption_payload(
+        surface_flux_payload,
+        {
+            "blue": [
+                {
+                    **row_template,
+                    "incident_photon_flux_density_umol_m2_s": 20.0,
+                    "incident_photon_flux_umol_s": 40.0,
+                }
+            ],
+            "red": [
+                {
+                    **row_template,
+                    "incident_photon_flux_density_umol_m2_s": 80.0,
+                    "incident_photon_flux_umol_s": 160.0,
+                }
+            ],
+            "far_red": [
+                {
+                    **row_template,
+                    "incident_photon_flux_density_umol_m2_s": 50.0,
+                    "incident_photon_flux_umol_s": 100.0,
+                }
+            ],
+        },
+        surface_flux_payload,
+    )
+    crop = payload["crop_summary"]
+
+    assert payload["fspm_spectral_transport_mode"] == "banded_5"
+    assert payload["leaf_radiance_material_mode"] == "rex_source_weighted_trans"
+    assert payload["leaf_material_weighting_basis"] == "band_source_weighted"
+    assert payload["leaf_material_profile_id"] == "fake_profile"
+    assert payload["leaf_material_profile_version"] == "test"
+    assert payload["leaf_material_source_spectrum_id"] == "fake_spd"
+    assert payload["leaf_material_source_spectrum_source"] == "unit_test"
+    assert payload["source_spectral_basis"] == "wavelength_resolved_spd"
+    assert payload["source_spectrum_basis"] == "wavelength_resolved_spd"
+    assert payload["optical_profile"] == {
+        "profile_id": "fake_profile",
+        "profile_version": "test",
+    }
+    assert payload["source_spectrum"]["distribution_id"] == "fake_spd"
+    assert payload["source_spectrum"]["source_spectral_basis"] == (
+        "wavelength_resolved_spd"
+    )
+    assert payload["receiver_trace_count"] == 3
+    assert crop["area_m2"] == pytest.approx(2.0)
+    assert crop["scalar_incident_par_ppfd_umol_m2_s"] == pytest.approx(100.0)
+    assert crop["incident_par_ppfd_umol_m2_s"] == pytest.approx(100.0)
+    assert crop["incident_epar_ppfd_umol_m2_s"] == pytest.approx(150.0)
+    assert crop["absorbed_blue_ppfd_umol_m2_s"] == pytest.approx(14.0)
+    assert crop["absorbed_red_ppfd_umol_m2_s"] == pytest.approx(48.0)
+    assert crop["absorbed_far_red_ppfd_umol_m2_s"] == pytest.approx(20.0)
+    assert crop["absorbed_par_ppfd_umol_m2_s"] == pytest.approx(62.0)
+    assert crop["absorbed_epar_ppfd_umol_m2_s"] == pytest.approx(82.0)
+    assert crop["reflected_par_ppfd_umol_m2_s"] == pytest.approx(26.0)
+    assert crop["reflected_epar_ppfd_umol_m2_s"] == pytest.approx(46.0)
+    assert crop["transmitted_par_ppfd_umol_m2_s"] == pytest.approx(12.0)
+    assert crop["transmitted_epar_ppfd_umol_m2_s"] == pytest.approx(22.0)
+    assert crop["fraction_basis"] == "par"
+    assert crop["absorbed_fraction"] == pytest.approx(0.62)
+    assert crop["reflected_fraction"] == pytest.approx(0.26)
+    assert crop["transmitted_fraction"] == pytest.approx(0.12)
+    assert crop["absorbed_fraction_of_incident_par"] == pytest.approx(0.62)
+    assert crop["absorbed_fraction_of_incident_epar"] == pytest.approx(82.0 / 150.0)
 
 
 def test_legacy_band_fraction_fallback_is_explicitly_labeled() -> None:

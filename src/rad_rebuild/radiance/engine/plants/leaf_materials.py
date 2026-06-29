@@ -194,10 +194,15 @@ class BandedTransportMaterialPlan:
             "par_band_ids": list(PAR_BAND_IDS),
             "epar_band_ids": list(EPAR_BAND_IDS),
             "scalar_flux_basis": self.distribution.scalar_flux_basis,
+            "leaf_material_weighting_basis": LEAF_MATERIAL_WEIGHTING_BASIS_BAND_SOURCE_WEIGHTED,
             "leaf_material_profile_id": self.profile.profile_id,
             "leaf_material_profile_version": self.profile.profile_version,
+            "leaf_material_source_spectrum_id": self.distribution.distribution_id,
+            "leaf_material_source_spectrum_source": self.distribution.source,
             "source_spectrum_id": self.distribution.distribution_id,
             "source_spectrum_source": self.distribution.source,
+            "source_spectral_basis": self.distribution.source_spectral_basis,
+            "source_spectrum_basis": self.distribution.source_spectral_basis,
         }
 
 
