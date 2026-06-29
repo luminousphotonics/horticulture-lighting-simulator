@@ -1033,6 +1033,37 @@ Validation results:
 * ESLint and TypeScript checks: passed.
 * `git diff --check`: passed.
 
+### Step 4.15 — Transmissive Leaf Material Design Spike
+
+Status: complete.
+
+Design artifact:
+
+* `docs/engineering/FSPM_TRANSMISSIVE_LEAF_MATERIAL_DESIGN.md`
+
+Recommendations:
+
+* Implement Level 2 before Level 3.
+* Add `FSPM_LEAF_RADIANCE_MATERIAL_MODE=opaque_occluder | rex_source_weighted_trans`, defaulting to `opaque_occluder`.
+* Keep Level 2 scoped to the FSPM receiver scene only; baseline PPFD/uniformity scene inputs must remain room plus emitters only.
+* Use PAR 400-700 nm source-weighted Rex reflectance/transmittance/absorptance for Level 2 because the current scalar receiver trace is PAR PPFD.
+* Treat first-pass Radiance leaf transmission as diffuse-only unless reviewed data support specular transmission.
+* Keep `plant_spectral_absorption.json` as the detailed wavelength/band absorbed/reflected/transmitted photon-flux artifact.
+* Add `FSPM_SPECTRAL_TRANSPORT_MODE=scalar_source_weighted | banded_5` for Level 3 after Level 2 is stable.
+
+Next recommended implementation step:
+
+* Implement Level 2 `opaque_occluder` default parsing and `rex_source_weighted_trans` receiver-scene material export behind the opt-in flag, with artifact metadata and tests proving baseline PPFD/uniformity artifacts are unchanged.
+
+Validation:
+
+* `git diff --check`
+
+Validation results:
+
+* `git diff --check`: passed.
+* No Markdown-specific lint script is defined in `package.json`.
+
 ### Step 5 — Workshop Demo Hardening
 
 Status: pending.
