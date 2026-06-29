@@ -26,7 +26,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Physics",
 ]
 dependencies = [
-    "fastapi==0.137.1",
+    "fastapi==0.138.1",
     "Flask==3.1.3",
     "numpy==1.26.4",
     "pillow==12.2.0",
