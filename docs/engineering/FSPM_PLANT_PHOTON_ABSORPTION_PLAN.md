@@ -1371,6 +1371,123 @@ Validation results:
 * Focused Python Ruff check: passed.
 * `git diff --check`: passed.
 
+### Step 4.20 — Radiance Quality And Runtime Settings Audit
+
+Status: complete.
+
+Scope:
+
+* Audited current Radiance quality/runtime settings only.
+* No simulation physics, default Radiance parameters, Rex optics data, receiver
+  generation math, or baseline PPFD/uniformity artifacts were changed.
+* No new quality presets were implemented in this pass.
+
+Current effective trace command shape:
+
+* Baseline PPFD/uniformity uses ASCII `rtrace -h -I+ -n <nthreads>
+  <preset-options> -af <ambient-file> <octree>`.
+* Scalar FSPM receiver traces use ASCII `rtrace -h -I+ -n <nthreads>
+  <preset-options> -af <ambient-file> <plant-inclusive-receiver-octree>`.
+* Level 3 `banded_5` receiver traces use the same ASCII `rtrace -h -I+`
+  command shape once per active source band. All active bands receive the same
+  preset options and `-n` value; only the band material, band octree path,
+  receiver output file, and normal default ambient-file path differ.
+* If `FSPM_RTRACE_NPROC` is unset, FSPM receiver traces keep the same `-n`
+  policy as the calling baseline pass. If set, `banded_5` receiver traces use
+  that value for `-n`.
+* `FSPM_RTRACE_AMBIENT_MODE=default` preserves current ambient-file behavior.
+  `per_band_af` only substitutes a per-band `-af` path when ambient bounces are
+  active and configured FSPM receiver `nproc` is greater than 1.
+* Input format is plain text receiver/ray rows from stdin. Output format is
+  plain text Radiance RGB rows to stdout; no `-f` binary input/output format is
+  selected.
+* Octrees are built with `oconv` and captured to `.oct` files. Baseline octrees
+  use room plus emitters only. FSPM receiver octrees add plant geometry or the
+  band-specific receiver plant material geometry. Frozen-room paths may pass
+  `oconv -f -i <static-room-oct> <emitters> <plants>`.
+
+Existing quality preset map:
+
+| Mode token | Effective preset | `-ab` | `-ad` | `-as` | `-aa` | `-ar` | `-lw` | `-lr` | `-st` | `-sj` | `-dt` | `-dc` | `-dr` | `-dp` |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | ---: | ---: | ---: | --- |
+| `direct` | `direct` | 0 | omitted | omitted | 0 | omitted | `1e-5` | 0 | omitted | omitted | 0 | 1.0 | 0 | omitted |
+| `standard`, `instant`, `fast`, empty public quality alias | `standard` | 3 | 512 | 128 | 0.22 | 48 | `2e-4` | 6 | omitted | omitted | 0.08 | 0.50 | 1 | omitted |
+| `quality` | `quality` | 5 | 2048 | 512 | 0.12 | 96 | `5e-5` | 12 | omitted | omitted | 0.03 | 0.85 | 3 | omitted |
+| `rigorous` | `rigorous` | 6 | 4096 | 1024 | 0.08 | 128 | `2e-5` | 16 | omitted | omitted | 0.02 | 0.90 | 4 | omitted |
+
+Additional preset flags:
+
+* `direct`: `-u+ -dj 0.60 -ds 0.08`.
+* `standard` / `instant` / `fast`: `-dj 0.35 -ds 0.40`.
+* `quality`: `-dj 0.65 -ds 0.20`.
+* `rigorous`: `-dj 0.70 -ds 0.15`.
+* `-n` is not part of the preset table. SMD reads `NTHREADS` when supplied and
+  otherwise uses CPU count, except `direct` uses 1. Conventional LED and HPS use
+  CPU count except `direct` uses 1. `OS` defaults to 4 for all three live
+  simulation modes.
+* `-af` is appended outside the preset table. SMD baseline uses `RAD_TMP/amb`;
+  Conventional LED and HPS use per-pass cache-root ambient files; FSPM scalar
+  receiver traces use `amb_plant_receivers_*`; `banded_5` uses one receiver
+  ambient filename per active band under the default policy.
+
+Backend quality modes:
+
+* Public request quality values canonicalize to `direct`, `standard`,
+  `quality`, or `rigorous`.
+* `instant` and `fast` are accepted aliases but resolve to `standard`.
+* SMD rtrace basis extraction reuses the same quality preset map.
+* Optional SMD `rcontrib_legacy` basis extraction derives its settings from the
+  same rtrace preset values.
+* Optional SMD `rcontrib_mcpt` basis extraction uses MCPT guidance instead of
+  the full rtrace option table: default `-ad 2048`, `-ab` from the selected
+  quality mode, `-lr` defaulting to `-(ab + 3)`, `-lw` defaulting to
+  `1 / (2 * ad)`, and `-u+`, with env overrides for
+  `SMD_RCONTRIB_MCPT_AD`, `SMD_RCONTRIB_MCPT_AB`,
+  `SMD_RCONTRIB_MCPT_LR`, and `SMD_RCONTRIB_MCPT_LW`.
+
+Baseline versus FSPM:
+
+* Baseline PPFD/uniformity and scalar FSPM receiver traces use the same
+  selected quality preset and effective Radiance options for a given run.
+* They differ in scene composition and ambient filename, not in default
+  Radiance quality settings: baseline is room plus emitters, while FSPM receiver
+  transport uses room plus emitters plus plant geometry/materials.
+* `banded_5` uses the same quality settings for all active bands in a
+  simulation. It does not run multiple quality modes or a scalar receiver trace
+  in addition to the active-band traces.
+
+Doc-only recommended names:
+
+* `dev`: map to the existing `standard` mode with
+  `FSPM_RECEIVER_GRANULARITY=leaf_quadrature_4`. This is the current practical
+  default for iteration because it includes ambient bounces without the runtime
+  cost of `quality`/`rigorous`.
+* `representative`: map to the existing `quality` mode with
+  `FSPM_RECEIVER_GRANULARITY=mesh_patch` for final/reference workshop figures
+  when runtime permits. `rigorous` remains a higher-cost spot-check option, not
+  the recommended default for figure production yet.
+
+Risks and notes for plant-inclusive transmissive FSPM scenes:
+
+* Current `standard` defaults are acceptable for fast/dev FSPM runs and
+  interactive workshop iteration, especially with `leaf_quadrature_4`.
+* Current `standard` defaults are not the preferred final/reference setting for
+  plant-inclusive transmissive scenes. Source-weighted `trans` materials and
+  five-band transport increase sensitivity to indirect/direct sampling,
+  ambient interpolation, and receiver granularity.
+* `direct` is useful only for smoke/debug cases. It disables ambient bounces and
+  should not be used for presentation metrics involving transmissive leaves or
+  plant-inclusive transport.
+* `quality` is the better current candidate for representative final workshop
+  outputs. Live comparison against `rigorous` should be done before freezing
+  final figures if runtime allows.
+* Shared/default ambient-cache behavior is preserved. For parallel banded
+  receiver traces with ambient bounces, `FSPM_RTRACE_AMBIENT_MODE=per_band_af`
+  is available to isolate active bands without changing the default.
+* A future implementation can add first-class `dev` and `representative` mode
+  names, but that should be a separate behavior-changing request because it
+  affects route contracts, run keys, and reproducibility metadata.
+
 ### Step 5 — Workshop Demo Hardening
 
 Status: in progress.
