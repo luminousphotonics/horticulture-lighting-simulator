@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import platform
 import secrets
@@ -2143,13 +2144,61 @@ def _write_snake_and_dirs(sensor_path: Path, snake_path: Path, snake_os_path: Pa
                 dirs.write(f"{x:.6f} {y:.6f} {z:.6f} 0 0 1\n")
 
 
+BASELINE_PPFD_TRANSPORT_BASIS = "canopy_plane_scalar_par_ppfd"
+BASELINE_PPFD_RGB_DECODE_METHOD = "grey_channel_average_after_equality_assertion"
+BASELINE_SOURCE_CHANNEL_POLICY = "r_equals_g_equals_b_scalar_par_ppfd_carrier"
+PPFD_CONVERSION_BASIS = "radiance_rgb_values_are_scalar_par_ppfd_no_179_luminous_conversion"
+BASELINE_PPFD_PHOTOPIC_LUMINANCE_WEIGHTING_AVOIDED = True
+BASELINE_PPFD_RGB_EQUALITY_ABS_TOL = 1e-6
+BASELINE_PPFD_RGB_EQUALITY_REL_TOL = 1e-6
+
+
+def _grey_channel_ppfd_from_rgb(
+    red: float,
+    green: float,
+    blue: float,
+    *,
+    row_number: int,
+) -> float:
+    if not (
+        math.isclose(
+            red,
+            green,
+            rel_tol=BASELINE_PPFD_RGB_EQUALITY_REL_TOL,
+            abs_tol=BASELINE_PPFD_RGB_EQUALITY_ABS_TOL,
+        )
+        and math.isclose(
+            red,
+            blue,
+            rel_tol=BASELINE_PPFD_RGB_EQUALITY_REL_TOL,
+            abs_tol=BASELINE_PPFD_RGB_EQUALITY_ABS_TOL,
+        )
+    ):
+        raise ValueError(
+            "Baseline PPFD rtrace output must use grey scalar channels "
+            f"(R=G=B). Row {row_number} had R={red:.12g}, "
+            f"G={green:.12g}, B={blue:.12g}."
+        )
+    return (red + green + blue) / 3.0
+
+
 def _aggregate_rgb_to_ppfd(snake_os_path: Path, rgb_path: Path, out_map: Path, oversample: int) -> None:
     snake = _read_points(snake_os_path)
     rgb_values: list[float] = []
-    for line in rgb_path.read_text(encoding="utf-8").splitlines():
+    for row_number, line in enumerate(rgb_path.read_text(encoding="utf-8").splitlines(), start=1):
         parts = line.split()
         if len(parts) >= 3:
-            rgb_values.append((float(parts[-3]) + float(parts[-2]) + float(parts[-1])) / 3.0)
+            red = float(parts[-3])
+            green = float(parts[-2])
+            blue = float(parts[-1])
+            rgb_values.append(
+                _grey_channel_ppfd_from_rgb(
+                    red,
+                    green,
+                    blue,
+                    row_number=row_number,
+                )
+            )
     sums: dict[int, float] = {}
     counts: dict[int, int] = {}
     coords: dict[int, tuple[float, float, float]] = {}
@@ -2291,7 +2340,27 @@ def _trace_ppfd(
             )
         )
         return propagated
-    _aggregate_rgb_to_ppfd(snake_os, rgb_path, out_map, oversample)
+    try:
+        _aggregate_rgb_to_ppfd(snake_os, rgb_path, out_map, oversample)
+    except ValueError as exc:
+        rgb_path.unlink(missing_ok=True)
+        _print_event(
+            ScriptEvent(
+                "error",
+                "radiance.ppfd_rgb_decode.invalid",
+                str(exc),
+                {
+                    "baseline_ppfd_transport_basis": BASELINE_PPFD_TRANSPORT_BASIS,
+                    "baseline_ppfd_rgb_decode_method": BASELINE_PPFD_RGB_DECODE_METHOD,
+                    "baseline_source_channel_policy": BASELINE_SOURCE_CHANNEL_POLICY,
+                    "ppfd_conversion_basis": PPFD_CONVERSION_BASIS,
+                    "photopic_luminance_weighting_avoided": (
+                        BASELINE_PPFD_PHOTOPIC_LUMINANCE_WEIGHTING_AVOIDED
+                    ),
+                },
+            )
+        )
+        return int(RadianceScriptExit.VALIDATION)
     rgb_path.unlink(missing_ok=True)
     _print_event(ScriptEvent("info", "command.succeeded", "command succeeded", {"command": "rtrace", "exit_code": 0}))
     print(f"✔ Wrote {out_map}")

@@ -350,6 +350,21 @@ def test_ppfd_map_field_bilinear_interpolation(tmp_path) -> None:
     assert field.sample(-1, -1) == pytest.approx(200)
     assert field.sample(1, 1) == pytest.approx(1000)
     assert field.sample(0, 0) == pytest.approx(550)
+    assert field.summary()["baseline_ppfd_transport_basis"] == (
+        "canopy_plane_scalar_par_ppfd"
+    )
+    assert field.summary()["baseline_ppfd_rgb_decode_method"] == (
+        "grey_channel_average_after_equality_assertion"
+    )
+    assert field.summary()["baseline_source_channel_policy"] == (
+        "r_equals_g_equals_b_scalar_par_ppfd_carrier"
+    )
+    assert field.summary()["ppfd_conversion_basis"] == (
+        "radiance_rgb_values_are_scalar_par_ppfd_no_179_luminous_conversion"
+    )
+    assert field.summary()["photopic_luminance_weighting_avoided"] is True
+    assert field.summary()["uses_179_luminous_efficacy_factor"] is False
+    assert field.summary()["uses_falsecolor_or_illuminance_conversion"] is False
 
 
 def test_ppfd_map_target_classification_keeps_all_values_in_range(tmp_path) -> None:

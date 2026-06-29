@@ -350,6 +350,77 @@ def test_trace_ppfd_uses_unique_rgb_temp_file(
     assert not seen_rgb_paths[-1].exists()
 
 
+def test_aggregate_rgb_to_ppfd_accepts_only_grey_scalar_channels(tmp_path: Path) -> None:
+    sensors = tmp_path / "sensors.txt"
+    rgb = tmp_path / "trace.rgb"
+    out_map = tmp_path / "ppfd_map.txt"
+    sensors.write_text("0 0 0\n1 0 0\n", encoding="utf-8")
+    rgb.write_text("10.0 10.0 10.0\n20.0 20.0 20.0\n", encoding="utf-8")
+
+    scripts._aggregate_rgb_to_ppfd(sensors, rgb, out_map, oversample=1)
+
+    assert out_map.read_text(encoding="utf-8").splitlines() == [
+        "0.000000 0.000000 0.000000 10.000000",
+        "1.000000 0.000000 0.000000 20.000000",
+    ]
+
+
+def test_aggregate_rgb_to_ppfd_rejects_non_grey_channels(tmp_path: Path) -> None:
+    sensors = tmp_path / "sensors.txt"
+    rgb = tmp_path / "trace.rgb"
+    out_map = tmp_path / "ppfd_map.txt"
+    sensors.write_text("0 0 0\n", encoding="utf-8")
+    rgb.write_text("10.0 9.0 11.0\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must use grey scalar channels"):
+        scripts._aggregate_rgb_to_ppfd(sensors, rgb, out_map, oversample=1)
+
+    assert not out_map.exists()
+
+
+def test_trace_ppfd_reports_non_grey_rgb_as_validation_error(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    env = _base_env(tmp_path)
+    config = scripts._runtime_config(env)
+    dirs = tmp_path / "dirs.txt"
+    sensors = tmp_path / "sensors.txt"
+    octree = tmp_path / "scene.oct"
+    out_map = tmp_path / "ppfd_map.txt"
+    dirs.write_text("0 0 1\n", encoding="utf-8")
+    sensors.write_text("0 0 0\n", encoding="utf-8")
+    octree.write_text("octree\n", encoding="utf-8")
+
+    def fake_run(*_args: Any, stdout: Any, **_kwargs: Any) -> subprocess.CompletedProcess[list[str]]:
+        stdout.write("10.0 9.0 11.0\n")
+        return subprocess.CompletedProcess(["rtrace"], 0)
+
+    monkeypatch.setattr(scripts.shutil, "which", lambda _name: "/usr/bin/rtrace")
+    monkeypatch.setattr(scripts.subprocess, "run", fake_run)
+
+    result = scripts._trace_ppfd(
+        config,
+        octree=octree,
+        dirs=dirs,
+        snake_os=sensors,
+        out_map=out_map,
+        oversample=1,
+        nthreads=1,
+        options=(),
+        tag="smd",
+    )
+
+    assert result == int(scripts.RadianceScriptExit.VALIDATION)
+    event = _events(capsys.readouterr().err)[-1]
+    assert event["code"] == "radiance.ppfd_rgb_decode.invalid"
+    assert event["details"]["baseline_ppfd_rgb_decode_method"] == (
+        "grey_channel_average_after_equality_assertion"
+    )
+    assert event["details"]["photopic_luminance_weighting_avoided"] is True
+
+
 def test_basis_sampling_grid_requires_manifest(tmp_path: Path) -> None:
     basis_dir = tmp_path / "basis"
     basis_dir.mkdir()

@@ -37,6 +37,11 @@ BASELINE_PPFD_PROXY_METHOD = "baseline_ppfd_mean_orientation_proxy_v1"
 SPATIAL_PPFD_PROXY_METHOD = "baseline_ppfd_spatial_interpolation_orientation_proxy_v1"
 RADIANCE_RECEIVER_METHOD = "radiance_leaf_surface_receiver_sampling_v1"
 NO_CROP_OUTPUT_TERMS = ["yield", "biomass", "growth", "crop_output"]
+BASELINE_PPFD_TRANSPORT_BASIS = "canopy_plane_scalar_par_ppfd"
+BASELINE_PPFD_RGB_DECODE_METHOD = "grey_channel_average_after_equality_assertion"
+BASELINE_SOURCE_CHANNEL_POLICY = "r_equals_g_equals_b_scalar_par_ppfd_carrier"
+PPFD_CONVERSION_BASIS = "radiance_rgb_values_are_scalar_par_ppfd_no_179_luminous_conversion"
+BASELINE_PPFD_PHOTOPIC_LUMINANCE_WEIGHTING_AVOIDED = True
 FSPM_RECEIVER_GRANULARITY_ENV = "FSPM_RECEIVER_GRANULARITY"
 RECEIVER_GRANULARITY_LEAF_CENTROID = "leaf_centroid"
 RECEIVER_GRANULARITY_LEAF_QUADRATURE_4 = "leaf_quadrature_4"
@@ -370,6 +375,15 @@ class PpfdMapField:
             "mean_umol_m2_s": self.mean_umol_m2_s,
             "min_umol_m2_s": self.min_umol_m2_s,
             "max_umol_m2_s": self.max_umol_m2_s,
+            "baseline_ppfd_transport_basis": BASELINE_PPFD_TRANSPORT_BASIS,
+            "baseline_ppfd_rgb_decode_method": BASELINE_PPFD_RGB_DECODE_METHOD,
+            "baseline_source_channel_policy": BASELINE_SOURCE_CHANNEL_POLICY,
+            "ppfd_conversion_basis": PPFD_CONVERSION_BASIS,
+            "photopic_luminance_weighting_avoided": (
+                BASELINE_PPFD_PHOTOPIC_LUMINANCE_WEIGHTING_AVOIDED
+            ),
+            "uses_179_luminous_efficacy_factor": False,
+            "uses_falsecolor_or_illuminance_conversion": False,
         }
 
 
