@@ -117,6 +117,7 @@ from rad_rebuild.radiance.engine.plants.spectral import (
     default_leafy_green_spectral_bands,
 )
 from rad_rebuild.radiance.engine.plants.spectral_absorption import (
+    DEFAULT_FSPM_LEAF_OPTICAL_PROFILE_ID,
     FSPM_LEAF_OPTICAL_PROFILE_ID_ENV,
     PLANT_SPECTRAL_ABSORPTION_FILENAME,
     PLANT_SPECTRAL_ABSORPTION_METHOD,
@@ -234,6 +235,7 @@ __all__ = [
     "fixture_spectral_distribution_from_curve_data",
     "parse_spectral_photon_fraction_overrides",
     "write_plant_spectral_response_artifact",
+    "DEFAULT_FSPM_LEAF_OPTICAL_PROFILE_ID",
     "FSPM_LEAF_OPTICAL_PROFILE_ID_ENV",
     "PLANT_SPECTRAL_ABSORPTION_FILENAME",
     "PLANT_SPECTRAL_ABSORPTION_METHOD",

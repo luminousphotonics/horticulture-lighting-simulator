@@ -458,6 +458,13 @@ def test_builder_attaches_sanitized_fspm_panel_metrics(tmp_path: Path) -> None:
                     "absorbed_orange_ppfd_umol_m2_s": 25.0,
                     "absorbed_red_ppfd_umol_m2_s": 150.0,
                     "absorbed_far_red_ppfd_umol_m2_s": 18.0,
+                    "target_capped_absorbed_par_ppfd": 295.0,
+                    "target_capped_absorbed_epar_ppfd": 311.0,
+                    "target_capped_absorbed_par_fraction_of_raw": 0.922,
+                    "target_effective_absorbed_fraction": 0.64,
+                    "under_target_leaf_fraction": 0.0,
+                    "in_target_leaf_fraction": 0.0,
+                    "over_target_leaf_fraction": 1.0,
                     "absorbed_fraction": 0.64,
                     "reflected_fraction": 0.24,
                     "transmitted_fraction": 0.12,
@@ -484,6 +491,11 @@ def test_builder_attaches_sanitized_fspm_panel_metrics(tmp_path: Path) -> None:
         == "rex_green_butterhead_mature_leaf_optics_v1"
     )
     assert panel["modeled_spectral_absorption"]["absorbed_par_ppfd_umol_m2_s"] == 320.0
+    assert panel["modeled_spectral_absorption"]["target_capped_absorbed_par_ppfd"] == 295.0
+    assert (
+        panel["modeled_spectral_absorption"]["target_capped_absorbed_par_fraction_of_raw"]
+        == 0.922
+    )
     assert panel["modeled_spectral_absorption"]["absorbed_far_red_ppfd_umol_m2_s"] == 18.0
     assert panel["spectral_exposure"]["total_absorbed_par_photon_flux_umol_s"] == 5.0
     assert panel["photosynthetic_light_response_potential"]["local_response_p10_0_1"] == 0.58

@@ -213,6 +213,13 @@ def test_metrics_payload_includes_modeled_spectral_absorption_when_available(tmp
                     "absorbed_orange_ppfd_umol_m2_s": 14.0,
                     "absorbed_red_ppfd_umol_m2_s": 86.0,
                     "absorbed_far_red_ppfd_umol_m2_s": 14.0,
+                    "target_capped_absorbed_par_ppfd": 186.0,
+                    "target_capped_absorbed_epar_ppfd": 199.0,
+                    "target_capped_absorbed_par_fraction_of_raw": 0.979,
+                    "target_effective_absorbed_fraction": 0.63,
+                    "under_target_leaf_fraction": 0.5,
+                    "in_target_leaf_fraction": 0.5,
+                    "over_target_leaf_fraction": 0.0,
                     "absorbed_fraction": 0.63,
                     "reflected_fraction": 0.25,
                     "transmitted_fraction": 0.12,
@@ -234,4 +241,7 @@ def test_metrics_payload_includes_modeled_spectral_absorption_when_available(tmp
     assert spectral["optical_profile_id"] == "rex_green_butterhead_mature_leaf_optics_v1"
     assert spectral["source_spectral_basis"] == "wavelength_resolved_spd"
     assert spectral["absorbed_par_ppfd_umol_m2_s"] == 190.0
+    assert spectral["target_capped_absorbed_par_ppfd"] == 186.0
+    assert spectral["target_capped_absorbed_par_fraction_of_raw"] == 0.979
+    assert spectral["under_target_leaf_fraction"] == 0.5
     assert spectral["absorbed_far_red_ppfd_umol_m2_s"] == 14.0

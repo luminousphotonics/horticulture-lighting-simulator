@@ -26,6 +26,12 @@ from rad_rebuild.radiance.config import (
     overlay_for_mode as _config_overlay_for_mode,
 )
 from rad_rebuild.radiance.domain import plant_geometry_config_from_request
+from rad_rebuild.radiance.engine.plants.leaf_materials import (
+    FSPM_LEAF_RADIANCE_MATERIAL_MODE_ENV,
+    FSPM_SPECTRAL_TRANSPORT_MODE_ENV,
+)
+from rad_rebuild.radiance.engine.plants.spectral_absorption import FSPM_LEAF_OPTICAL_PROFILE_ID_ENV
+from rad_rebuild.radiance.engine.plants.surface_flux import FSPM_RECEIVER_GRANULARITY_ENV
 from rad_rebuild.radiance.fspm_targets import (
     resolve_fspm_target_ppfd,
     resolve_fspm_target_tolerance,
@@ -112,6 +118,10 @@ PLANT_ENV_KEYS = (
     "FSPM_PLANT_ABSORPTANCE",
     "FSPM_TARGET_PPFD_UMOL_M2_S",
     "FSPM_TARGET_TOLERANCE_UMOL_M2_S",
+    FSPM_RECEIVER_GRANULARITY_ENV,
+    FSPM_LEAF_OPTICAL_PROFILE_ID_ENV,
+    FSPM_LEAF_RADIANCE_MATERIAL_MODE_ENV,
+    FSPM_SPECTRAL_TRANSPORT_MODE_ENV,
 )
 
 
@@ -448,6 +458,10 @@ def _apply_plant_request_env(env: dict[str, str], req: Any) -> None:
             "FSPM_PLANT_ABSORPTANCE": f"{optical.absorptance:g}",
             "FSPM_TARGET_PPFD_UMOL_M2_S": f"{target_ppfd:g}",
             "FSPM_TARGET_TOLERANCE_UMOL_M2_S": f"{target_tolerance:g}",
+            FSPM_RECEIVER_GRANULARITY_ENV: str(req.fspm_receiver_granularity),
+            FSPM_LEAF_OPTICAL_PROFILE_ID_ENV: str(req.fspm_leaf_optical_profile_id),
+            FSPM_LEAF_RADIANCE_MATERIAL_MODE_ENV: str(req.fspm_leaf_radiance_material_mode),
+            FSPM_SPECTRAL_TRANSPORT_MODE_ENV: str(req.fspm_spectral_transport_mode),
         }
     )
 

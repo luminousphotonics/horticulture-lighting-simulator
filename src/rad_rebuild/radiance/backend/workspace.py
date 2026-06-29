@@ -139,6 +139,10 @@ PLANT_REQUEST_FINGERPRINT_FIELDS = (
     "plant_canopy_radius_m",
     "plant_leaf_count",
     "plant_growth_stage",
+    "fspm_receiver_granularity",
+    "fspm_leaf_optical_profile_id",
+    "fspm_leaf_radiance_material_mode",
+    "fspm_spectral_transport_mode",
     "fspm_target_ppfd_umol_m2_s",
     "fspm_target_tolerance_umol_m2_s",
 )
@@ -443,6 +447,12 @@ def canonical_request_fingerprint_payload(source: Any) -> dict[str, object]:
                     "plant_growth_stage",
                     plant_config.growth_stage,
                 ),
+                "fspm_receiver_granularity": str(getter("fspm_receiver_granularity", "")),
+                "fspm_leaf_optical_profile_id": str(getter("fspm_leaf_optical_profile_id", "")),
+                "fspm_leaf_radiance_material_mode": str(
+                    getter("fspm_leaf_radiance_material_mode", "")
+                ),
+                "fspm_spectral_transport_mode": str(getter("fspm_spectral_transport_mode", "")),
                 "fspm_target_ppfd_umol_m2_s": _canonical_number(
                     "fspm_target_ppfd_umol_m2_s",
                     resolve_fspm_target_ppfd(

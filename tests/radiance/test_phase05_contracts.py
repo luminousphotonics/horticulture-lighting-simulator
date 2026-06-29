@@ -25,6 +25,9 @@ from rad_rebuild.radiance.engine.simulation.precomputed_dataset import (  # noqa
     canonical_competitor_layout,
     canonical_mode,
 )
+from rad_rebuild.radiance.engine.plants.optical_profiles import (  # noqa: E402
+    REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
+)
 from rad_rebuild.radiance.settings import load_settings  # noqa: E402
 
 
@@ -87,6 +90,13 @@ class Phase05DomainContractTests(unittest.TestCase):
 
         self.assertFalse(req.plants_enabled)
         self.assertEqual(req.execution_mode, config.EXECUTION_MODE_PRECOMPUTED)
+        self.assertEqual(req.fspm_receiver_granularity, "leaf_quadrature_4")
+        self.assertEqual(
+            req.fspm_leaf_optical_profile_id,
+            REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
+        )
+        self.assertEqual(req.fspm_leaf_radiance_material_mode, "rex_source_weighted_trans")
+        self.assertEqual(req.fspm_spectral_transport_mode, "banded_5")
 
     def test_invalid_enabled_plant_config_is_rejected(self) -> None:
         invalid_cases = (
@@ -154,6 +164,13 @@ class Phase05DomainContractTests(unittest.TestCase):
         self.assertEqual(env["FSPM_PLANT_REFLECTANCE"], "0.22")
         self.assertEqual(env["FSPM_PLANT_TRANSMITTANCE"], "0.08")
         self.assertEqual(env["FSPM_PLANT_ABSORPTANCE"], "0.7")
+        self.assertEqual(env["FSPM_RECEIVER_GRANULARITY"], "leaf_quadrature_4")
+        self.assertEqual(
+            env["FSPM_LEAF_OPTICAL_PROFILE_ID"],
+            REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
+        )
+        self.assertEqual(env["FSPM_LEAF_RADIANCE_MATERIAL_MODE"], "rex_source_weighted_trans")
+        self.assertEqual(env["FSPM_SPECTRAL_TRANSPORT_MODE"], "banded_5")
 
     def test_plant_enabled_request_does_not_bypass_precomputed_mode(self) -> None:
         req = RadianceRunRequest(
@@ -222,6 +239,18 @@ class Phase05DomainContractTests(unittest.TestCase):
         )
         self.assertIn("plants_enabled", properties)
         self.assertFalse(properties["plants_enabled"]["default"])
+        self.assertEqual(
+            properties["fspm_receiver_granularity"]["enum"],
+            ["leaf_centroid", "leaf_quadrature_4", "mesh_patch"],
+        )
+        self.assertEqual(
+            properties["fspm_leaf_radiance_material_mode"]["enum"],
+            ["opaque_occluder", "rex_source_weighted_trans"],
+        )
+        self.assertEqual(
+            properties["fspm_spectral_transport_mode"]["enum"],
+            ["banded_5", "scalar_source_weighted"],
+        )
         for field_name in (
             "plant_seed",
             "plant_rows",
@@ -231,6 +260,10 @@ class Phase05DomainContractTests(unittest.TestCase):
             "plant_canopy_radius_m",
             "plant_leaf_count",
             "plant_growth_stage",
+            "fspm_receiver_granularity",
+            "fspm_leaf_optical_profile_id",
+            "fspm_leaf_radiance_material_mode",
+            "fspm_spectral_transport_mode",
         ):
             with self.subTest(field_name=field_name):
                 self.assertIn(field_name, properties)

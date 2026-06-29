@@ -824,6 +824,40 @@
             "title": "Execution Mode",
             "type": "string"
           },
+          "fspm_leaf_optical_profile_id": {
+            "default": "rex_green_butterhead_mature_leaf_optics_v1",
+            "maxLength": 128,
+            "title": "Fspm Leaf Optical Profile Id",
+            "type": "string"
+          },
+          "fspm_leaf_radiance_material_mode": {
+            "default": "rex_source_weighted_trans",
+            "enum": [
+              "opaque_occluder",
+              "rex_source_weighted_trans"
+            ],
+            "title": "Fspm Leaf Radiance Material Mode",
+            "type": "string"
+          },
+          "fspm_receiver_granularity": {
+            "default": "leaf_quadrature_4",
+            "enum": [
+              "leaf_centroid",
+              "leaf_quadrature_4",
+              "mesh_patch"
+            ],
+            "title": "Fspm Receiver Granularity",
+            "type": "string"
+          },
+          "fspm_spectral_transport_mode": {
+            "default": "banded_5",
+            "enum": [
+              "banded_5",
+              "scalar_source_weighted"
+            ],
+            "title": "Fspm Spectral Transport Mode",
+            "type": "string"
+          },
           "fspm_target_ppfd_umol_m2_s": {
             "anyOf": [
               {
@@ -1687,6 +1721,40 @@
               "live_local"
             ],
             "title": "Execution Mode",
+            "type": "string"
+          },
+          "fspm_leaf_optical_profile_id": {
+            "default": "rex_green_butterhead_mature_leaf_optics_v1",
+            "maxLength": 128,
+            "title": "Fspm Leaf Optical Profile Id",
+            "type": "string"
+          },
+          "fspm_leaf_radiance_material_mode": {
+            "default": "rex_source_weighted_trans",
+            "enum": [
+              "opaque_occluder",
+              "rex_source_weighted_trans"
+            ],
+            "title": "Fspm Leaf Radiance Material Mode",
+            "type": "string"
+          },
+          "fspm_receiver_granularity": {
+            "default": "leaf_quadrature_4",
+            "enum": [
+              "leaf_centroid",
+              "leaf_quadrature_4",
+              "mesh_patch"
+            ],
+            "title": "Fspm Receiver Granularity",
+            "type": "string"
+          },
+          "fspm_spectral_transport_mode": {
+            "default": "banded_5",
+            "enum": [
+              "banded_5",
+              "scalar_source_weighted"
+            ],
+            "title": "Fspm Spectral Transport Mode",
             "type": "string"
           },
           "fspm_target_ppfd_umol_m2_s": {
@@ -3487,6 +3555,70 @@
           },
           {
             "in": "query",
+            "name": "fspm_receiver_granularity",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fspm Receiver Granularity"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fspm_leaf_optical_profile_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fspm Leaf Optical Profile Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fspm_leaf_radiance_material_mode",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fspm Leaf Radiance Material Mode"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fspm_spectral_transport_mode",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fspm Spectral Transport Mode"
+            }
+          },
+          {
+            "in": "query",
             "name": "fspm_target_ppfd_umol_m2_s",
             "required": false,
             "schema": {
@@ -3975,6 +4107,70 @@
           },
           {
             "in": "query",
+            "name": "fspm_receiver_granularity",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fspm Receiver Granularity"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fspm_leaf_optical_profile_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fspm Leaf Optical Profile Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fspm_leaf_radiance_material_mode",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fspm Leaf Radiance Material Mode"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fspm_spectral_transport_mode",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fspm Spectral Transport Mode"
+            }
+          },
+          {
+            "in": "query",
             "name": "fspm_target_ppfd_umol_m2_s",
             "required": false,
             "schema": {
@@ -4452,6 +4648,70 @@
                 }
               ],
               "title": "Plant Growth Stage"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fspm_receiver_granularity",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fspm Receiver Granularity"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fspm_leaf_optical_profile_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fspm Leaf Optical Profile Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fspm_leaf_radiance_material_mode",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fspm Leaf Radiance Material Mode"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fspm_spectral_transport_mode",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fspm Spectral Transport Mode"
             }
           },
           {

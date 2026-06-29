@@ -87,6 +87,7 @@ export function syncFspmControls() {
     els.radPlantCanopyRadiusM,
     els.radPlantLeafCount,
     els.radPlantGrowthStage,
+    els.radFspmReceiverGranularity,
     els.radFspmTargetPpfd,
     els.radFspmTargetTolerance,
   ].filter(Boolean);
@@ -142,6 +143,7 @@ function parsePlantPayload(_mode, executionMode) {
     plantCanopyRadiusM: parseFinite(els.radPlantCanopyRadiusM, 0.18),
     plantLeafCount: parseInteger(els.radPlantLeafCount, 12),
     plantGrowthStage: parseFinite(els.radPlantGrowthStage, 1.0),
+    fspmReceiverGranularity: (els.radFspmReceiverGranularity?.value || "leaf_quadrature_4").trim(),
     fspmTargetPpfdUmolM2S: parsePositive(els.radFspmTargetPpfd, parsePositive(els.radTarget, 275)),
     fspmTargetToleranceUmolM2S: parsePositive(els.radFspmTargetTolerance, 20),
   };
@@ -223,6 +225,10 @@ export function radiancePayload(action) {
       plant_canopy_radius_m: values.plantCanopyRadiusM,
       plant_leaf_count: values.plantLeafCount,
       plant_growth_stage: values.plantGrowthStage,
+      fspm_receiver_granularity: values.fspmReceiverGranularity,
+      fspm_leaf_optical_profile_id: "rex_green_butterhead_mature_leaf_optics_v1",
+      fspm_leaf_radiance_material_mode: "rex_source_weighted_trans",
+      fspm_spectral_transport_mode: "banded_5",
       fspm_target_ppfd_umol_m2_s: values.fspmTargetPpfdUmolM2S,
       fspm_target_tolerance_umol_m2_s: values.fspmTargetToleranceUmolM2S,
     });
@@ -254,6 +260,7 @@ export function runKeyForPayload(payload) {
     plantCanopyRadiusM: payload.plantCanopyRadiusM,
     plantLeafCount: payload.plantLeafCount,
     plantGrowthStage: payload.plantGrowthStage,
+    fspmReceiverGranularity: payload.fspmReceiverGranularity,
     fspmTargetPpfdUmolM2S: payload.fspmTargetPpfdUmolM2S,
     fspmTargetToleranceUmolM2S: payload.fspmTargetToleranceUmolM2S,
   });
@@ -291,9 +298,6 @@ export function syncModeControls({ resetMountHeight = false } = {}) {
   syncMountHeightForMode({ resetToDefault: resetMountHeight });
   const activeMountHeightM = Number.parseFloat(els.radMountHeight?.value || `${defaultMountHeightForMode(els.radMode?.value)}`);
   const activeMountHeightLabel = formatMountHeightLabel(activeMountHeightM);
-  if (els.radQualityPreset) {
-    els.radQualityPreset.value = "standard";
-  }
   if (els.radMountHeightField) {
     els.radMountHeightField.classList.toggle("radiance-field--inactive", false);
   }
@@ -311,12 +315,19 @@ export function syncModeControls({ resetMountHeight = false } = {}) {
     els.radBasisBackend.disabled = !isOurSystem;
     els.radBasisBackend.title = isOurSystem ? "" : "SMD Basis Backend applies only to Proposed LED System mode.";
   }
+  const executionMode = (els.radSimMode?.value || defaultExecutionMode || "precomputed").trim();
+  const qualityActive = executionMode !== "precomputed";
   if (els.radQualityField) {
-    els.radQualityField.classList.toggle("radiance-field--inactive", true);
+    els.radQualityField.classList.toggle("radiance-field--inactive", !qualityActive);
   }
   if (els.radQualityPreset) {
-    els.radQualityPreset.disabled = true;
-    els.radQualityPreset.title = "Precomputed playback uses bundled Standard outputs.";
+    els.radQualityPreset.disabled = !qualityActive;
+    els.radQualityPreset.title = qualityActive
+      ? ""
+      : "Precomputed playback uses bundled Standard outputs.";
+    if (!qualityActive) {
+      els.radQualityPreset.value = "standard";
+    }
   }
   if (els.radHpsCoverageField) {
     els.radHpsCoverageField.classList.toggle("radiance-field--inactive", !isHps);

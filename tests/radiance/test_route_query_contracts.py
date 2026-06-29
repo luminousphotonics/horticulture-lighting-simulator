@@ -424,6 +424,22 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
                             "absorbed_orange_ppfd_umol_m2_s": 16.0,
                             "absorbed_red_ppfd_umol_m2_s": 98.0,
                             "absorbed_far_red_ppfd_umol_m2_s": 12.0,
+                            "target_capped_absorbed_par_ppfd": 194.5,
+                            "target_capped_absorbed_epar_ppfd": 205.4,
+                            "target_capped_absorbed_blue_ppfd": 38.7,
+                            "target_capped_absorbed_green_ppfd": 50.7,
+                            "target_capped_absorbed_orange_ppfd": 14.8,
+                            "target_capped_absorbed_red_ppfd": 90.3,
+                            "target_capped_absorbed_far_red_ppfd": 11.1,
+                            "excess_absorbed_par_ppfd_above_target_cap": 16.5,
+                            "excess_absorbed_epar_ppfd_above_target_cap": 17.6,
+                            "target_capped_absorbed_par_fraction_of_raw": 0.922,
+                            "target_capped_absorbed_epar_fraction_of_raw": 0.921,
+                            "target_effective_absorbed_fraction": 0.659,
+                            "over_target_absorbed_par_fraction_of_raw": 0.078,
+                            "under_target_leaf_fraction": 0.25,
+                            "in_target_leaf_fraction": 0.625,
+                            "over_target_leaf_fraction": 0.125,
                             "absorbed_fraction": 0.64,
                             "reflected_fraction": 0.24,
                             "transmitted_fraction": 0.12,
@@ -592,9 +608,9 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         self.assertEqual(row["raw_incident_flux_total_umol_s"], "60")
         self.assertEqual(row["incident_leaf_surface_ppfd_umol_m2_s"], "320")
         self.assertEqual(row["incident_leaf_surface_flux_total_umol_s"], "60")
-        self.assertEqual(row["raw_absorbed_flux_total_umol_s"], "42")
-        self.assertEqual(row["legacy_broadband_absorbed_flux_total_umol_s"], "42")
-        self.assertEqual(row["absorbed_fraction_percent"], "70")
+        self.assertNotIn("raw_absorbed_flux_total_umol_s", row)
+        self.assertNotIn("legacy_broadband_absorbed_flux_total_umol_s", row)
+        self.assertNotIn("absorbed_fraction_percent", row)
         self.assertEqual(
             row["spectral_absorption_optical_profile_id"],
             "rex_green_butterhead_mature_leaf_optics_v1",
@@ -609,6 +625,22 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         )
         self.assertEqual(row["modeled_incident_par_ppfd_umol_m2_s"], "320")
         self.assertEqual(row["modeled_incident_epar_ppfd_umol_m2_s"], "331")
+        self.assertEqual(row["target_capped_absorbed_par_ppfd"], "194.5")
+        self.assertEqual(row["target_capped_absorbed_epar_ppfd"], "205.4")
+        self.assertEqual(row["target_capped_absorbed_blue_ppfd"], "38.7")
+        self.assertEqual(row["target_capped_absorbed_green_ppfd"], "50.7")
+        self.assertEqual(row["target_capped_absorbed_orange_ppfd"], "14.8")
+        self.assertEqual(row["target_capped_absorbed_red_ppfd"], "90.3")
+        self.assertEqual(row["target_capped_absorbed_far_red_ppfd"], "11.1")
+        self.assertEqual(row["excess_absorbed_par_ppfd_above_target_cap"], "16.5")
+        self.assertEqual(row["excess_absorbed_epar_ppfd_above_target_cap"], "17.6")
+        self.assertEqual(row["target_capped_absorbed_par_fraction_of_raw"], "0.922")
+        self.assertEqual(row["target_capped_absorbed_epar_fraction_of_raw"], "0.921")
+        self.assertEqual(row["target_effective_absorbed_fraction"], "0.659")
+        self.assertEqual(row["over_target_absorbed_par_fraction_of_raw"], "0.078")
+        self.assertEqual(row["under_target_leaf_fraction"], "0.25")
+        self.assertEqual(row["in_target_leaf_fraction"], "0.625")
+        self.assertEqual(row["over_target_leaf_fraction"], "0.125")
         self.assertEqual(row["modeled_absorbed_par_ppfd_umol_m2_s"], "211")
         self.assertEqual(row["modeled_absorbed_epar_ppfd_umol_m2_s"], "223")
         self.assertEqual(row["modeled_absorbed_blue_ppfd_umol_m2_s"], "42")
@@ -654,7 +686,7 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
             float(row["deficit_to_target_capacity_percent"]),
             7.0 / 34.1 * 100.0,
         )
-        self.assertEqual(row["raw_plant_to_plant_absorption_cv_percent"], "8")
+        self.assertNotIn("raw_plant_to_plant_absorption_cv_percent", row)
         self.assertEqual(row["target_capped_incident_plant_to_plant_cv_percent"], "6")
         self.assertEqual(row["blue_pfd_umol_m2_s"], "83.3")
         self.assertEqual(row["blue_fraction_of_par_percent"], "20")

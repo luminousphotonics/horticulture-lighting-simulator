@@ -149,11 +149,16 @@ def _fake_banded_distribution(
 
 
 def test_leaf_radiance_material_mode_default_and_overrides() -> None:
-    assert DEFAULT_FSPM_LEAF_RADIANCE_MATERIAL_MODE == "opaque_occluder"
+    assert DEFAULT_FSPM_LEAF_RADIANCE_MATERIAL_MODE == (
+        LEAF_RADIANCE_MATERIAL_MODE_REX_SOURCE_WEIGHTED_TRANS
+    )
     assert normalize_leaf_radiance_material_mode(None) == (
-        LEAF_RADIANCE_MATERIAL_MODE_OPAQUE_OCCLUDER
+        LEAF_RADIANCE_MATERIAL_MODE_REX_SOURCE_WEIGHTED_TRANS
     )
     assert normalize_leaf_radiance_material_mode("") == (
+        LEAF_RADIANCE_MATERIAL_MODE_REX_SOURCE_WEIGHTED_TRANS
+    )
+    assert normalize_leaf_radiance_material_mode("opaque_occluder") == (
         LEAF_RADIANCE_MATERIAL_MODE_OPAQUE_OCCLUDER
     )
     assert normalize_leaf_radiance_material_mode(" rex_source_weighted_trans ") == (
@@ -165,15 +170,9 @@ def test_leaf_radiance_material_mode_default_and_overrides() -> None:
 
 
 def test_spectral_transport_mode_default_and_overrides() -> None:
-    assert DEFAULT_FSPM_SPECTRAL_TRANSPORT_MODE == (
-        SPECTRAL_TRANSPORT_MODE_SCALAR_SOURCE_WEIGHTED
-    )
-    assert normalize_fspm_spectral_transport_mode(None) == (
-        SPECTRAL_TRANSPORT_MODE_SCALAR_SOURCE_WEIGHTED
-    )
-    assert normalize_fspm_spectral_transport_mode("") == (
-        SPECTRAL_TRANSPORT_MODE_SCALAR_SOURCE_WEIGHTED
-    )
+    assert DEFAULT_FSPM_SPECTRAL_TRANSPORT_MODE == SPECTRAL_TRANSPORT_MODE_BANDED_5
+    assert normalize_fspm_spectral_transport_mode(None) == SPECTRAL_TRANSPORT_MODE_BANDED_5
+    assert normalize_fspm_spectral_transport_mode("") == SPECTRAL_TRANSPORT_MODE_BANDED_5
     assert normalize_fspm_spectral_transport_mode("scalar_source_weighted") == (
         SPECTRAL_TRANSPORT_MODE_SCALAR_SOURCE_WEIGHTED
     )

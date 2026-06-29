@@ -1488,6 +1488,47 @@ Risks and notes for plant-inclusive transmissive FSPM scenes:
   names, but that should be a separate behavior-changing request because it
   affects route contracts, run keys, and reproducibility metadata.
 
+### Step 4.21 — HPS Scalar Grey-Channel PPFD Carrier Fix
+
+Status: complete.
+
+Issue:
+
+* The baseline PPFD guardrail correctly rejects non-grey Radiance RGB output for
+  canopy-plane scalar PAR PPFD transport.
+* The HPS IES comparator path used `ies2rad` light RGB values as generated and
+  scaled. Those values can be spectrally colored, for example high red, lower
+  green, and very low blue.
+* Before the guardrail, baseline PPFD decoding averaged those non-grey channels.
+  After the guardrail, HPS failed because the source no longer satisfied the
+  declared `R=G=B` scalar carrier policy.
+
+Fix:
+
+* The HPS IES companion `.rad` light/illum RGB values are now normalized to a
+  grey scalar carrier after `ies2rad` scaling and path normalization.
+* The grey value is the arithmetic mean of the generated RGB triplet, preserving
+  the previous decoded scalar value while making the carrier explicit.
+* The fix is scoped to HPS source encoding for baseline scalar PAR PPFD
+  transport. It does not change Radiance quality settings, receiver generation,
+  Rex optics data, or FSPM banded transport math.
+
+Validation:
+
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_hps_fixture_profile.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_phase125b_cli_orchestration.py::test_hps_simulation_orchestration_succeeds_with_stubbed_tools tests/radiance/test_phase125b_cli_orchestration.py::test_aggregate_rgb_to_ppfd_accepts_only_grey_scalar_channels tests/radiance/test_phase125b_cli_orchestration.py::test_trace_ppfd_reports_non_grey_rgb_as_validation_error`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_phase125c_scientific_contracts.py`
+* `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance/engine/emitters/hps_generation/rad_writer.py src/rad_rebuild/radiance/engine/emitters/hps_generation/service.py tests/radiance/test_hps_fixture_profile.py`
+* `git diff --check`
+
+Validation results:
+
+* HPS fixture/profile tests: passed, 3 tests and 3 subtests.
+* Targeted HPS orchestration and PPFD decode guardrail tests: passed, 4 tests.
+* HPS/scientific contract tests: passed, 22 tests.
+* Focused Python Ruff check: passed.
+* `git diff --check`: passed.
+
 ### Step 5 — Workshop Demo Hardening
 
 Status: in progress.
@@ -1532,6 +1573,27 @@ Completed in this pass:
   the loaded scene `display_name`/`mode_label` instead of the static shell
   default. The scene metadata remains the source of truth for Proposed LED,
   Conventional LED, and HPS labels.
+* Added response-effective target-capped modeled spectral absorption metrics to
+  `plant_spectral_absorption.json` while preserving raw modeled optical
+  accounting fields. The cap is `min(1, target upper PPFD / incident PAR PPFD)`
+  per receiver-derived summary row, with zero incident PAR producing zero
+  response-effective absorption.
+* Added explicit target-capped absorption metadata:
+  `target_capped_absorption_basis`,
+  `target_saturation_cap_ppfd_umol_m2_s`,
+  `target_range_lower_ppfd_umol_m2_s`,
+  `target_range_upper_ppfd_umol_m2_s`, `target_cap_scale_basis`,
+  `raw_absorption_preserved`, and `not_biological_prediction`.
+* Extended compact FSPM CSV output with target-capped absorbed PAR/ePAR,
+  per-color absorbed PFD, excess absorbed PAR/ePAR above cap, capped fractions
+  of raw, target-effective absorbed fraction, and under/in/over-target leaf
+  fractions. Raw modeled absorbed PAR/ePAR remain after the target-capped
+  fields.
+* Removed visible legacy broadband absorbed flux/fraction/CV diagnostics from
+  the default compact CSV and from the simulator/assembly-viewer panels.
+* Reordered the FSPM panels so target fit, target-capped modeled absorbed
+  PAR/ePAR, capped fraction of raw, leaf fractions, receiver metadata, and raw
+  modeled optical accounting are clearly separated for workshop reporting.
 
 Validation for this pass:
 
@@ -1540,6 +1602,12 @@ Validation for this pass:
 Validation results for this pass:
 
 * Targeted FSPM CSV export and assembly title tests: passed, 6 tests.
+* Target-capped spectral absorption, CSV, assembly-panel, and metrics tests:
+  passed, 34 tests.
+* Focused Ruff for touched Python files and tests: passed.
+* JavaScript lint and typecheck: passed.
+* Browser smoke: passed, 54 tests, after rerunning with local-server escalation
+  because the sandbox blocked the Flask socket.
 
 Remaining presentation-output tasks:
 

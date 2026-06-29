@@ -122,6 +122,7 @@ export const appState = {
  * @property {HTMLInputElement} radPlantCanopyRadiusM
  * @property {HTMLInputElement} radPlantLeafCount
  * @property {HTMLInputElement} radPlantGrowthStage
+ * @property {HTMLSelectElement} radFspmReceiverGranularity
  * @property {HTMLInputElement} radFspmTargetPpfd
  * @property {HTMLInputElement} radFspmTargetTolerance
  * @property {HTMLElement} radVisualNote
@@ -240,6 +241,7 @@ export const els = /** @type {Els} */ ({
   radPlantCanopyRadiusM: byId("rad-plant-canopy-radius-m"),
   radPlantLeafCount: byId("rad-plant-leaf-count"),
   radPlantGrowthStage: byId("rad-plant-growth-stage"),
+  radFspmReceiverGranularity: byId("rad-fspm-receiver-granularity"),
   radFspmTargetPpfd: byId("rad-fspm-target-ppfd"),
   radFspmTargetTolerance: byId("rad-fspm-target-tolerance"),
   radVisualNote: byId("rad-visual-note"),

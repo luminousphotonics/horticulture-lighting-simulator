@@ -57,6 +57,40 @@ BASELINE_PPFD_METADATA_KEYS: tuple[str, ...] = (
     "uses_179_luminous_efficacy_factor",
     "uses_falsecolor_or_illuminance_conversion",
 )
+TARGET_CAPPED_SPECTRAL_METADATA_KEYS: tuple[str, ...] = (
+    "target_capped_absorption_basis",
+    "target_saturation_cap_ppfd_umol_m2_s",
+    "target_range_lower_ppfd_umol_m2_s",
+    "target_range_upper_ppfd_umol_m2_s",
+    "target_cap_scale_basis",
+    "raw_absorption_preserved",
+    "not_biological_prediction",
+)
+TARGET_CAPPED_SPECTRAL_SUMMARY_KEYS: tuple[str, ...] = (
+    "target_capped_absorbed_par_ppfd",
+    "target_capped_absorbed_epar_ppfd",
+    "target_capped_absorbed_blue_ppfd",
+    "target_capped_absorbed_green_ppfd",
+    "target_capped_absorbed_orange_ppfd",
+    "target_capped_absorbed_red_ppfd",
+    "target_capped_absorbed_far_red_ppfd",
+    "target_capped_absorbed_par_ppfd_umol_m2_s",
+    "target_capped_absorbed_epar_ppfd_umol_m2_s",
+    "target_capped_absorbed_blue_ppfd_umol_m2_s",
+    "target_capped_absorbed_green_ppfd_umol_m2_s",
+    "target_capped_absorbed_orange_ppfd_umol_m2_s",
+    "target_capped_absorbed_red_ppfd_umol_m2_s",
+    "target_capped_absorbed_far_red_ppfd_umol_m2_s",
+    "excess_absorbed_par_ppfd_above_target_cap",
+    "excess_absorbed_epar_ppfd_above_target_cap",
+    "target_capped_absorbed_par_fraction_of_raw",
+    "target_capped_absorbed_epar_fraction_of_raw",
+    "target_effective_absorbed_fraction",
+    "over_target_absorbed_par_fraction_of_raw",
+    "under_target_leaf_fraction",
+    "in_target_leaf_fraction",
+    "over_target_leaf_fraction",
+)
 
 
 def _load_json(path: Path) -> dict[str, Any] | None:
@@ -281,6 +315,11 @@ def _spectral_absorption(payload: Mapping[str, Any] | None) -> dict[str, object]
     source = source_spectrum if isinstance(source_spectrum, Mapping) else {}
     return {
         **_safe_artifact_meta(payload),
+        **{
+            key: payload.get(key)
+            for key in TARGET_CAPPED_SPECTRAL_METADATA_KEYS
+            if key in payload
+        },
         "artifact_role": payload.get(
             "artifact_role",
             "modeled_spectral_leaf_photon_absorption",
@@ -361,6 +400,11 @@ def _spectral_absorption(payload: Mapping[str, Any] | None) -> dict[str, object]
         "absorbed_far_red_ppfd_umol_m2_s": crop_summary.get(
             "absorbed_far_red_ppfd_umol_m2_s"
         ),
+        **{
+            key: crop_summary.get(key)
+            for key in TARGET_CAPPED_SPECTRAL_SUMMARY_KEYS
+            if key in crop_summary
+        },
         "absorbed_fraction": crop_summary.get("absorbed_fraction"),
         "reflected_fraction": crop_summary.get("reflected_fraction"),
         "transmitted_fraction": crop_summary.get("transmitted_fraction"),

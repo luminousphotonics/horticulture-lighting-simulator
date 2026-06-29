@@ -235,18 +235,6 @@ export function buildFspmPanelSections(scene) {
           "Raw incident flux",
           formatMetric(absorption.total_incident_photon_flux_umol_s, "umol/s", 2),
         ],
-        [
-          "Legacy broadband absorbed flux",
-          formatMetric(absorption.total_absorbed_photon_flux_umol_s, "umol/s", 2),
-        ],
-        [
-          "Legacy broadband absorbed fraction",
-          formatPercent(absorption.mean_absorbed_fraction_of_incident, 1),
-        ],
-        [
-          "Legacy broadband absorbed-flux CV",
-          formatPercent(absorption.plant_to_plant_absorbed_photon_flux_cv, 1),
-        ],
       ],
     });
   }
@@ -262,15 +250,53 @@ export function buildFspmPanelSections(scene) {
         ["Source spectrum basis", labelStatus(spectralAbsorption.source_spectral_basis)],
         ["Scalar flux basis", labelStatus(spectralAbsorption.scalar_flux_basis)],
         [
+          "Target-capped absorbed PAR PPFD",
+          formatMetric(
+            spectralAbsorption.target_capped_absorbed_par_ppfd ??
+              spectralAbsorption.target_capped_absorbed_par_ppfd_umol_m2_s,
+            "umol/m2/s",
+            1,
+          ),
+        ],
+        [
+          "Target-capped absorbed ePAR PPFD",
+          formatMetric(
+            spectralAbsorption.target_capped_absorbed_epar_ppfd ??
+              spectralAbsorption.target_capped_absorbed_epar_ppfd_umol_m2_s,
+            "umol/m2/s",
+            1,
+          ),
+        ],
+        [
+          "Target-capped PAR fraction of raw",
+          formatPercent(spectralAbsorption.target_capped_absorbed_par_fraction_of_raw, 1),
+        ],
+        [
+          "Over-target absorbed PAR",
+          formatMetric(spectralAbsorption.excess_absorbed_par_ppfd_above_target_cap, "umol/m2/s", 1),
+        ],
+        [
+          "Under-target leaf fraction",
+          formatPercent(spectralAbsorption.under_target_leaf_fraction, 1),
+        ],
+        [
+          "In-target leaf fraction",
+          formatPercent(spectralAbsorption.in_target_leaf_fraction, 1),
+        ],
+        [
+          "Over-target leaf fraction",
+          formatPercent(spectralAbsorption.over_target_leaf_fraction, 1),
+        ],
+        [
           "Incident PAR PPFD",
           formatMetric(spectralAbsorption.scalar_incident_par_ppfd_umol_m2_s, "umol/m2/s", 1),
         ],
         [
-          "Modeled absorbed PAR PPFD",
+          "Raw modeled absorbed PAR PPFD",
           formatMetric(spectralAbsorption.absorbed_par_ppfd_umol_m2_s, "umol/m2/s", 1),
         ],
         [
-          "Modeled absorbed ePAR PPFD",
+          "Raw modeled absorbed ePAR PPFD",
           formatMetric(spectralAbsorption.absorbed_epar_ppfd_umol_m2_s, "umol/m2/s", 1),
         ],
         ["Blue", formatMetric(spectralAbsorption.absorbed_blue_ppfd_umol_m2_s, "umol/m2/s", 1)],

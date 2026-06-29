@@ -19,6 +19,7 @@ from rad_rebuild.radiance.engine.plants.spectral import (  # noqa: E402
     SpectralPhotonFraction,
 )
 from rad_rebuild.radiance.engine.plants.spectral_absorption import (  # noqa: E402
+    DEFAULT_FSPM_LEAF_OPTICAL_PROFILE_ID,
     FSPM_LEAF_OPTICAL_PROFILE_ID_ENV,
     PLANT_SPECTRAL_ABSORPTION_FILENAME,
     PLANT_SPECTRAL_ABSORPTION_SCHEMA,
@@ -134,8 +135,117 @@ def _fake_profile() -> LeafOpticalProfile:
     )
 
 
-def test_no_leaf_optical_profile_is_selected_by_default() -> None:
-    assert leaf_optical_profile_from_env({}) is None
+def _banded_surface_flux_payload_for_cap(*, upper: float = 80.0) -> dict[str, object]:
+    payload = _surface_flux_payload(density=100.0, area=2.0)
+    payload.update(
+        {
+            "target_ppfd_umol_m2_s": 100.0,
+            "target_tolerance_umol_m2_s": 20.0,
+            "target_lower_threshold_umol_m2_s": 60.0,
+            "target_upper_threshold_umol_m2_s": upper,
+            "fspm_spectral_transport_mode": "banded_5",
+            "leaf_radiance_material_mode": "rex_source_weighted_trans",
+            "leaf_material_weighting_basis": "band_source_weighted",
+            "leaf_material_profile_id": "fake_profile",
+            "leaf_material_profile_version": "test",
+            "leaf_material_source_spectrum_id": "fake_spd",
+            "leaf_material_source_spectrum_source": "unit_test",
+            "source_spectral_basis": "wavelength_resolved_spd",
+            "source_spectrum_basis": "wavelength_resolved_spd",
+            "source_spectrum_id": "fake_spd",
+            "source_spectrum_source": "unit_test",
+            "band_scaling_basis": "source_band_photon_fraction_relative_to_par",
+            "receiver_trace_count": 3,
+            "par_band_ids": ["blue", "red"],
+            "epar_band_ids": ["blue", "red", "far_red"],
+            "banded_transport_band_count": 3,
+            "banded_transport_active_trace_count": 3,
+            "banded_transport_bands": [
+                {
+                    "band_id": "blue",
+                    "wavelength_min_nm": 400,
+                    "wavelength_max_nm": 499,
+                    "included_in_par": True,
+                    "included_in_epar": True,
+                    "source_photon_fraction_relative_to_par": 0.2,
+                    "band_has_source_photons": True,
+                    "receiver_trace_required": True,
+                    "receiver_trace_executed": True,
+                    "effective_reflectance": 0.2,
+                    "effective_transmittance": 0.1,
+                    "effective_absorptance": 0.7,
+                },
+                {
+                    "band_id": "red",
+                    "wavelength_min_nm": 625,
+                    "wavelength_max_nm": 699,
+                    "included_in_par": True,
+                    "included_in_epar": True,
+                    "source_photon_fraction_relative_to_par": 0.8,
+                    "band_has_source_photons": True,
+                    "receiver_trace_required": True,
+                    "receiver_trace_executed": True,
+                    "effective_reflectance": 0.3,
+                    "effective_transmittance": 0.1,
+                    "effective_absorptance": 0.6,
+                },
+                {
+                    "band_id": "far_red",
+                    "wavelength_min_nm": 700,
+                    "wavelength_max_nm": 750,
+                    "included_in_par": False,
+                    "included_in_epar": True,
+                    "source_photon_fraction_relative_to_par": 0.5,
+                    "band_has_source_photons": True,
+                    "receiver_trace_required": True,
+                    "receiver_trace_executed": True,
+                    "effective_reflectance": 0.4,
+                    "effective_transmittance": 0.2,
+                    "effective_absorptance": 0.4,
+                },
+            ],
+        }
+    )
+    return payload
+
+
+def _banded_rows_for_cap() -> dict[str, list[dict[str, object]]]:
+    row_template = {
+        "surface_id": "plant_000_leaf_000_face_0000",
+        "plant_id": "plant_000",
+        "leaf_id": "plant_000_leaf_000",
+        "area_m2": 2.0,
+    }
+    return {
+        "blue": [
+            {
+                **row_template,
+                "incident_photon_flux_density_umol_m2_s": 20.0,
+                "incident_photon_flux_umol_s": 40.0,
+            }
+        ],
+        "red": [
+            {
+                **row_template,
+                "incident_photon_flux_density_umol_m2_s": 80.0,
+                "incident_photon_flux_umol_s": 160.0,
+            }
+        ],
+        "far_red": [
+            {
+                **row_template,
+                "incident_photon_flux_density_umol_m2_s": 50.0,
+                "incident_photon_flux_umol_s": 100.0,
+            }
+        ],
+    }
+
+
+def test_rex_leaf_optical_profile_is_selected_by_default() -> None:
+    profile = leaf_optical_profile_from_env({})
+
+    assert profile is not None
+    assert profile.profile_id == DEFAULT_FSPM_LEAF_OPTICAL_PROFILE_ID
 
 
 def test_rex_leaf_optical_profile_is_loaded_only_when_selected() -> None:
@@ -401,6 +511,81 @@ def test_banded_spectral_absorption_aggregates_par_and_epar() -> None:
     assert crop["transmitted_fraction"] == pytest.approx(0.12)
     assert crop["absorbed_fraction_of_incident_par"] == pytest.approx(0.62)
     assert crop["absorbed_fraction_of_incident_epar"] == pytest.approx(82.0 / 150.0)
+
+
+def test_banded_target_capped_absorption_scales_response_metrics_only() -> None:
+    surface_flux_payload = _banded_surface_flux_payload_for_cap(upper=80.0)
+    payload = build_banded_plant_spectral_absorption_payload(
+        surface_flux_payload,
+        _banded_rows_for_cap(),
+        surface_flux_payload,
+    )
+    crop = payload["crop_summary"]
+
+    assert payload["raw_absorption_preserved"] is True
+    assert payload["not_biological_prediction"] is True
+    assert payload["target_saturation_cap_ppfd_umol_m2_s"] == pytest.approx(80.0)
+    assert crop["absorbed_par_ppfd_umol_m2_s"] == pytest.approx(62.0)
+    assert crop["absorbed_epar_ppfd_umol_m2_s"] == pytest.approx(82.0)
+    assert crop["target_capped_absorbed_par_ppfd"] == pytest.approx(49.6)
+    assert crop["target_capped_absorbed_epar_ppfd"] == pytest.approx(65.6)
+    assert crop["target_capped_absorbed_blue_ppfd"] == pytest.approx(11.2)
+    assert crop["target_capped_absorbed_red_ppfd"] == pytest.approx(38.4)
+    assert crop["target_capped_absorbed_far_red_ppfd"] == pytest.approx(16.0)
+    assert crop["excess_absorbed_par_ppfd_above_target_cap"] == pytest.approx(12.4)
+    assert crop["excess_absorbed_epar_ppfd_above_target_cap"] == pytest.approx(16.4)
+    assert crop["target_capped_absorbed_par_fraction_of_raw"] == pytest.approx(0.8)
+    assert crop["target_capped_absorbed_epar_fraction_of_raw"] == pytest.approx(0.8)
+    assert crop["target_effective_absorbed_fraction"] == pytest.approx(0.62)
+    assert crop["over_target_absorbed_par_fraction_of_raw"] == pytest.approx(0.2)
+    assert crop["under_target_leaf_fraction"] == pytest.approx(0.0)
+    assert crop["in_target_leaf_fraction"] == pytest.approx(0.0)
+    assert crop["over_target_leaf_fraction"] == pytest.approx(1.0)
+    assert payload["surface_summaries"][0]["target_cap_scale"] == pytest.approx(0.8)
+
+
+def test_banded_target_capped_absorption_is_raw_when_under_cap() -> None:
+    surface_flux_payload = _banded_surface_flux_payload_for_cap(upper=120.0)
+    payload = build_banded_plant_spectral_absorption_payload(
+        surface_flux_payload,
+        _banded_rows_for_cap(),
+        surface_flux_payload,
+    )
+    crop = payload["crop_summary"]
+
+    assert crop["absorbed_par_ppfd_umol_m2_s"] == pytest.approx(62.0)
+    assert crop["target_capped_absorbed_par_ppfd"] == pytest.approx(62.0)
+    assert crop["target_capped_absorbed_epar_ppfd"] == pytest.approx(82.0)
+    assert crop["target_capped_absorbed_par_fraction_of_raw"] == pytest.approx(1.0)
+    assert crop["excess_absorbed_par_ppfd_above_target_cap"] == pytest.approx(0.0)
+    assert crop["under_target_leaf_fraction"] == pytest.approx(0.0)
+    assert crop["in_target_leaf_fraction"] == pytest.approx(1.0)
+    assert crop["over_target_leaf_fraction"] == pytest.approx(0.0)
+
+
+def test_target_capped_absorption_handles_zero_incident_par() -> None:
+    profile = _fake_profile()
+    distribution = wavelength_photon_distribution_from_samples(
+        [(400, 1), (500, 1), (600, 1), (700, 1), (738, 1)],
+        profile.wavelength_nm,
+        distribution_id="fake_spd",
+        source="unit_test_spd",
+    )
+    surface_flux_payload = _surface_flux_payload(density=0.0, area=2.0)
+    surface_flux_payload["target_upper_threshold_umol_m2_s"] = 80.0
+
+    payload = build_plant_spectral_absorption_payload(
+        surface_flux_payload,
+        profile,
+        distribution,
+    )
+    crop = payload["crop_summary"]
+
+    assert crop["absorbed_par_ppfd_umol_m2_s"] == pytest.approx(0.0)
+    assert crop["target_capped_absorbed_par_ppfd"] == pytest.approx(0.0)
+    assert crop["target_capped_absorbed_par_fraction_of_raw"] == pytest.approx(0.0)
+    assert crop["target_effective_absorbed_fraction"] == pytest.approx(0.0)
+    assert payload["surface_summaries"][0]["target_cap_scale"] == pytest.approx(0.0)
 
 
 def test_legacy_band_fraction_fallback_is_explicitly_labeled() -> None:

@@ -72,6 +72,13 @@ _FLOAT_PLANT_QUERY_FIELDS = {
     "fspm_target_tolerance_umol_m2_s",
 }
 
+_STRING_PLANT_QUERY_FIELDS = {
+    "fspm_receiver_granularity",
+    "fspm_leaf_optical_profile_id",
+    "fspm_leaf_radiance_material_mode",
+    "fspm_spectral_transport_mode",
+}
+
 
 def _query_text(request: Request, name: str) -> str | None:
     raw = request.query_params.get(name)
@@ -121,6 +128,11 @@ def _apply_metrics_plant_query_overrides(
 
     for field_name in _FLOAT_PLANT_QUERY_FIELDS:
         value = _query_float(request, field_name)
+        if value is not None:
+            updates[field_name] = value
+
+    for field_name in _STRING_PLANT_QUERY_FIELDS:
+        value = _query_text(request, field_name)
         if value is not None:
             updates[field_name] = value
 

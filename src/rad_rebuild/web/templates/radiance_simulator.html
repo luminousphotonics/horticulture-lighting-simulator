@@ -92,8 +92,8 @@
               {%- endfor %}
             </select>
           </label>
-          <label class="radiance-field" id="rad-quality-field" hidden>
-            <span>Quality Preset</span>
+          <label class="radiance-field" id="rad-quality-field" {% if not radiance_show_live_modes %}hidden{% endif %}>
+            <span>Quality</span>
             <select id="rad-quality-preset">
               <option value="standard" selected>Standard</option>
               <option value="quality">Quality</option>
@@ -190,6 +190,13 @@
             <label class="radiance-field">
               <span>Growth Stage</span>
               <input id="rad-plant-growth-stage" type="number" min="0.05" max="1" step="0.05" value="1.0" data-fspm-control>
+            </label>
+            <label class="radiance-field">
+              <span>Receiver Samples</span>
+              <select id="rad-fspm-receiver-granularity" data-fspm-control>
+                <option value="leaf_quadrature_4" selected>Quadrature 4</option>
+                <option value="mesh_patch">Mesh Patch</option>
+              </select>
             </label>
             <label class="radiance-field">
               <span>FSPM Target PPFD</span>

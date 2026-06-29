@@ -412,6 +412,7 @@ test("live-supported FSPM controls feed plant fields through payload and artifac
   await page.locator("#rad-plant-columns").fill("2");
   await page.locator("#rad-plant-leaf-count").fill("5");
   await page.locator("#rad-plant-spacing-m").fill("0.34");
+  await page.locator("#rad-fspm-receiver-granularity").selectOption("mesh_patch");
   await page.locator("#rad-fspm-target-ppfd").fill("275");
   await page.locator("#rad-fspm-target-tolerance").fill("20");
 
@@ -431,6 +432,7 @@ test("live-supported FSPM controls feed plant fields through payload and artifac
   expect(result.parsed.plantColumns).toBe(2);
   expect(result.parsed.plantLeafCount).toBe(5);
   expect(result.parsed.plantSpacingM).toBe(0.34);
+  expect(result.parsed.fspmReceiverGranularity).toBe("mesh_patch");
   expect(result.parsed.fspmTargetPpfdUmolM2S).toBe(275);
   expect(result.parsed.fspmTargetToleranceUmolM2S).toBe(20);
 
@@ -442,6 +444,10 @@ test("live-supported FSPM controls feed plant fields through payload and artifac
   expect(result.runPayload.plant_columns).toBe(2);
   expect(result.runPayload.plant_leaf_count).toBe(5);
   expect(result.runPayload.plant_spacing_m).toBe(0.34);
+  expect(result.runPayload.fspm_receiver_granularity).toBe("mesh_patch");
+  expect(result.runPayload.fspm_leaf_optical_profile_id).toBe("rex_green_butterhead_mature_leaf_optics_v1");
+  expect(result.runPayload.fspm_leaf_radiance_material_mode).toBe("rex_source_weighted_trans");
+  expect(result.runPayload.fspm_spectral_transport_mode).toBe("banded_5");
   expect(result.runPayload.fspm_target_ppfd_umol_m2_s).toBe(275);
   expect(result.runPayload.fspm_target_tolerance_umol_m2_s).toBe(20);
 
@@ -451,6 +457,7 @@ test("live-supported FSPM controls feed plant fields through payload and artifac
   expect(result.artifactParams).toContain("plant_columns=2");
   expect(result.artifactParams).toContain("plant_leaf_count=5");
   expect(result.artifactParams).toContain("plant_spacing_m=0.34");
+  expect(result.artifactParams).toContain("fspm_receiver_granularity=mesh_patch");
   expect(result.artifactParams).toContain("fspm_target_ppfd_umol_m2_s=275");
   expect(result.artifactParams).toContain("fspm_target_tolerance_umol_m2_s=20");
 });
@@ -593,6 +600,21 @@ test("metrics formatter prioritizes target-aware plant absorption fields", async
         absorbed_orange_ppfd_umol_m2_s: 18,
         absorbed_red_ppfd_umol_m2_s: 98,
         absorbed_far_red_ppfd_umol_m2_s: 13,
+        target_capped_absorbed_par_ppfd: 196,
+        target_capped_absorbed_epar_ppfd: 208,
+        target_capped_absorbed_blue_ppfd: 39,
+        target_capped_absorbed_green_ppfd: 50,
+        target_capped_absorbed_orange_ppfd: 17,
+        target_capped_absorbed_red_ppfd: 90,
+        target_capped_absorbed_far_red_ppfd: 12,
+        excess_absorbed_par_ppfd_above_target_cap: 16,
+        target_capped_absorbed_par_fraction_of_raw: 0.925,
+        target_capped_absorbed_epar_fraction_of_raw: 0.924,
+        target_effective_absorbed_fraction: 0.665,
+        over_target_absorbed_par_fraction_of_raw: 0.075,
+        under_target_leaf_fraction: 0.25,
+        in_target_leaf_fraction: 0.5,
+        over_target_leaf_fraction: 0.25,
         absorbed_fraction: 0.64,
         reflected_fraction: 0.24,
         transmitted_fraction: 0.12,
@@ -603,7 +625,10 @@ test("metrics formatter prioritizes target-aware plant absorption fields", async
   expect(text).toContain("INCIDENT LEAF-SURFACE FLUX");
   expect(text).toContain("MODELED SPECTRAL LEAF ABSORPTION");
   expect(text).toContain("optical_profile: rex_green_butterhead_mature_leaf_optics_v1");
-  expect(text).toContain("modeled_absorbed_PAR_PPFD: 212.0 umol/m2/s");
+  expect(text).toContain("target_capped_modeled_absorbed_PAR_PPFD: 196.0 umol/m2/s");
+  expect(text).toContain("target_capped_absorbed_PAR_fraction_of_raw: 92.5%");
+  expect(text).toContain("target_leaf_fractions: under=25.0% · in=50.0% · over=25.0%");
+  expect(text).toContain("raw_modeled_absorbed_PAR_PPFD: 212.0 umol/m2/s");
   expect(text).toContain("modeled_absorbed_band_PPFD: blue=42.0");
   expect(text).not.toContain("wavelength_nm");
   expect(text).toContain("target_ppfd: 275 umol/m2/s +/- 20");
@@ -614,9 +639,11 @@ test("metrics formatter prioritizes target-aware plant absorption fields", async
   expect(text).toContain("over_lit_leaves: 1");
   expect(text).toContain("target_classification_mean_ppfd: 270.0 umol/m2/s");
   expect(text).toContain("target_capped_incident_flux_total: 30.000 umol/s");
-  expect(text).toContain("legacy_broadband_absorbed_flux_total: 26.000 umol/s");
+  expect(text).not.toContain("legacy_broadband_absorbed_flux_total");
+  expect(text).not.toContain("legacy_broadband_absorbed_fraction");
+  expect(text).not.toContain("legacy_broadband_absorbed_flux_CV");
   expect(text.indexOf("target_capped_incident_flux_total")).toBeLessThan(
-    text.indexOf("legacy_broadband_absorbed_flux_total"),
+    text.indexOf("raw_incident_flux_total"),
   );
   expect(text).not.toContain("[object Object]");
   expect(text).not.toMatch(/yield|biomass|harvest|crop output|growth prediction/i);

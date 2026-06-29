@@ -13,6 +13,23 @@ from typing import Annotated, Any, Literal, TypeAlias
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from rad_rebuild.radiance.engine.plants.config import PlantGeometryConfig
+from rad_rebuild.radiance.engine.plants.leaf_materials import (
+    DEFAULT_FSPM_LEAF_RADIANCE_MATERIAL_MODE,
+    DEFAULT_FSPM_SPECTRAL_TRANSPORT_MODE,
+    FSPM_LEAF_RADIANCE_MATERIAL_MODES,
+    FSPM_SPECTRAL_TRANSPORT_MODES,
+    normalize_fspm_spectral_transport_mode,
+    normalize_leaf_radiance_material_mode,
+)
+from rad_rebuild.radiance.engine.plants.optical_profiles import (
+    REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
+    list_leaf_optical_profiles,
+)
+from rad_rebuild.radiance.engine.plants.surface_flux import (
+    DEFAULT_FSPM_RECEIVER_GRANULARITY,
+    FSPM_RECEIVER_GRANULARITIES,
+    normalize_receiver_granularity,
+)
 from rad_rebuild.radiance.fspm_targets import optional_positive_finite_float
 
 
@@ -139,6 +156,18 @@ LayoutModeValue: TypeAlias = Annotated[str, Field(json_schema_extra={"enum": [mo
 BasisBackendValue: TypeAlias = Annotated[str, Field(json_schema_extra={"enum": [backend.value for backend in BasisBackend]})]
 OverlayValue: TypeAlias = Annotated[str, Field(json_schema_extra={"enum": [overlay.value for overlay in Overlay]})]
 JobStateValue: TypeAlias = Annotated[str, Field(json_schema_extra={"enum": [state.value for state in JobState]})]
+FspmReceiverGranularityValue: TypeAlias = Annotated[
+    str,
+    Field(json_schema_extra={"enum": sorted(FSPM_RECEIVER_GRANULARITIES)}),
+]
+FspmLeafRadianceMaterialModeValue: TypeAlias = Annotated[
+    str,
+    Field(json_schema_extra={"enum": sorted(FSPM_LEAF_RADIANCE_MATERIAL_MODES)}),
+]
+FspmSpectralTransportModeValue: TypeAlias = Annotated[
+    str,
+    Field(json_schema_extra={"enum": sorted(FSPM_SPECTRAL_TRANSPORT_MODES)}),
+]
 
 _SYSTEM_MODE_ALIASES = {
     "smd": SystemMode.SMD,
@@ -422,6 +451,17 @@ class RadianceRunRequest(StrictBoundaryModel):
     plant_canopy_radius_m: float | None = None
     plant_leaf_count: int | None = None
     plant_growth_stage: float | None = None
+    fspm_receiver_granularity: FspmReceiverGranularityValue = DEFAULT_FSPM_RECEIVER_GRANULARITY
+    fspm_leaf_optical_profile_id: str = Field(
+        default=REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
+        max_length=128,
+    )
+    fspm_leaf_radiance_material_mode: FspmLeafRadianceMaterialModeValue = (
+        DEFAULT_FSPM_LEAF_RADIANCE_MATERIAL_MODE
+    )
+    fspm_spectral_transport_mode: FspmSpectralTransportModeValue = (
+        DEFAULT_FSPM_SPECTRAL_TRANSPORT_MODE
+    )
     fspm_target_ppfd_umol_m2_s: float | None = None
     fspm_target_tolerance_umol_m2_s: float | None = None
 
@@ -517,6 +557,37 @@ class RadianceRunRequest(StrictBoundaryModel):
     @classmethod
     def valid_overlay(cls, value: object) -> str:
         return canonicalize_overlay(_raw_str(value)).value
+
+    @field_validator("fspm_receiver_granularity", mode="before")
+    @classmethod
+    def valid_fspm_receiver_granularity(cls, value: object) -> str:
+        return normalize_receiver_granularity(value)
+
+    @field_validator("fspm_leaf_radiance_material_mode", mode="before")
+    @classmethod
+    def valid_fspm_leaf_radiance_material_mode(cls, value: object) -> str:
+        return normalize_leaf_radiance_material_mode(value)
+
+    @field_validator("fspm_spectral_transport_mode", mode="before")
+    @classmethod
+    def valid_fspm_spectral_transport_mode(cls, value: object) -> str:
+        return normalize_fspm_spectral_transport_mode(value)
+
+    @field_validator("fspm_leaf_optical_profile_id", mode="before")
+    @classmethod
+    def valid_fspm_leaf_optical_profile_id(cls, value: object) -> str:
+        profile_id = str(
+            REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1 if value is None else _raw_str(value)
+        ).strip()
+        if not profile_id:
+            profile_id = REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1
+        if profile_id not in list_leaf_optical_profiles():
+            allowed = ", ".join(list_leaf_optical_profiles())
+            raise ValueError(
+                f"Unsupported FSPM_LEAF_OPTICAL_PROFILE_ID: {profile_id!r}. "
+                f"Expected one of: {allowed}."
+            )
+        return profile_id
 
     @field_validator("hps_ies_variant", mode="before")
     @classmethod

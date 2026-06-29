@@ -414,7 +414,8 @@ test("FSPM panel formatter summarizes available plant metrics", async ({ page })
   expect(result.text).toContain("Excess incident above target");
   expect(result.text).toContain("Plant-to-plant target-capped incident CV");
   expect(result.text).toContain("5 leaves");
-  expect(result.text).toContain("8.0%");
+  expect(result.text).toContain("6.0%");
+  expect(result.text).not.toContain("Legacy broadband absorbed");
   expect(result.text).not.toContain("undefined");
   expect(result.text).not.toContain("null");
   expect(result.text).not.toMatch(/yield|biomass|harvest|crop output|growth prediction/i);
