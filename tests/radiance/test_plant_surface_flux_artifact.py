@@ -511,6 +511,9 @@ def test_radiance_receiver_surface_flux_payload_is_computed(tmp_path) -> None:
 
     assert payload["status"] == "computed"
     assert payload["method"] == RADIANCE_RECEIVER_METHOD
+    assert payload["baseline_transport_scene"] == "room_emitters_only"
+    assert payload["fspm_receiver_transport_scene"] == "room_emitters_plants"
+    assert payload["receiver_trace_count"] == 1
     assert payload["ppfd_field_summary"]["two_sided"] is True
     assert payload["total_absorbed_photon_flux_umol_s"] > 0
 

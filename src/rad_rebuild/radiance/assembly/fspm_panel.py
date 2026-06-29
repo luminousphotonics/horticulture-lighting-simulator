@@ -120,6 +120,9 @@ def _surface_absorption(payload: Mapping[str, Any] | None) -> dict[str, object] 
             "Legacy absorbed fields are scalar optical-assumption diagnostics, "
             "not wavelength-resolved modeled leaf absorption."
         ),
+        "baseline_transport_scene": payload.get("baseline_transport_scene"),
+        "fspm_receiver_transport_scene": payload.get("fspm_receiver_transport_scene"),
+        "receiver_trace_count": payload.get("receiver_trace_count"),
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),
         "surface_count": payload.get("surface_count"),
@@ -238,6 +241,9 @@ def _spectral_absorption(payload: Mapping[str, Any] | None) -> dict[str, object]
         "optical_profile_version": optical_profile.get("profile_version"),
         "source_spectral_basis": payload.get("source_spectral_basis"),
         "scalar_flux_basis": payload.get("scalar_flux_basis"),
+        "baseline_transport_scene": payload.get("baseline_transport_scene"),
+        "fspm_receiver_transport_scene": payload.get("fspm_receiver_transport_scene"),
+        "receiver_trace_count": payload.get("receiver_trace_count"),
         "source_spectrum_id": source.get("distribution_id"),
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),

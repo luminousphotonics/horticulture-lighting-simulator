@@ -497,6 +497,7 @@ def test_smd_simulation_includes_plants_only_when_gate_enabled(
         }
     )
     octree_argvs: list[tuple[str, ...]] = []
+    plant_receiver_calls: list[Path] = []
 
     def fake_python_module(
         config: scripts.RuntimeConfig,
@@ -549,6 +550,26 @@ def test_smd_simulation_includes_plants_only_when_gate_enabled(
         _write_ppfd(out_map)
         return int(scripts.RadianceScriptExit.OK)
 
+    def fake_trace_plant_receivers(
+        _config: scripts.RuntimeConfig,
+        *,
+        receiver_input_path: Path,
+        receiver_rgb_path: Path,
+        octree: Path,
+        options: Sequence[str],
+        nthreads: int,
+    ) -> int:
+        assert octree.name == "smd_fspm_receiver.oct"
+        assert options
+        assert nthreads == 1
+        plant_receiver_calls.append(octree)
+        sample_count = len(receiver_input_path.read_text(encoding="utf-8").splitlines())
+        receiver_rgb_path.write_text(
+            "".join("1 1 1\n" for _ in range(sample_count)),
+            encoding="utf-8",
+        )
+        return int(scripts.RadianceScriptExit.OK)
+
     def fake_symmetrize(
         _config: scripts.RuntimeConfig,
         *,
@@ -566,6 +587,7 @@ def test_smd_simulation_includes_plants_only_when_gate_enabled(
     monkeypatch.setattr(scripts, "_prepare_static_scene", fake_prepare_static_scene)
     monkeypatch.setattr(scripts, "_build_octree", fake_build_octree)
     monkeypatch.setattr(scripts, "_trace_ppfd", fake_trace_ppfd)
+    monkeypatch.setattr(scripts, "_trace_plant_surface_receivers", fake_trace_plant_receivers)
     monkeypatch.setattr(scripts, "_symmetrize_if_requested", fake_symmetrize)
 
     assert scripts.run_simulation_smd(env) == int(scripts.RadianceScriptExit.OK)
@@ -578,17 +600,28 @@ def test_smd_simulation_includes_plants_only_when_gate_enabled(
     assert manifest["active_simulation_integration"] is True
     assert manifest["config"]["seed"] == 99
     assert manifest["config"]["plant_grid_rows"] == 1
-    assert octree_argvs == [
-        (
-            "-f",
-            str(tmp_path / "room.rad"),
-            str(runtime / "emitters_smd_ALL_umol.rad"),
-            str(plant_rad),
-        )
-    ]
+    assert len(octree_argvs) == 2
+    assert octree_argvs[0] == (
+        "-f",
+        str(tmp_path / "room.rad"),
+        str(runtime / "emitters_smd_ALL_umol.rad"),
+    )
+    assert octree_argvs[1] == (
+        "-f",
+        str(tmp_path / "room.rad"),
+        str(runtime / "emitters_smd_ALL_umol.rad"),
+        str(plant_rad),
+    )
+    assert plant_receiver_calls == [tmp_path / "cache" / "smd_fspm_receiver.oct"]
+    surface_flux = json.loads(
+        (runtime / "plant_surface_flux.json").read_text(encoding="utf-8")
+    )
+    assert surface_flux["baseline_transport_scene"] == "room_emitters_only"
+    assert surface_flux["fspm_receiver_transport_scene"] == "room_emitters_plants"
+    assert surface_flux["receiver_trace_count"] == 1
 
 
-def test_static_room_octree_args_append_plants_without_changing_disabled_shape(
+def test_static_room_octree_keeps_baseline_and_fspm_receiver_inputs_separate(
     tmp_path: Path,
 ) -> None:
     room = tmp_path / "room.rad"
@@ -603,6 +636,12 @@ def test_static_room_octree_args_append_plants_without_changing_disabled_shape(
         str(emitter),
     ]
     assert scripts._octree_scene_inputs(
+        room=room,
+        emitter_file=emitter,
+        plant_rad=plant,
+        static_room_oct=static_room_oct,
+    ) == ["-f", "-i", str(static_room_oct), str(emitter)]
+    assert scripts._fspm_receiver_scene_inputs(
         room=room,
         emitter_file=emitter,
         plant_rad=plant,

@@ -302,6 +302,11 @@ def build_plant_spectral_absorption_payload(
         "source_surface_flux_schema": surface_flux_payload.get("schema"),
         "source_surface_flux_method": surface_flux_payload.get("method"),
         "source_surface_flux_status": surface_flux_payload.get("status"),
+        "baseline_transport_scene": surface_flux_payload.get("baseline_transport_scene"),
+        "fspm_receiver_transport_scene": surface_flux_payload.get(
+            "fspm_receiver_transport_scene"
+        ),
+        "receiver_trace_count": surface_flux_payload.get("receiver_trace_count"),
         "optical_profile": {
             "profile_id": optical_profile.profile_id,
             "profile_version": optical_profile.profile_version,

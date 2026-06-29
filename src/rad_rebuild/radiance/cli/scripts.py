@@ -1079,7 +1079,7 @@ def _print_optional_plant_artifact_note(plant_artifacts: PlantArtifactPaths | No
         return
     print("FSPM plant artifacts:")
     print(f"  • {plant_artifacts.radiance}")
-    print("  note: excluded from baseline PPFD octree; used by viewer/absorption scaffold.")
+    print("  note: excluded from baseline PPFD octree; used by dedicated FSPM receiver transport.")
 
 
 
@@ -1170,6 +1170,48 @@ def _trace_plant_surface_receivers(
         )
     )
     return int(RadianceScriptExit.OK)
+
+
+def _fspm_receiver_scene_inputs(
+    *,
+    room: Path,
+    emitter_file: Path,
+    plant_rad: Path,
+    static_room_oct: Path | None = None,
+) -> list[str]:
+    """Build plant-inclusive FSPM receiver scene inputs."""
+
+    if static_room_oct and static_room_oct.is_file():
+        return ["-f", "-i", str(static_room_oct), str(emitter_file), str(plant_rad)]
+    return ["-f", str(room), str(emitter_file), str(plant_rad)]
+
+
+def _build_fspm_receiver_octree(
+    config: RuntimeConfig,
+    *,
+    room: Path,
+    emitter_file: Path,
+    plant_rad: Path | None,
+    out_path: Path,
+    static_room_oct: Path | None = None,
+) -> int:
+    if plant_rad is None:
+        return int(RadianceScriptExit.OK)
+    if not plant_rad.is_file():
+        print(f"ERROR: FSPM plant geometry not found at {plant_rad}", file=sys.stderr)
+        return int(RadianceScriptExit.VALIDATION)
+    out_path.unlink(missing_ok=True)
+    print("Building plant-inclusive FSPM receiver octree...")
+    return _build_octree(
+        config,
+        _fspm_receiver_scene_inputs(
+            room=room,
+            emitter_file=emitter_file,
+            plant_rad=plant_rad,
+            static_room_oct=static_room_oct,
+        ),
+        out_path,
+    )
 
 
 
@@ -2003,11 +2045,25 @@ def run_simulation_smd(raw_env: Mapping[str, str] | None = None) -> int:
         return sym_exit
     if _bool_env(config.env, "LOG_CAP_METRICS", "1"):
         _print_cap_metrics(config, cap=config.env.get("SETPOINT_PPFD") or config.env.get("TARGET_PPFD", ""), watts=None, emitted_ppf=None)
+    fspm_receiver_octree = rad_tmp / "smd_fspm_receiver.oct"
+    receiver_octree = octree
+    if plant_artifacts is not None:
+        receiver_oct_exit = _build_fspm_receiver_octree(
+            config,
+            room=room,
+            emitter_file=emitter_file,
+            plant_rad=plant_rad,
+            out_path=fspm_receiver_octree,
+            static_room_oct=static_room_oct if str(static_room_oct) else None,
+        )
+        if receiver_oct_exit != 0:
+            return receiver_oct_exit
+        receiver_octree = fspm_receiver_octree
     surface_flux_exit = _write_optional_plant_surface_flux_artifact(
         config,
         plant_artifacts,
         ppfd_map,
-        octree=octree,
+        octree=receiver_octree,
         mode=mode,
         nthreads=nthreads,
     )
@@ -2187,11 +2243,25 @@ def run_simulation_hps(raw_env: Mapping[str, str] | None = None) -> int:
     )
     if _bool_env(config.env, "LOG_CAP_METRICS", "1"):
         _print_cap_metrics(config, cap=config.env.get("SETPOINT_PPFD") or target, watts=total_watts, emitted_ppf=total_ppf)
+    emitter_file = config.runtime_state_root / "emitters_hps_ALL_umol.rad"
+    fspm_receiver_octree = config.cache_root / "hps_fspm_receiver.oct"
+    receiver_octree = octree
+    if plant_artifacts is not None:
+        receiver_oct_exit = _build_fspm_receiver_octree(
+            config,
+            room=room,
+            emitter_file=emitter_file,
+            plant_rad=plant_rad,
+            out_path=fspm_receiver_octree,
+        )
+        if receiver_oct_exit != 0:
+            return receiver_oct_exit
+        receiver_octree = fspm_receiver_octree
     surface_flux_exit = _write_optional_plant_surface_flux_artifact(
         config,
         plant_artifacts,
         ppfd_map,
-        octree=octree,
+        octree=receiver_octree,
         mode=mode,
         nthreads=nthreads,
     )
@@ -2480,11 +2550,26 @@ def run_simulation_spydr3(raw_env: Mapping[str, str] | None = None) -> int:
     )
     if _bool_env(config.env, "LOG_CAP_METRICS", "1"):
         _print_cap_metrics(config, cap=config.env.get("SETPOINT_PPFD") or target, watts=total_watts, emitted_ppf=total_ppf)
+    emitter_file = config.runtime_state_root / "emitters_spydr3_ALL_umol.rad"
+    fspm_receiver_octree = config.cache_root / "spydr_fspm_receiver.oct"
+    receiver_octree = config.cache_root / "spydr_scene.oct"
+    if plant_artifacts is not None:
+        receiver_oct_exit = _build_fspm_receiver_octree(
+            config,
+            room=room,
+            emitter_file=emitter_file,
+            plant_rad=plant_rad,
+            out_path=fspm_receiver_octree,
+            static_room_oct=static_room_oct,
+        )
+        if receiver_oct_exit != 0:
+            return receiver_oct_exit
+        receiver_octree = fspm_receiver_octree
     surface_flux_exit = _write_optional_plant_surface_flux_artifact(
         config,
         plant_artifacts,
         ppfd_map,
-        octree=config.cache_root / "spydr_scene.oct",
+        octree=receiver_octree,
         mode=mode,
         nthreads=nthreads,
         receiver_scale_multiplier=receiver_scale_multiplier,

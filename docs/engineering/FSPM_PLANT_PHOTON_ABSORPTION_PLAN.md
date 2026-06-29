@@ -794,6 +794,79 @@ Next recommended implementation step:
 
 * Phase 4 — optional plant-geometry occlusion mode for plant-shaded receiver sampling.
 
+### Step 4.11 — Phase 4A Tandem Transport Architecture
+
+Status: complete.
+
+Completed checklist:
+
+* Kept baseline canopy-plane PPFD transport on the existing room-plus-emitters scene.
+* Added dedicated plant-inclusive FSPM receiver scene inputs via `_fspm_receiver_scene_inputs`.
+* Added `_build_fspm_receiver_octree` to build `smd_fspm_receiver.oct`, `hps_fspm_receiver.oct`, or `spydr_fspm_receiver.oct` only when FSPM plants are enabled.
+* Routed plant receiver sampling to the dedicated FSPM receiver octree while leaving baseline PPFD/uniformity octrees plant-free.
+* Kept baseline heatmap, scatter, photometric layer, annotated heatmap, overlay heatmap, and baseline metrics tied to `ppfd_map.txt` from the baseline transport path.
+* Preserved disabled-FSPM behavior; no FSPM receiver octree is built and stale plant artifacts are cleared as before.
+* Preserved single-pass plant receiver tracing: `plant_surface_flux.json` is produced from one FSPM receiver trace, and `plant_spectral_absorption.json` consumes that surface-flux payload.
+* Added FSPM transport metadata to `plant_surface_flux.json` and propagated it to `plant_spectral_absorption.json`: `baseline_transport_scene`, `fspm_receiver_transport_scene`, and `receiver_trace_count`.
+* Updated summary payloads so panel/API consumers can see the transport-scene metadata without opening raw artifacts.
+* Left Rex optical profiles opt-in only and did not add a user-facing unblocked/plant-shaded mode.
+
+Files changed:
+
+* `src/rad_rebuild/radiance/cli/scripts.py`
+* `src/rad_rebuild/radiance/engine/plants/surface_flux.py`
+* `src/rad_rebuild/radiance/engine/plants/spectral_absorption.py`
+* `src/rad_rebuild/radiance/assembly/fspm_panel.py`
+* `src/rad_rebuild/radiance/backend/metrics.py`
+* `tests/radiance/test_phase125b_cli_orchestration.py`
+* `tests/radiance/test_plant_surface_flux_artifact.py`
+* `tests/radiance/test_plant_spectral_absorption.py`
+
+Confirmation:
+
+* Baseline PPFD/uniformity artifacts remain isolated from plant receiver tracing.
+* Baseline octree inputs still exclude `plants.rad`, including frozen-room octree cases.
+* FSPM receiver transport uses a plant-inclusive scene containing room, emitters, and plant geometry.
+* Plant receiver tracing is single-pass per simulation run.
+* Modeled spectral absorption reuses `plant_surface_flux.json` and does not invoke receiver tracing.
+
+Manual live test instructions:
+
+* Run a live plant-enabled SMD simulation with `FSPM_PLANTS_ENABLED=1` and confirm `ppfd_map.txt` plus baseline visual artifacts are produced normally.
+* Confirm the cache contains a baseline `smd_scene.oct` and a separate `smd_fspm_receiver.oct` for that run.
+* Confirm `runtime_state/plant_surface_flux.json` has `baseline_transport_scene: room_emitters_only`, `fspm_receiver_transport_scene: room_emitters_plants`, and `receiver_trace_count: 1`.
+* With `FSPM_LEAF_OPTICAL_PROFILE_ID=rex_green_butterhead_mature_leaf_optics_v1`, confirm `runtime_state/plant_spectral_absorption.json` carries the same transport metadata and `source_artifact: runtime_state/plant_surface_flux.json`.
+
+Validation run:
+
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_phase125b_cli_orchestration.py tests/radiance/test_fspm_baseline_octree.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_surface_flux_artifact.py tests/radiance/test_plant_spectral_absorption.py tests/radiance/test_plant_optical_profiles.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_fspm_plants.py tests/radiance/test_assembly_scene.py tests/radiance/test_route_query_contracts.py tests/radiance/test_public_web_contract.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_import_boundaries.py tests/radiance/test_config_contracts.py`
+* `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance/cli/scripts.py src/rad_rebuild/radiance/engine/plants/surface_flux.py src/rad_rebuild/radiance/engine/plants/spectral_absorption.py src/rad_rebuild/radiance/assembly/fspm_panel.py src/rad_rebuild/radiance/backend/metrics.py tests/radiance/test_phase125b_cli_orchestration.py tests/radiance/test_fspm_baseline_octree.py tests/radiance/test_plant_surface_flux_artifact.py tests/radiance/test_plant_spectral_absorption.py`
+* `npm run lint:js`
+* `npm run typecheck:js`
+
+Validation results:
+
+* CLI orchestration and baseline-octree tests: passed, 29 tests, with existing third-party matplotlib/pyparsing deprecation warnings.
+* Surface-flux, spectral-absorption, and optical-profile tests: passed, 30 tests.
+* Plant/FSPM, assembly-scene, route-query, and public web contract tests: passed, 86 tests, 3 subtests.
+* Import-boundary and config-contract tests: passed, 15 tests, 39 subtests, with existing third-party matplotlib/pyparsing deprecation warnings.
+* Focused Ruff check: passed.
+* ESLint and TypeScript checks: passed.
+
+Remaining Phase 4B work:
+
+* Rex-derived diffuse-transmissive Radiance leaf material.
+* Possible band-specific transport if needed.
+* Material fitting assumptions for reflectance/transmittance.
+* Optional `FSPM_LEAF_RADIANCE_MATERIAL_MODE=opaque_occluder | rex_diffuse_transmissive` hook.
+
+Next recommended implementation step:
+
+* Phase 4B — reviewed leaf material transport extension point.
+
 ### Step 5 — Workshop Demo Hardening
 
 Status: pending.

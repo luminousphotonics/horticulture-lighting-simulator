@@ -37,6 +37,9 @@ def _surface_flux_payload(*, density: float = 100.0, area: float = 2.0) -> dict[
         "schema_version": 1,
         "status": "computed",
         "method": "radiance_leaf_surface_receiver_sampling_v1",
+        "baseline_transport_scene": "room_emitters_only",
+        "fspm_receiver_transport_scene": "room_emitters_plants",
+        "receiver_trace_count": 1,
         "plant_count": 1,
         "leaf_count": 1,
         "surface_count": 1,
@@ -193,6 +196,9 @@ def test_spectral_absorption_payload_contains_profile_metadata_and_basis_audit()
     assert payload["optical_profile"]["profile_id"] == "fake_profile"
     assert payload["source_spectral_basis"] == "wavelength_resolved_spd"
     assert payload["scalar_flux_basis"] == "par_ppfd_umol_m2_s"
+    assert payload["baseline_transport_scene"] == "room_emitters_only"
+    assert payload["fspm_receiver_transport_scene"] == "room_emitters_plants"
+    assert payload["receiver_trace_count"] == 1
     assert payload["units"]["optical_coefficients"] == "fraction"
     assert payload["spectral_grid"]["wavelength_nm"] == [400, 500, 600, 700, 738]
     assert payload["spectral_grid"]["absorptance_source_basis"][-1] == (

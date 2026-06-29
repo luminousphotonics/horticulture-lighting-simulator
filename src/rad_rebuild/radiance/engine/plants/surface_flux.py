@@ -469,6 +469,9 @@ def write_radiance_receiver_plant_surface_flux_artifact(
     *,
     receiver_scale_multiplier: float = 1.0,
     source_octree: str | None = None,
+    baseline_transport_scene: str = "room_emitters_only",
+    fspm_receiver_transport_scene: str = "room_emitters_plants",
+    receiver_trace_count: int = 1,
     target_ppfd_umol_m2_s: float | None = None,
     target_tolerance_umol_m2_s: float | None = None,
     target_classification_ppfd_map_path: str | Path | None = None,
@@ -494,6 +497,13 @@ def write_radiance_receiver_plant_surface_flux_artifact(
         target_ppfd_umol_m2_s=target_ppfd_umol_m2_s,
         target_tolerance_umol_m2_s=target_tolerance_umol_m2_s,
         target_classification_ppfd_map_path=target_classification_ppfd_map_path,
+    )
+    payload.update(
+        {
+            "baseline_transport_scene": baseline_transport_scene,
+            "fspm_receiver_transport_scene": fspm_receiver_transport_scene,
+            "receiver_trace_count": receiver_trace_count,
+        }
     )
     return write_plant_surface_flux_artifact(target_dir, payload)
 
@@ -789,6 +799,26 @@ def build_plant_surface_flux_payload(
         "plant_to_plant_target_capped_incident_flux_cv",
         "plant_to_plant_target_capped_flux_cv",
     )
+    status = "proxy" if method in {BASELINE_PPFD_PROXY_METHOD, SPATIAL_PPFD_PROXY_METHOD} else "computed"
+    warnings = [
+        "This artifact is the incident leaf-surface flux contract; use plant_spectral_absorption.json for modeled spectral absorbed/reflected/transmitted leaf photon flux when available.",
+        "Plant geometry is not inserted into the baseline PPFD octree and does not shadow the heatmap.",
+    ]
+    limitations = [
+        "Legacy broadband absorbed fields are scalar optical-assumption diagnostics, not Rex optical-profile spectral absorption.",
+    ]
+    if status == "proxy":
+        warnings.append(
+            "Proxy methods use an unblocked baseline PPFD field, not final plant-shaded Radiance leaf-surface receiver sampling."
+        )
+        limitations.insert(
+            0,
+            "Per-surface flux values are contract-valid proxy values until the Radiance receiver method is reviewed.",
+        )
+    else:
+        warnings.append(
+            "Computed receiver flux uses a plant-inclusive FSPM receiver scene separate from baseline canopy-plane PPFD transport."
+        )
 
     return {
         "schema": PLANT_SURFACE_FLUX_SCHEMA,
@@ -800,7 +830,7 @@ def build_plant_surface_flux_payload(
             "assumptions and are not wavelength-resolved modeled leaf absorption."
         ),
         "modeled_spectral_absorption_artifact": "runtime_state/plant_spectral_absorption.json",
-        "status": "proxy" if method in {BASELINE_PPFD_PROXY_METHOD, SPATIAL_PPFD_PROXY_METHOD} else "computed",
+        "status": status,
         "method": method,
         "source_ppfd_map": source_ppfd_map,
         "baseline_ppfd_mean_umol_m2_s": baseline_ppfd_mean_umol_m2_s,
@@ -837,15 +867,8 @@ def build_plant_surface_flux_payload(
         "surface_summaries": surface_summaries,
         "visualization": visualization,
         "outputs_do_not_predict": list(NO_CROP_OUTPUT_TERMS),
-        "warnings": [
-            "This artifact is the incident leaf-surface flux contract; use plant_spectral_absorption.json for modeled spectral absorbed/reflected/transmitted leaf photon flux when available.",
-            "Proxy methods use an unblocked baseline PPFD field, not final plant-shaded Radiance leaf-surface receiver sampling.",
-            "Plant geometry is not inserted into the baseline PPFD octree and does not shadow the heatmap.",
-        ],
-        "limitations": [
-            "Per-surface flux values are contract-valid proxy values until the Radiance receiver method is reviewed.",
-            "Legacy broadband absorbed fields are scalar optical-assumption diagnostics, not Rex optical-profile spectral absorption.",
-        ],
+        "warnings": warnings,
+        "limitations": limitations,
     }
 
 
