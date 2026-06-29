@@ -1,6 +1,7 @@
 # FSPM Transmissive Leaf Material Design
 
-Status: Phase 4B design spike; no runtime implementation in this document.
+Status: Phase 4B Level 2 implemented for scalar source-weighted receiver
+transport. Level 3 banded transport remains design-only.
 
 ## Purpose
 
@@ -57,7 +58,10 @@ are resolved in `src/rad_rebuild/radiance/cli/scripts.py` through
 `_spectral_distribution_from_env()` and, for wavelength-resolved absorption,
 `wavelength_photon_distribution_from_curve_data()`.
 
-No repo code currently emits a Radiance `trans` material.
+Level 2 now adds an opt-in receiver-scene-only Radiance `trans` material through
+`FSPM_LEAF_RADIANCE_MATERIAL_MODE=rex_source_weighted_trans`. The default
+`opaque_occluder` mode preserves the existing `plastic plant_leaf_material`
+output in `runtime_state/plants.rad`.
 
 ## Level 2 Recommendation
 
@@ -81,23 +85,23 @@ receiver scene only. It must not affect baseline PPFD/uniformity artifacts.
 
 ### Level 2 Hook
 
-Use `_prepare_optional_plant_artifacts()` or a closely adjacent helper to write
-the existing deterministic plant artifacts first, then optionally write a
-receiver-scene-specific plant Radiance file for `_build_fspm_receiver_octree()`.
-The preferred shape is:
+Implementation now writes the existing deterministic plant artifacts first, then
+optionally writes a receiver-scene-specific plant Radiance file for
+`_build_fspm_receiver_octree()`. The runtime shape is:
 
 * keep `runtime_state/plants.rad` deterministic and compatible with existing
   viewer/report artifacts unless explicitly deciding to version its transport
   material metadata.
-* add a receiver-only path such as
+* add the receiver-only path
   `runtime_state/plants_fspm_receiver_material.rad` when
   `FSPM_LEAF_RADIANCE_MATERIAL_MODE=rex_source_weighted_trans`.
 * pass that receiver-only file into `_build_fspm_receiver_octree()`.
 * leave `_octree_scene_inputs()` unchanged so baseline heatmaps, overlays,
   fixture scatter, and uniformity outputs remain plant-free.
 
-This avoids changing simulator runtime behavior for users who do not opt in and
-keeps the Level 2 feature scoped to the FSPM receiver scene.
+This avoids changing simulator runtime behavior for users who do not opt in,
+keeps viewer/report artifacts stable, and scopes the Level 2 feature to the
+FSPM receiver scene.
 
 ### Level 2 Weighting Basis
 
@@ -141,24 +145,56 @@ void trans plant_leaf_material
 ```
 
 Do not directly place `R_eff` and `T_eff` into the `trans` line without a
-Radiance-material fitting helper. The implementation should add a small pure
-helper that converts desired diffuse reflectance and diffuse transmittance to
-Radiance `trans` parameters, then validates the coefficients before export.
-For diffuse-only leaves, a reasonable first formula to test is:
+Radiance-material fitting helper. The implementation adds a small pure helper
+that converts desired diffuse reflectance and diffuse transmittance to Radiance
+`trans` parameters, then validates the coefficients before export.
+
+The older candidate formula below is intentionally not used:
 
 ```text
-specular_reflectance = 0
-specular_transmittance_fraction = 0
 color = R_eff / (1 - T_eff)
 transmitted_diffuse = T_eff / (1 - T_eff)
-roughness = 0
 ```
 
-This formula should be treated as an implementation candidate, not a scientific
-claim, until covered by focused tests and a small Radiance sanity scene. If
-`T_eff` is zero, emit a `plastic` material or a `trans` material with zero
-transmission. If `R_eff + T_eff > 1`, fail validation rather than silently
-renormalizing.
+The implemented diffuse-only neutral-leaf derivation uses Radiance `trans`
+arguments:
+
+```text
+void trans plant_leaf_material
+0
+0
+7 red green blue spec rough trans tspec
+```
+
+General mapping:
+
+```text
+A7 = Ts / (Td + Ts)
+A6 = (Td + Ts) / (Rd + Td + Ts)
+A5 = roughness
+A4 = Rs
+A1/A2/A3 = color / ((1 - Rs) * (1 - A6))
+```
+
+For Level 2:
+
+```text
+Rs = 0
+roughness = 0
+Ts = 0
+Rd = R_eff
+Td = T_eff
+red = green = blue = R_eff + T_eff
+spec = 0
+rough = 0
+trans = T_eff / (R_eff + T_eff)
+tspec = 0
+```
+
+The helper rejects non-finite values, fractions outside `[0, 1]`, coefficients
+that do not sum to 1 within tolerance, `R_eff + T_eff > 1`, and
+`R_eff + T_eff <= 0`. Invalid material coefficients fail clearly rather than
+being silently renormalized.
 
 `plant_spectral_absorption.json` should remain the detailed source of
 absorbed/reflected/transmitted band metrics. Level 2 changes scalar transport
@@ -202,10 +238,26 @@ Each band should use:
 Level 3 must not multiply baseline PPFD/uniformity artifact generation. Only
 the FSPM receiver transport loop may multiply by approximately five.
 
-## Proposed Artifact Metadata
+## Implemented Level 2 Runtime Impact
 
-Add this metadata to `plant_surface_flux.json`, `ppfd_field_summary`, and the
-propagated top-level metadata in `plant_spectral_absorption.json`:
+`opaque_occluder` remains the default and continues to use the existing
+`plastic plant_leaf_material` in `plants.rad`.
+
+`rex_source_weighted_trans` writes
+`runtime_state/plants_fspm_receiver_material.rad` and passes that receiver-only
+file into `_build_fspm_receiver_octree()`. `_octree_scene_inputs()` remains
+plant-free, so baseline PPFD, DOU, CV, heatmaps, fixture overlays, 3D scatter,
+and assembly-viewer heatmap overlays remain room plus emitters only.
+
+Receiver tracing remains single-pass in Level 2. `plant_surface_flux.json` is
+still generated from one FSPM receiver trace, and
+`plant_spectral_absorption.json` reuses that surface-flux payload for detailed
+wavelength/band absorbed, reflected, and transmitted photon-flux metrics.
+
+## Artifact Metadata
+
+Level 2 adds this metadata to `plant_surface_flux.json`, `ppfd_field_summary`,
+and the propagated top-level metadata in `plant_spectral_absorption.json`:
 
 ```json
 {
@@ -224,6 +276,11 @@ propagated top-level metadata in `plant_spectral_absorption.json`:
   "leaf_material_transmission_assumption": "diffuse_only",
   "leaf_material_specular_reflectance": 0.0,
   "leaf_material_specular_transmittance_fraction": 0.0,
+  "leaf_material_radiance_red": 0.0,
+  "leaf_material_radiance_green": 0.0,
+  "leaf_material_radiance_blue": 0.0,
+  "leaf_material_radiance_trans": 0.0,
+  "leaf_material_radiance_tspec": 0.0,
   "receiver_granularity": "leaf_quadrature_4",
   "receiver_sample_count": 0,
   "receiver_trace_count": 1
@@ -291,7 +348,7 @@ Expected trace multipliers:
 
 Recommendation:
 
-* implement and validate Level 2 first with `leaf_quadrature_4`.
+* use implemented Level 2 first with `leaf_quadrature_4`.
 * keep `leaf_centroid` for smoke/debug only.
 * use `mesh_patch` for final/reference Level 2 outputs when runtime budget
   permits.
@@ -300,15 +357,17 @@ Recommendation:
 
 ## Test Plan
 
-Focused tests before Level 2 implementation:
+Implemented Level 2 tests:
 
 * env/config parsing accepts only `opaque_occluder` and
   `rex_source_weighted_trans`.
 * default material mode preserves current `plastic plant_leaf_material` output.
 * Rex source-weighted helper computes PAR-weighted `R_eff`, `T_eff`, and
   `A_eff` from a fake optical profile and fake source distribution.
-* helper rejects coefficient sets where `R_eff + T_eff > 1` or values are not
-  finite fractions.
+* helper uses `red = green = blue = R_eff + T_eff` and
+  `trans = T_eff / (R_eff + T_eff)`.
+* helper rejects invalid coefficient sets or values that are not finite
+  fractions.
 * receiver-only plant `.rad` changes do not alter viewer JSON, plant manifest
   IDs, or baseline octree inputs.
 * `_octree_scene_inputs()` remains plant-free for baseline PPFD/uniformity.
@@ -355,9 +414,9 @@ Live validation after implementation:
 
 ## Open Questions
 
-* Should a receiver-only `.rad` file be added beside `plants.rad`, or should
-  `plants.rad` itself become mode-dependent with manifest metadata? The
-  receiver-only file is recommended to preserve viewer and manifest stability.
+* The receiver-only `.rad` file approach is implemented for Level 2; keep
+  `plants.rad` stable unless a future explicitly versioned manifest change
+  requires otherwise.
 * For Level 3, should zero-source bands skip the receiver trace or emit a zero
   band result after tracing? Skipping is faster, tracing is simpler for uniform
   metadata.

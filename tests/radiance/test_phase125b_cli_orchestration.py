@@ -27,6 +27,14 @@ from rad_rebuild.radiance.engine.plants.artifacts import (  # noqa: E402
     PLANT_CONFIG_FILENAME,
     PLANTS_MANIFEST_FILENAME,
     PLANTS_RAD_FILENAME,
+    write_plant_artifacts,
+)
+from rad_rebuild.radiance.engine.plants.leaf_materials import (  # noqa: E402
+    LEAF_RADIANCE_MATERIAL_MODE_OPAQUE_OCCLUDER,
+    LEAF_RADIANCE_MATERIAL_MODE_REX_SOURCE_WEIGHTED_TRANS,
+)
+from rad_rebuild.radiance.engine.plants.optical_profiles import (  # noqa: E402
+    REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
 )
 from rad_rebuild.radiance.paths import REPO_ROOT  # noqa: E402
 
@@ -627,6 +635,11 @@ def test_smd_simulation_includes_plants_only_when_gate_enabled(
     assert surface_flux["receiver_granularity_role"] == "development_demo_default"
     assert surface_flux["receiver_sample_count"] == surface_flux["leaf_count"] * 4
     assert surface_flux["receiver_samples_per_leaf"] == pytest.approx(4.0)
+    assert surface_flux["leaf_radiance_material_mode"] == (
+        LEAF_RADIANCE_MATERIAL_MODE_OPAQUE_OCCLUDER
+    )
+    assert surface_flux["leaf_material_radiance_primitive"] == "plastic"
+    assert not (runtime / "plants_fspm_receiver_material.rad").exists()
 
 
 def test_static_room_octree_keeps_baseline_and_fspm_receiver_inputs_separate(
@@ -655,6 +668,95 @@ def test_static_room_octree_keeps_baseline_and_fspm_receiver_inputs_separate(
         plant_rad=plant,
         static_room_oct=static_room_oct,
     ) == ["-f", "-i", str(static_room_oct), str(emitter), str(plant)]
+
+
+def test_rex_source_weighted_leaf_material_is_receiver_scene_only(
+    tmp_path: Path,
+) -> None:
+    env = _base_env(tmp_path)
+    env.update(
+        {
+            "FSPM_LEAF_RADIANCE_MATERIAL_MODE": (
+                LEAF_RADIANCE_MATERIAL_MODE_REX_SOURCE_WEIGHTED_TRANS
+            ),
+            "FSPM_LEAF_OPTICAL_PROFILE_ID": REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
+            "FSPM_SPECTRAL_PHOTON_FRACTIONS": (
+                "blue=0.2,green=0.3,red=0.5,far_red=0.0"
+            ),
+            "RADIANCE_CURVE_DATA_ROOT": str(tmp_path / "empty_curve_data"),
+            "FSPM_PLANT_SEED": "99",
+            "FSPM_PLANT_ROWS": "1",
+            "FSPM_PLANT_COLUMNS": "1",
+            "FSPM_PLANT_LEAF_COUNT": "2",
+        }
+    )
+    config = scripts._runtime_config(env)
+    plant_artifacts = write_plant_artifacts(
+        config.runtime_state_root,
+        scripts._fspm_plant_config_from_env(config.env),
+        active_simulation_integration=True,
+    )
+    viewer_before = plant_artifacts.viewer.read_text(encoding="utf-8")
+    manifest_before = plant_artifacts.manifest.read_text(encoding="utf-8")
+
+    receiver_material = scripts._prepare_fspm_receiver_plant_material(
+        config,
+        plant_artifacts,
+        spectral_mode="smd",
+    )
+
+    assert receiver_material.radiance_path == (
+        config.runtime_state_root / "plants_fspm_receiver_material.rad"
+    )
+    original_text = plant_artifacts.radiance.read_text(encoding="utf-8")
+    receiver_text = receiver_material.radiance_path.read_text(encoding="utf-8")
+    assert "void plastic plant_leaf_material" in original_text
+    assert "void trans plant_leaf_material" not in original_text
+    assert "void trans plant_leaf_material" in receiver_text
+    assert "void plastic plant_leaf_material" not in receiver_text
+    assert plant_artifacts.viewer.read_text(encoding="utf-8") == viewer_before
+    assert plant_artifacts.manifest.read_text(encoding="utf-8") == manifest_before
+    assert scripts._octree_scene_inputs(
+        room=tmp_path / "room.rad",
+        emitter_file=tmp_path / "emitters.rad",
+        plant_rad=receiver_material.radiance_path,
+    ) == ["-f", str(tmp_path / "room.rad"), str(tmp_path / "emitters.rad")]
+    assert scripts._fspm_receiver_scene_inputs(
+        room=tmp_path / "room.rad",
+        emitter_file=tmp_path / "emitters.rad",
+        plant_rad=receiver_material.radiance_path,
+    )[-1] == str(receiver_material.radiance_path)
+
+    metadata = receiver_material.metadata
+    assert metadata["leaf_radiance_material_mode"] == (
+        LEAF_RADIANCE_MATERIAL_MODE_REX_SOURCE_WEIGHTED_TRANS
+    )
+    assert metadata["leaf_material_profile_id"] == (
+        REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1
+    )
+    assert metadata["leaf_material_source_spectrum_id"] == "env_override_smd"
+    assert metadata["leaf_material_source_spectrum_source"] == "environment_override"
+    assert metadata["leaf_material_radiance_primitive"] == "trans"
+    assert metadata["leaf_material_transmission_assumption"] == "diffuse_only"
+    assert metadata["leaf_material_effective_reflectance"] > 0.0
+    assert metadata["leaf_material_effective_transmittance"] > 0.0
+    assert metadata["leaf_material_effective_absorptance"] > 0.0
+    assert (
+        metadata["leaf_material_effective_reflectance"]
+        + metadata["leaf_material_effective_transmittance"]
+        + metadata["leaf_material_effective_absorptance"]
+    ) == pytest.approx(1.0)
+    assert metadata["leaf_material_radiance_red"] == pytest.approx(
+        metadata["leaf_material_effective_reflectance"]
+        + metadata["leaf_material_effective_transmittance"]
+    )
+    assert metadata["leaf_material_radiance_trans"] == pytest.approx(
+        metadata["leaf_material_effective_transmittance"]
+        / (
+            metadata["leaf_material_effective_reflectance"]
+            + metadata["leaf_material_effective_transmittance"]
+        )
+    )
 
 
 def test_live_workspace_sync_shell_optionally_copies_plant_artifacts(

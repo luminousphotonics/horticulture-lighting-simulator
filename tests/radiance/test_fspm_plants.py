@@ -173,6 +173,27 @@ def test_radiance_export_contains_expected_material_and_surface_ids() -> None:
     assert "# leaf_id=plant_r001_c001_leaf_011" in rad_text
 
 
+def test_radiance_export_accepts_receiver_only_leaf_material_definition() -> None:
+    scene = generate_plant_scene()
+
+    rad_text = export_scene_to_radiance(
+        scene,
+        leaf_material_definition=(
+            "void trans plant_leaf_material\n"
+            "0\n"
+            "0\n"
+            "7 0.470000 0.470000 0.470000 0.000000 0.000000 0.510638 0.000000\n"
+        ),
+        optical_assumption_comment="# optical_assumptions mode=rex_source_weighted_trans",
+    )
+
+    assert "void trans plant_leaf_material" in rad_text
+    assert "void plastic plant_leaf_material" not in rad_text
+    assert "# optical_assumptions mode=rex_source_weighted_trans" in rad_text
+    assert "polygon plant_r000_c000_leaf_000_face_0000" in rad_text
+    assert "# leaf_id=plant_r001_c001_leaf_011" in rad_text
+
+
 def test_viewer_export_is_json_serializable() -> None:
     payload = export_scene_to_viewer(generate_plant_scene())
 

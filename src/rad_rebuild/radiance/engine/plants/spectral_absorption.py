@@ -37,6 +37,26 @@ SCALAR_FLUX_BASIS_PAR_PPFD = "par_ppfd_umol_m2_s"
 SOURCE_SPECTRAL_BASIS_WAVELENGTH_RESOLVED_SPD = "wavelength_resolved_spd"
 SOURCE_SPECTRAL_BASIS_BAND_FRACTION_LEGACY = "band_fraction_legacy"
 NO_CROP_OUTPUT_TERMS = ["yield", "biomass", "growth", "crop_output"]
+LEAF_MATERIAL_METADATA_KEYS: tuple[str, ...] = (
+    "leaf_radiance_material_mode",
+    "leaf_material_weighting_basis",
+    "leaf_material_profile_id",
+    "leaf_material_profile_version",
+    "leaf_material_source_spectrum_id",
+    "leaf_material_source_spectrum_source",
+    "leaf_material_effective_reflectance",
+    "leaf_material_effective_transmittance",
+    "leaf_material_effective_absorptance",
+    "leaf_material_radiance_primitive",
+    "leaf_material_transmission_assumption",
+    "leaf_material_specular_reflectance",
+    "leaf_material_specular_transmittance_fraction",
+    "leaf_material_radiance_red",
+    "leaf_material_radiance_green",
+    "leaf_material_radiance_blue",
+    "leaf_material_radiance_trans",
+    "leaf_material_radiance_tspec",
+)
 
 SPECTRAL_ABSORPTION_BANDS: tuple[dict[str, Any], ...] = (
     {
@@ -330,6 +350,11 @@ def build_plant_spectral_absorption_payload(
         "receiver_granularity_role": surface_flux_payload.get(
             "receiver_granularity_role"
         ),
+        **{
+            key: surface_flux_payload.get(key)
+            for key in LEAF_MATERIAL_METADATA_KEYS
+            if key in surface_flux_payload
+        },
         "optical_profile": {
             "profile_id": optical_profile.profile_id,
             "profile_version": optical_profile.profile_version,

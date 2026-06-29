@@ -8,7 +8,12 @@ from tests.radiance.runtime_env import configure_test_runtime
 
 configure_test_runtime()
 
-from rad_rebuild.radiance.engine.plants import PlantGeometryConfig, generate_plant_scene  # noqa: E402
+from rad_rebuild.radiance.engine.plants import (  # noqa: E402
+    LEAF_RADIANCE_MATERIAL_MODE_OPAQUE_OCCLUDER,
+    LEAF_RADIANCE_MATERIAL_MODE_REX_SOURCE_WEIGHTED_TRANS,
+    PlantGeometryConfig,
+    generate_plant_scene,
+)
 from rad_rebuild.radiance.engine.plants.surface_flux import (  # noqa: E402
     BASELINE_PPFD_PROXY_METHOD,
     DEFAULT_FSPM_RECEIVER_GRANULARITY,
@@ -679,6 +684,14 @@ def test_radiance_receiver_surface_flux_payload_is_computed(tmp_path) -> None:
     assert payload["receiver_rows_per_mesh_surface_row"] == pytest.approx(
         1.0 / mesh_rows_per_leaf
     )
+    assert payload["leaf_radiance_material_mode"] == (
+        LEAF_RADIANCE_MATERIAL_MODE_OPAQUE_OCCLUDER
+    )
+    assert payload["leaf_material_radiance_primitive"] == "plastic"
+    assert payload["leaf_material_transmission_assumption"] == "opaque_occluder"
+    assert payload["ppfd_field_summary"]["leaf_radiance_material_mode"] == (
+        payload["leaf_radiance_material_mode"]
+    )
     assert payload["normal_generation_basis"] == (
         "nearest_mesh_patch_to_leaf_area_centroid_oriented_upward"
     )
@@ -690,6 +703,55 @@ def test_radiance_receiver_surface_flux_payload_is_computed(tmp_path) -> None:
     )
     assert payload["ppfd_field_summary"]["two_sided"] is False
     assert payload["total_absorbed_photon_flux_umol_s"] > 0
+
+
+def test_radiance_receiver_surface_flux_payload_preserves_leaf_material_metadata(
+    tmp_path,
+) -> None:
+    scene = _scene()
+    samples = build_radiance_receiver_samples(
+        scene,
+        receiver_granularity=RECEIVER_GRANULARITY_LEAF_CENTROID,
+    )
+    densities = [100.0 for _sample in samples]
+    leaf_material_metadata = {
+        "leaf_radiance_material_mode": (
+            LEAF_RADIANCE_MATERIAL_MODE_REX_SOURCE_WEIGHTED_TRANS
+        ),
+        "leaf_material_weighting_basis": "par_400_700_nm",
+        "leaf_material_profile_id": "rex_green_butterhead_mature_leaf_optics_v1",
+        "leaf_material_profile_version": "v0_2",
+        "leaf_material_source_spectrum_id": "curve_data_smd",
+        "leaf_material_source_spectrum_source": "curve_data_spd:/tmp/smd.csv",
+        "leaf_material_effective_reflectance": 0.23,
+        "leaf_material_effective_transmittance": 0.24,
+        "leaf_material_effective_absorptance": 0.53,
+        "leaf_material_radiance_primitive": "trans",
+        "leaf_material_transmission_assumption": "diffuse_only",
+        "leaf_material_specular_reflectance": 0.0,
+        "leaf_material_specular_transmittance_fraction": 0.0,
+        "leaf_material_radiance_red": 0.47,
+        "leaf_material_radiance_green": 0.47,
+        "leaf_material_radiance_blue": 0.47,
+        "leaf_material_radiance_trans": 0.24 / 0.47,
+        "leaf_material_radiance_tspec": 0.0,
+    }
+
+    path = write_radiance_receiver_plant_surface_flux_artifact(
+        tmp_path,
+        scene,
+        samples,
+        densities,
+        source_octree="test.oct",
+        receiver_granularity=RECEIVER_GRANULARITY_LEAF_CENTROID,
+        leaf_material_metadata=leaf_material_metadata,
+    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    for key, value in leaf_material_metadata.items():
+        assert payload[key] == value
+        assert payload["ppfd_field_summary"][key] == value
+    assert payload["receiver_trace_count"] == 1
 
 
 def test_mesh_patch_receiver_payload_reports_two_sided_policy(tmp_path) -> None:

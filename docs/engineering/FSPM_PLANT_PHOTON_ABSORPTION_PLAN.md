@@ -970,10 +970,12 @@ Validation results:
 
 Remaining Phase 4B work:
 
-* Rex-derived diffuse-transmissive Radiance leaf material.
+* Rex-derived diffuse-transmissive Radiance leaf material, now implemented as
+  `FSPM_LEAF_RADIANCE_MATERIAL_MODE=rex_source_weighted_trans` in Step 4.16.
 * Possible band-specific transport if needed.
 * Material fitting assumptions for reflectance/transmittance.
-* Optional `FSPM_LEAF_RADIANCE_MATERIAL_MODE=opaque_occluder | rex_diffuse_transmissive` hook.
+* Optional Level 3 `FSPM_SPECTRAL_TRANSPORT_MODE=scalar_source_weighted | banded_5`
+  hook after Level 2 is stable.
 
 Next recommended implementation step:
 
@@ -1053,7 +1055,9 @@ Recommendations:
 
 Next recommended implementation step:
 
-* Implement Level 2 `opaque_occluder` default parsing and `rex_source_weighted_trans` receiver-scene material export behind the opt-in flag, with artifact metadata and tests proving baseline PPFD/uniformity artifacts are unchanged.
+* Validate Level 2 `rex_source_weighted_trans` in live Proposed LED,
+  Conventional LED, and HPS smoke runs, then decide whether Level 3 banded
+  transport is necessary before the workshop.
 
 Validation:
 
@@ -1063,6 +1067,78 @@ Validation results:
 
 * `git diff --check`: passed.
 * No Markdown-specific lint script is defined in `package.json`.
+
+### Step 4.16 — Level 2 Source-Weighted Transmissive Leaf Material
+
+Status: complete.
+
+Implemented behavior:
+
+* Added `FSPM_LEAF_RADIANCE_MATERIAL_MODE=opaque_occluder | rex_source_weighted_trans`.
+* Kept `opaque_occluder` as the default; it preserves the existing
+  `plastic plant_leaf_material` output in `runtime_state/plants.rad`.
+* Added a Rex source-weighted diffuse `trans` material for the FSPM receiver
+  scene only when `rex_source_weighted_trans` is selected.
+* Wrote the opt-in receiver material scene to
+  `runtime_state/plants_fspm_receiver_material.rad` and passed that file only
+  into `_build_fspm_receiver_octree()`.
+* Preserved viewer JSON, plant manifest IDs, stable leaf IDs, polygon IDs, and
+  baseline PPFD/uniformity scene inputs.
+* Preserved single-pass Level 2 receiver tracing: `plant_surface_flux.json` is
+  generated from one FSPM receiver trace, and `plant_spectral_absorption.json`
+  reuses that payload.
+
+Corrected Radiance material formula:
+
+* Level 2 uses PAR 400-700 nm source-weighted `R_eff`, `T_eff`, and `A_eff`.
+* The diffuse-only neutral `trans` fit uses
+  `red = green = blue = R_eff + T_eff`,
+  `spec = 0`, `rough = 0`,
+  `trans = T_eff / (R_eff + T_eff)`, and `tspec = 0`.
+* The helper rejects non-finite values, out-of-range fractions, coefficient
+  sums not close to 1, `R_eff + T_eff > 1`, and `R_eff + T_eff <= 0`.
+* The older candidate formula `color = R_eff / (1 - T_eff)` and
+  `transmitted_diffuse = T_eff / (1 - T_eff)` is not used.
+
+Artifact metadata:
+
+* `plant_surface_flux.json` and `ppfd_field_summary` now include the selected
+  leaf material mode, PAR weighting basis, Rex profile/source identifiers,
+  effective R/T/A coefficients, Radiance primitive, diffuse/opaque assumption,
+  specular assumptions, and fitted `red`, `green`, `blue`, `trans`, and
+  `tspec` parameters.
+* `plant_spectral_absorption.json` propagates the same leaf-material metadata
+  from `plant_surface_flux.json` and remains the detailed wavelength/band
+  absorbed, reflected, and transmitted photon-flux artifact.
+
+Runtime impact:
+
+* Baseline PPFD, DOU, CV, heatmaps, fixture overlays, 3D scatter, and
+  assembly-viewer heatmap overlays remain room plus emitters only.
+* `rex_source_weighted_trans` still performs one FSPM receiver trace. It may
+  make individual Radiance rays more expensive, but it does not multiply
+  receiver traces.
+* Level 3 `banded_5` remains unimplemented.
+
+Validation:
+
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_leaf_materials.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_fspm_plants.py tests/radiance/test_plant_surface_flux_artifact.py tests/radiance/test_plant_spectral_absorption.py tests/radiance/test_phase125b_cli_orchestration.py tests/radiance/test_plant_leaf_materials.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_optical_profiles.py tests/radiance/test_plant_spectral_optics.py tests/radiance/test_fspm_baseline_octree.py tests/radiance/test_assembly_scene.py tests/radiance/test_assembly_viewer_plants.py tests/radiance/test_route_query_contracts.py tests/radiance/test_phase07_metrics_scaffold.py tests/radiance/test_import_boundaries.py tests/radiance/test_config_contracts.py`
+* `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance/engine/plants/leaf_materials.py src/rad_rebuild/radiance/engine/plants/radiance_export.py src/rad_rebuild/radiance/engine/plants/surface_flux.py src/rad_rebuild/radiance/engine/plants/spectral_absorption.py src/rad_rebuild/radiance/engine/plants/__init__.py src/rad_rebuild/radiance/cli/scripts.py tests/radiance/test_plant_leaf_materials.py tests/radiance/test_fspm_plants.py tests/radiance/test_plant_surface_flux_artifact.py tests/radiance/test_plant_spectral_absorption.py tests/radiance/test_phase125b_cli_orchestration.py`
+* `git diff --check`
+
+Validation results:
+
+* Material helper tests: passed, 8 tests.
+* Focused FSPM/export/surface-flux/spectral-absorption/orchestration tests:
+  passed, 116 tests, with existing third-party matplotlib/pyparsing
+  deprecation warnings.
+* Optical profile, spectral optics, baseline-octree isolation, assembly,
+  route, metrics, import, and config tests: passed, 77 tests and 39 subtests,
+  with existing third-party matplotlib/pyparsing deprecation warnings.
+* Focused Python Ruff check: passed.
+* `git diff --check`: passed.
 
 ### Step 5 — Workshop Demo Hardening
 

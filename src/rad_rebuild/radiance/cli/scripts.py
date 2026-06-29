@@ -43,6 +43,20 @@ from rad_rebuild.radiance.engine.plants.config import (
     PlantOpticalAssumptions,
 )
 from rad_rebuild.radiance.engine.plants.generator import generate_plant_scene
+from rad_rebuild.radiance.engine.plants.leaf_materials import (
+    FSPM_LEAF_RADIANCE_MATERIAL_MODE_ENV,
+    LEAF_RADIANCE_MATERIAL_MODE_OPAQUE_OCCLUDER,
+    LEAF_RADIANCE_MATERIAL_MODE_REX_SOURCE_WEIGHTED_TRANS,
+    fit_diffuse_trans_material,
+    normalize_leaf_radiance_material_mode,
+    opaque_leaf_material_metadata,
+    par_source_weighted_leaf_coefficients,
+    radiance_trans_material_definition,
+    rex_source_weighted_leaf_material_metadata,
+)
+from rad_rebuild.radiance.engine.plants.optical_profiles import (
+    REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
+)
 from rad_rebuild.radiance.engine.plants.photomorphogenesis import (
     PhotomorphogenesisResponseParameters,
     write_plant_photomorphogenesis_response_artifact,
@@ -54,6 +68,7 @@ from rad_rebuild.radiance.engine.plants.photosynthesis import (
     PhotosynthesisResponseParameters,
     write_plant_photosynthesis_response_artifact,
 )
+from rad_rebuild.radiance.engine.plants.radiance_export import export_scene_to_radiance
 from rad_rebuild.radiance.engine.plants.spectral import (
     fixture_spectral_distribution_from_curve_data,
     default_leafy_green_spectral_bands,
@@ -840,6 +855,12 @@ class RuntimeConfig:
     env: dict[str, str]
 
 
+@dataclass(frozen=True)
+class FspmReceiverPlantMaterial:
+    radiance_path: Path
+    metadata: dict[str, Any]
+
+
 def _runtime_config(raw_env: Mapping[str, str] | None = None, *, smd_defaults: bool = False) -> RuntimeConfig:
     env = dict(os.environ if raw_env is None else raw_env)
     repo_root = REPO_ROOT
@@ -1073,6 +1094,116 @@ def _prepare_optional_plant_artifacts_or_report(
         return int(RadianceScriptExit.OK), _prepare_optional_plant_artifacts(config)
     except ValueError as exc:
         print(f"ERROR: invalid FSPM plant configuration: {exc}", file=sys.stderr)
+        return int(RadianceScriptExit.VALIDATION), None
+
+
+def _receiver_material_photon_distribution(
+    config: RuntimeConfig,
+    *,
+    spectral_mode: str,
+    profile_wavelength_nm: Sequence[int],
+):
+    spectral_distribution = _spectral_distribution_from_env(
+        config.env,
+        mode=spectral_mode,
+        curve_data_root=config.curve_data_root,
+    )
+    try:
+        return wavelength_photon_distribution_from_curve_data(
+            config.curve_data_root,
+            spectral_mode,
+            profile_wavelength_nm,
+            env=config.env,
+            fallback_distribution=spectral_distribution,
+        )
+    except ValueError:
+        return wavelength_photon_distribution_from_band_fractions(
+            spectral_distribution,
+            profile_wavelength_nm,
+        )
+
+
+def _prepare_fspm_receiver_plant_material(
+    config: RuntimeConfig,
+    plant_artifacts: PlantArtifactPaths,
+    *,
+    spectral_mode: str,
+) -> FspmReceiverPlantMaterial:
+    material_mode = normalize_leaf_radiance_material_mode(
+        config.env.get(FSPM_LEAF_RADIANCE_MATERIAL_MODE_ENV)
+    )
+    if material_mode == LEAF_RADIANCE_MATERIAL_MODE_OPAQUE_OCCLUDER:
+        return FspmReceiverPlantMaterial(
+            radiance_path=plant_artifacts.radiance,
+            metadata=opaque_leaf_material_metadata(),
+        )
+    if material_mode != LEAF_RADIANCE_MATERIAL_MODE_REX_SOURCE_WEIGHTED_TRANS:
+        raise ValueError(f"Unsupported leaf Radiance material mode: {material_mode!r}.")
+
+    profile = leaf_optical_profile_from_env(config.env, data_root=config.repo_root)
+    if profile is None:
+        raise ValueError(
+            "FSPM_LEAF_OPTICAL_PROFILE_ID is required when "
+            f"{FSPM_LEAF_RADIANCE_MATERIAL_MODE_ENV}={material_mode}."
+        )
+    if profile.profile_id != REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1:
+        raise ValueError(
+            f"{FSPM_LEAF_RADIANCE_MATERIAL_MODE_ENV}={material_mode} requires "
+            f"{REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1!r}, got "
+            f"{profile.profile_id!r}."
+        )
+
+    distribution = _receiver_material_photon_distribution(
+        config,
+        spectral_mode=spectral_mode,
+        profile_wavelength_nm=profile.wavelength_nm,
+    )
+    coefficients = par_source_weighted_leaf_coefficients(profile, distribution)
+    parameters = fit_diffuse_trans_material(coefficients)
+    scene = generate_plant_scene(_fspm_plant_config_from_env(config.env))
+    material_id = scene.plants[0].leaves[0].radiance_material_id
+    material_definition = radiance_trans_material_definition(material_id, parameters)
+    receiver_path = config.runtime_state_root / "plants_fspm_receiver_material.rad"
+    receiver_path.write_text(
+        export_scene_to_radiance(
+            scene,
+            leaf_material_definition=material_definition,
+            optical_assumption_comment=(
+                "# optical_assumptions "
+                f"mode={material_mode} "
+                f"weighting_basis={coefficients.weighting_basis} "
+                f"reflectance={coefficients.reflectance:.6f} "
+                f"transmittance={coefficients.transmittance:.6f} "
+                f"absorptance={coefficients.absorptance:.6f}"
+            ),
+        ),
+        encoding="utf-8",
+    )
+    return FspmReceiverPlantMaterial(
+        radiance_path=receiver_path,
+        metadata=rex_source_weighted_leaf_material_metadata(
+            profile=profile,
+            distribution=distribution,
+            coefficients=coefficients,
+            parameters=parameters,
+        ),
+    )
+
+
+def _prepare_fspm_receiver_plant_material_or_report(
+    config: RuntimeConfig,
+    plant_artifacts: PlantArtifactPaths,
+    *,
+    spectral_mode: str,
+) -> tuple[int, FspmReceiverPlantMaterial | None]:
+    try:
+        return int(RadianceScriptExit.OK), _prepare_fspm_receiver_plant_material(
+            config,
+            plant_artifacts,
+            spectral_mode=spectral_mode,
+        )
+    except ValueError as exc:
+        print(f"ERROR: invalid FSPM leaf Radiance material configuration: {exc}", file=sys.stderr)
         return int(RadianceScriptExit.VALIDATION), None
 
 
@@ -1384,6 +1515,7 @@ def _write_optional_plant_surface_flux_artifact(
     mode: str,
     nthreads: int,
     receiver_scale_multiplier: float = 1.0,
+    leaf_material_metadata: Mapping[str, Any] | None = None,
 ) -> int:
     if _fspm_basis_extraction_active(config.env):
         _clear_fspm_runtime_artifacts(config.runtime_state_root)
@@ -1439,6 +1571,7 @@ def _write_optional_plant_surface_flux_artifact(
             target_ppfd_umol_m2_s=target_ppfd,
             target_tolerance_umol_m2_s=target_tolerance,
             target_classification_ppfd_map_path=ppfd_map,
+            leaf_material_metadata=leaf_material_metadata,
         )
         surface_flux_payload = json.loads(path.read_text(encoding="utf-8"))
         spectral_mode = _infer_fixture_spectral_mode(config.env, octree=octree, mode=mode)
@@ -2062,18 +2195,32 @@ def run_simulation_smd(raw_env: Mapping[str, str] | None = None) -> int:
         _print_cap_metrics(config, cap=config.env.get("SETPOINT_PPFD") or config.env.get("TARGET_PPFD", ""), watts=None, emitted_ppf=None)
     fspm_receiver_octree = rad_tmp / "smd_fspm_receiver.oct"
     receiver_octree = octree
+    leaf_material_metadata: Mapping[str, Any] | None = None
     if plant_artifacts is not None:
+        receiver_spectral_mode = _infer_fixture_spectral_mode(
+            config.env,
+            octree=octree,
+            mode=mode,
+        )
+        material_exit, receiver_material = _prepare_fspm_receiver_plant_material_or_report(
+            config,
+            plant_artifacts,
+            spectral_mode=receiver_spectral_mode,
+        )
+        if material_exit != 0 or receiver_material is None:
+            return material_exit
         receiver_oct_exit = _build_fspm_receiver_octree(
             config,
             room=room,
             emitter_file=emitter_file,
-            plant_rad=plant_rad,
+            plant_rad=receiver_material.radiance_path,
             out_path=fspm_receiver_octree,
             static_room_oct=static_room_oct if str(static_room_oct) else None,
         )
         if receiver_oct_exit != 0:
             return receiver_oct_exit
         receiver_octree = fspm_receiver_octree
+        leaf_material_metadata = receiver_material.metadata
     surface_flux_exit = _write_optional_plant_surface_flux_artifact(
         config,
         plant_artifacts,
@@ -2081,6 +2228,7 @@ def run_simulation_smd(raw_env: Mapping[str, str] | None = None) -> int:
         octree=receiver_octree,
         mode=mode,
         nthreads=nthreads,
+        leaf_material_metadata=leaf_material_metadata,
     )
     if surface_flux_exit != 0:
         return surface_flux_exit
@@ -2261,17 +2409,31 @@ def run_simulation_hps(raw_env: Mapping[str, str] | None = None) -> int:
     emitter_file = config.runtime_state_root / "emitters_hps_ALL_umol.rad"
     fspm_receiver_octree = config.cache_root / "hps_fspm_receiver.oct"
     receiver_octree = octree
+    leaf_material_metadata: Mapping[str, Any] | None = None
     if plant_artifacts is not None:
+        receiver_spectral_mode = _infer_fixture_spectral_mode(
+            config.env,
+            octree=octree,
+            mode=mode,
+        )
+        material_exit, receiver_material = _prepare_fspm_receiver_plant_material_or_report(
+            config,
+            plant_artifacts,
+            spectral_mode=receiver_spectral_mode,
+        )
+        if material_exit != 0 or receiver_material is None:
+            return material_exit
         receiver_oct_exit = _build_fspm_receiver_octree(
             config,
             room=room,
             emitter_file=emitter_file,
-            plant_rad=plant_rad,
+            plant_rad=receiver_material.radiance_path,
             out_path=fspm_receiver_octree,
         )
         if receiver_oct_exit != 0:
             return receiver_oct_exit
         receiver_octree = fspm_receiver_octree
+        leaf_material_metadata = receiver_material.metadata
     surface_flux_exit = _write_optional_plant_surface_flux_artifact(
         config,
         plant_artifacts,
@@ -2279,6 +2441,7 @@ def run_simulation_hps(raw_env: Mapping[str, str] | None = None) -> int:
         octree=receiver_octree,
         mode=mode,
         nthreads=nthreads,
+        leaf_material_metadata=leaf_material_metadata,
     )
     if surface_flux_exit != 0:
         return surface_flux_exit
@@ -2568,18 +2731,32 @@ def run_simulation_spydr3(raw_env: Mapping[str, str] | None = None) -> int:
     emitter_file = config.runtime_state_root / "emitters_spydr3_ALL_umol.rad"
     fspm_receiver_octree = config.cache_root / "spydr_fspm_receiver.oct"
     receiver_octree = config.cache_root / "spydr_scene.oct"
+    leaf_material_metadata: Mapping[str, Any] | None = None
     if plant_artifacts is not None:
+        receiver_spectral_mode = _infer_fixture_spectral_mode(
+            config.env,
+            octree=receiver_octree,
+            mode=mode,
+        )
+        material_exit, receiver_material = _prepare_fspm_receiver_plant_material_or_report(
+            config,
+            plant_artifacts,
+            spectral_mode=receiver_spectral_mode,
+        )
+        if material_exit != 0 or receiver_material is None:
+            return material_exit
         receiver_oct_exit = _build_fspm_receiver_octree(
             config,
             room=room,
             emitter_file=emitter_file,
-            plant_rad=plant_rad,
+            plant_rad=receiver_material.radiance_path,
             out_path=fspm_receiver_octree,
             static_room_oct=static_room_oct,
         )
         if receiver_oct_exit != 0:
             return receiver_oct_exit
         receiver_octree = fspm_receiver_octree
+        leaf_material_metadata = receiver_material.metadata
     surface_flux_exit = _write_optional_plant_surface_flux_artifact(
         config,
         plant_artifacts,
@@ -2588,6 +2765,7 @@ def run_simulation_spydr3(raw_env: Mapping[str, str] | None = None) -> int:
         mode=mode,
         nthreads=nthreads,
         receiver_scale_multiplier=receiver_scale_multiplier,
+        leaf_material_metadata=leaf_material_metadata,
     )
     if surface_flux_exit != 0:
         return surface_flux_exit

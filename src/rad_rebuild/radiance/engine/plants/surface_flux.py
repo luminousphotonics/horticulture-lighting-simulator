@@ -21,6 +21,7 @@ from rad_rebuild.radiance.engine.plants.absorption import (
     compute_photon_absorption_metrics,
     leaf_absorption_surfaces,
 )
+from rad_rebuild.radiance.engine.plants.leaf_materials import opaque_leaf_material_metadata
 from rad_rebuild.radiance.engine.plants.models import PlantScene, Vector3
 from rad_rebuild.radiance.fspm_targets import (
     FSPM_TARGET_CLASSIFICATION_BASIS_CANOPY,
@@ -930,6 +931,7 @@ def write_radiance_receiver_plant_surface_flux_artifact(
     target_ppfd_umol_m2_s: float | None = None,
     target_tolerance_umol_m2_s: float | None = None,
     target_classification_ppfd_map_path: str | Path | None = None,
+    leaf_material_metadata: Mapping[str, Any] | None = None,
 ) -> Path:
     samples = list(receiver_samples)
     detected_granularity = _receiver_granularity_from_samples(samples)
@@ -955,6 +957,7 @@ def write_radiance_receiver_plant_surface_flux_artifact(
     side_policy = receiver_side_policy(granularity)
     normal_basis = normal_generation_basis(granularity)
     granularity_role = receiver_granularity_role(granularity)
+    material_metadata = dict(leaf_material_metadata or opaque_leaf_material_metadata())
     receiver_sample_area_sum = sum(
         _finite_non_negative(
             f"receiver_sample_area_m2[{sample.get('sample_id', index)}]",
@@ -985,6 +988,7 @@ def write_radiance_receiver_plant_surface_flux_artifact(
             "receiver_rows_per_mesh_surface_row": receiver_rows_per_mesh_surface_row,
             "normal_generation_basis": normal_basis,
             "receiver_granularity_role": granularity_role,
+            **material_metadata,
             "two_sided": any(sample.get("side") == "back" for sample in samples),
             "source_octree": source_octree,
             "receiver_scale_multiplier": receiver_scale_multiplier,
@@ -1000,6 +1004,7 @@ def write_radiance_receiver_plant_surface_flux_artifact(
         receiver_rows_per_mesh_surface_row=receiver_rows_per_mesh_surface_row,
         normal_generation_basis=normal_basis,
         receiver_granularity_role_value=granularity_role,
+        leaf_material_metadata=material_metadata,
         target_ppfd_umol_m2_s=target_ppfd_umol_m2_s,
         target_tolerance_umol_m2_s=target_tolerance_umol_m2_s,
         target_classification_ppfd_map_path=target_classification_ppfd_map_path,
@@ -1020,6 +1025,7 @@ def write_radiance_receiver_plant_surface_flux_artifact(
             "receiver_rows_per_mesh_surface_row": receiver_rows_per_mesh_surface_row,
             "normal_generation_basis": normal_basis,
             "receiver_granularity_role": granularity_role,
+            **material_metadata,
         }
     )
     return write_plant_surface_flux_artifact(target_dir, payload)
@@ -1211,6 +1217,7 @@ def build_plant_surface_flux_payload(
     receiver_rows_per_mesh_surface_row: float | None = None,
     normal_generation_basis: str | None = None,
     receiver_granularity_role_value: str | None = None,
+    leaf_material_metadata: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     normalized_rows, incident_by_surface_id = _normalize_surface_rows(scene, surface_flux_rows)
     classification_by_surface_id = target_classification_ppfd_by_surface_id
@@ -1329,6 +1336,7 @@ def build_plant_surface_flux_payload(
         "plant_to_plant_target_capped_flux_cv",
     )
     status = "proxy" if method in {BASELINE_PPFD_PROXY_METHOD, SPATIAL_PPFD_PROXY_METHOD} else "computed"
+    material_metadata = dict(leaf_material_metadata or {})
     warnings = [
         "This artifact is the incident leaf-surface flux contract; use plant_spectral_absorption.json for modeled spectral absorbed/reflected/transmitted leaf photon flux when available.",
         "Plant geometry is not inserted into the baseline PPFD octree and does not shadow the heatmap.",
@@ -1388,6 +1396,7 @@ def build_plant_surface_flux_payload(
         "receiver_rows_per_mesh_surface_row": receiver_rows_per_mesh_surface_row,
         "normal_generation_basis": normal_generation_basis,
         "receiver_granularity_role": receiver_granularity_role_value,
+        **material_metadata,
         "one_sided_leaf_area_m2": absorption_metrics["one_sided_leaf_area_m2"],
         "total_incident_photon_flux_umol_s": absorption_metrics[
             "total_incident_photon_flux_umol_s"

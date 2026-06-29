@@ -51,6 +51,24 @@ def _surface_flux_payload(*, density: float = 100.0, area: float = 2.0) -> dict[
         "receiver_rows_per_mesh_surface_row": 1.0,
         "normal_generation_basis": "nearest_mesh_patch_to_leaf_area_centroid_oriented_upward",
         "receiver_granularity_role": "smoke_debug",
+        "leaf_radiance_material_mode": "rex_source_weighted_trans",
+        "leaf_material_weighting_basis": "par_400_700_nm",
+        "leaf_material_profile_id": "rex_green_butterhead_mature_leaf_optics_v1",
+        "leaf_material_profile_version": "v0_2",
+        "leaf_material_source_spectrum_id": "curve_data_smd",
+        "leaf_material_source_spectrum_source": "curve_data_spd:/tmp/smd.csv",
+        "leaf_material_effective_reflectance": 0.23,
+        "leaf_material_effective_transmittance": 0.24,
+        "leaf_material_effective_absorptance": 0.53,
+        "leaf_material_radiance_primitive": "trans",
+        "leaf_material_transmission_assumption": "diffuse_only",
+        "leaf_material_specular_reflectance": 0.0,
+        "leaf_material_specular_transmittance_fraction": 0.0,
+        "leaf_material_radiance_red": 0.47,
+        "leaf_material_radiance_green": 0.47,
+        "leaf_material_radiance_blue": 0.47,
+        "leaf_material_radiance_trans": 0.24 / 0.47,
+        "leaf_material_radiance_tspec": 0.0,
         "plant_count": 1,
         "leaf_count": 1,
         "surface_count": 1,
@@ -224,6 +242,9 @@ def test_spectral_absorption_payload_contains_profile_metadata_and_basis_audit()
     assert payload["fspm_receiver_transport_scene"] == "room_emitters_plants"
     assert payload["receiver_trace_count"] == 1
     assert payload["units"]["optical_coefficients"] == "fraction"
+    assert payload["leaf_radiance_material_mode"] == "rex_source_weighted_trans"
+    assert payload["leaf_material_radiance_primitive"] == "trans"
+    assert payload["leaf_material_radiance_trans"] == pytest.approx(0.24 / 0.47)
     assert payload["spectral_grid"]["wavelength_nm"] == [400, 500, 600, 700, 738]
     assert payload["spectral_grid"]["absorptance_source_basis"][-1] == (
         "implied_from_reflectance_transmittance"
