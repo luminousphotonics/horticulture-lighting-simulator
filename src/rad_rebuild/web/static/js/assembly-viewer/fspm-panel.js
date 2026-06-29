@@ -137,6 +137,7 @@ export function buildFspmPanelSections(scene) {
         formatCount(counts.receiver_sample_count ?? counts.surface_count, "sample", "samples"),
       ],
       ["Receiver granularity", labelStatus(counts.receiver_granularity)],
+      ["Receiver role", labelStatus(counts.receiver_granularity_role)],
       ["Receiver side policy", labelStatus(counts.receiver_side_policy)],
       ["Mesh surface rows", formatCount(counts.surface_count, "surface", "surfaces")],
       ["One-sided leaf area", formatMetric(counts.one_sided_leaf_area_m2, "m2", 4)],

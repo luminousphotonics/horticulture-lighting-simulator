@@ -26,6 +26,7 @@ from rad_rebuild.radiance.engine.plants.surface_flux import (  # noqa: E402
     parse_rtrace_receiver_output,
     read_ppfd_map_field,
     normalize_receiver_granularity,
+    receiver_granularity_role,
     receiver_sample_input_text,
     write_radiance_receiver_plant_surface_flux_artifact,
     write_baseline_proxy_plant_surface_flux_artifact,
@@ -497,6 +498,41 @@ def test_radiance_receiver_samples_are_two_sided_and_traceable() -> None:
     assert receiver_sample_input_text(samples).count("\n") == len(samples)
 
 
+def test_default_receiver_granularity_is_leaf_quadrature_for_development_demo() -> None:
+    scene = _scene()
+    samples = build_radiance_receiver_samples(scene)
+    leaf_ids = {leaf.leaf_id for plant in scene.plants for leaf in plant.leaves}
+
+    assert DEFAULT_FSPM_RECEIVER_GRANULARITY == RECEIVER_GRANULARITY_LEAF_QUADRATURE_4
+    assert normalize_receiver_granularity(None) == RECEIVER_GRANULARITY_LEAF_QUADRATURE_4
+    assert normalize_receiver_granularity("") == RECEIVER_GRANULARITY_LEAF_QUADRATURE_4
+    assert len(samples) == len(leaf_ids) * 4
+    assert {sample["receiver_granularity"] for sample in samples} == {
+        RECEIVER_GRANULARITY_LEAF_QUADRATURE_4
+    }
+
+
+@pytest.mark.parametrize(
+    ("value", "expected", "expected_role"),
+    (
+        ("leaf_centroid", RECEIVER_GRANULARITY_LEAF_CENTROID, "smoke_debug"),
+        (
+            "leaf_quadrature_4",
+            RECEIVER_GRANULARITY_LEAF_QUADRATURE_4,
+            "development_demo_default",
+        ),
+        ("mesh_patch", RECEIVER_GRANULARITY_MESH_PATCH, "high_resolution_reference"),
+    ),
+)
+def test_explicit_receiver_granularity_env_values_still_work(
+    value: str,
+    expected: str,
+    expected_role: str,
+) -> None:
+    assert normalize_receiver_granularity(value) == expected
+    assert receiver_granularity_role(value) == expected_role
+
+
 def test_leaf_centroid_receiver_granularity_uses_one_sample_per_leaf() -> None:
     scene = _scene()
     samples = build_radiance_receiver_samples(
@@ -507,7 +543,6 @@ def test_leaf_centroid_receiver_granularity_uses_one_sample_per_leaf() -> None:
     leaf_ids = {leaf.leaf_id for plant in scene.plants for leaf in plant.leaves}
     one_sided_area = sum(surface.area_m2 for surface in leaf_absorption_surfaces(scene))
 
-    assert DEFAULT_FSPM_RECEIVER_GRANULARITY == RECEIVER_GRANULARITY_LEAF_CENTROID
     assert len(samples) == len(leaf_ids)
     assert {sample["leaf_id"] for sample in samples} == leaf_ids
     assert {sample["side"] for sample in samples} == {"front"}
@@ -629,6 +664,7 @@ def test_radiance_receiver_surface_flux_payload_is_computed(tmp_path) -> None:
     assert payload["fspm_receiver_transport_scene"] == "room_emitters_plants"
     assert payload["receiver_trace_count"] == 1
     assert payload["receiver_granularity"] == RECEIVER_GRANULARITY_LEAF_CENTROID
+    assert payload["receiver_granularity_role"] == "smoke_debug"
     assert payload["receiver_sample_count"] == payload["leaf_count"]
     assert payload["receiver_samples_per_leaf"] == pytest.approx(1.0)
     assert payload["receiver_generation_basis"]
@@ -649,6 +685,9 @@ def test_radiance_receiver_surface_flux_payload_is_computed(tmp_path) -> None:
     assert payload["ppfd_field_summary"]["receiver_sample_count"] == payload[
         "receiver_sample_count"
     ]
+    assert payload["ppfd_field_summary"]["receiver_granularity_role"] == (
+        payload["receiver_granularity_role"]
+    )
     assert payload["ppfd_field_summary"]["two_sided"] is False
     assert payload["total_absorbed_photon_flux_umol_s"] > 0
 

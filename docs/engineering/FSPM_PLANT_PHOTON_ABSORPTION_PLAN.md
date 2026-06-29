@@ -863,7 +863,7 @@ Status: complete.
 Completed:
 
 * Added `FSPM_RECEIVER_GRANULARITY=leaf_centroid | leaf_quadrature_4 | mesh_patch`.
-* Set the runtime default to `leaf_centroid`.
+* Initially set the runtime default to `leaf_centroid`; this was superseded by Step 4.14 after manual live validation.
 * Preserved the previous high-resolution behavior as `mesh_patch`.
 * Added receiver metadata to `plant_surface_flux.json` and propagated it to `plant_spectral_absorption.json`: `leaf_count`, `receiver_sample_count`, `receiver_granularity`, `receiver_samples_per_leaf`, and `receiver_generation_basis`.
 * Updated summaries, CSV/report fields, and viewer wording so traced receiver load is reported as receiver samples, distinct from mesh surface rows.
@@ -889,9 +889,8 @@ Receiver counts for the current deterministic leaf mesh:
 
 Recommended production/demo setting:
 
-* Use `FSPM_RECEIVER_GRANULARITY=leaf_centroid` before Level 2 source-weighted transmissive leaves and Level 3 five-band transport.
-* Use `leaf_quadrature_4` for focused convergence checks when a moderate receiver-count increase is acceptable.
-* Use `mesh_patch` only when the high-resolution leaf-surface patch basis is explicitly needed.
+* Historical note: Step 4.12 used `leaf_centroid` as the initial defensive default before the representative receiver behavior was live-validated.
+* Step 4.14 changes the practical default to `leaf_quadrature_4`.
 
 Implications:
 
@@ -943,9 +942,9 @@ Corrected receiver counts for the current deterministic leaf mesh:
 
 Recommended production/demo setting:
 
-* Use `leaf_quadrature_4` for production/demo comparisons until a live convergence check confirms `leaf_centroid` is sufficiently stable for the specific canopy and fixture set.
-* Use `leaf_centroid` for fast smoke/demo iteration where the lower sample count is more important than spatial detail.
-* Keep `mesh_patch` for high-resolution convergence and debugging, not as the default demo path.
+* Use `leaf_quadrature_4` for development and demo iteration.
+* Use `leaf_centroid` for fast smoke/debug iteration where the lower sample count is more important than spatial detail.
+* Keep `mesh_patch` for high-resolution convergence, debugging, and final/reference outputs.
 
 Transmissive leaf material deferral:
 
@@ -979,6 +978,60 @@ Remaining Phase 4B work:
 Next recommended implementation step:
 
 * Phase 4B — reviewed leaf material transport extension point.
+
+### Step 4.14 — Receiver Granularity Practical Protocol
+
+Status: complete.
+
+Manual validation summary:
+
+* For 768 modeled leaves, `leaf_centroid` produced 768 receiver samples.
+* For 768 modeled leaves, `leaf_quadrature_4` produced 3,072 receiver samples.
+* For 768 modeled leaves, `mesh_patch` produced 24,576 receiver samples.
+* `leaf_centroid` remained useful for fast smoke/debug checks, but underestimated receiver-derived incident PAR relative to `mesh_patch`.
+* `leaf_quadrature_4` was much closer to `mesh_patch` while keeping receiver count practical for development and demo iteration.
+* `mesh_patch` remains the high-resolution reference mode and is recommended for final/reference workshop outputs when runtime budget permits.
+
+Implemented protocol:
+
+* Changed the default `FSPM_RECEIVER_GRANULARITY` behavior to `leaf_quadrature_4`.
+* Retained `leaf_centroid` as an explicit smoke/debug mode.
+* Retained `mesh_patch` as an explicit high-resolution final/reference mode.
+* Added `receiver_granularity_role` metadata so artifacts and UI summaries can report `smoke_debug`, `development_demo_default`, or `high_resolution_reference`.
+* Preserved the existing single-pass FSPM receiver trace: `plant_spectral_absorption.json` reuses `plant_surface_flux.json` and does not add a second receiver trace.
+
+Recommended usage before transmissive leaf materials:
+
+* `leaf_centroid`: smoke/debug only; not recommended for presentation metrics because live comparison showed it underestimates receiver-derived incident PAR versus mesh-patch reference.
+* `leaf_quadrature_4`: development/demo default before Level 2 source-weighted transmissive leaves and Level 3 five-band spectral transport.
+* `mesh_patch`: high-resolution final/reference output mode, especially for workshop presentation data or convergence checks.
+
+Implications:
+
+* Source-weighted transmissive leaves and five-band spectral transport will multiply transport cost, so the default needs to balance fidelity and iteration speed before those phases.
+* `leaf_quadrature_4` is the practical default because it captures more leaf-surface variation than a single centroid without making the old mesh-patch receiver load the baseline.
+* `mesh_patch` remains important as the reference basis for final comparison, but should not be the default for routine runs.
+
+Next planned step:
+
+* Phase 4B design spike for Rex-derived source-weighted diffuse-transmissive Radiance leaf materials.
+
+Validation:
+
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_surface_flux_artifact.py tests/radiance/test_plant_spectral_absorption.py tests/radiance/test_phase125b_cli_orchestration.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_fspm_plants.py tests/radiance/test_assembly_viewer_plants.py tests/radiance/test_assembly_scene.py tests/radiance/test_route_query_contracts.py tests/radiance/test_public_web_contract.py tests/radiance/test_import_boundaries.py tests/radiance/test_config_contracts.py`
+* `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance/engine/plants/surface_flux.py src/rad_rebuild/radiance/engine/plants/spectral_absorption.py src/rad_rebuild/radiance/engine/plants/__init__.py src/rad_rebuild/radiance/backend/metrics.py src/rad_rebuild/radiance/assembly/fspm_panel.py tests/radiance/test_plant_surface_flux_artifact.py tests/radiance/test_plant_spectral_absorption.py tests/radiance/test_phase125b_cli_orchestration.py`
+* `npm run lint:js`
+* `npm run typecheck:js`
+* `git diff --check`
+
+Validation results:
+
+* Receiver, spectral absorption, and CLI orchestration focused tests: passed, 61 tests, with existing third-party matplotlib/pyparsing deprecation warnings.
+* FSPM, artifact/report, assembly, route, public web, import, and config tests: passed, 103 tests, 42 subtests, with existing third-party matplotlib/pyparsing deprecation warnings.
+* Focused Python Ruff check: passed.
+* ESLint and TypeScript checks: passed.
+* `git diff --check`: passed.
 
 ### Step 5 — Workshop Demo Hardening
 

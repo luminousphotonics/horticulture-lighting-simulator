@@ -327,6 +327,9 @@ def build_plant_spectral_absorption_payload(
             "receiver_rows_per_mesh_surface_row"
         ),
         "normal_generation_basis": surface_flux_payload.get("normal_generation_basis"),
+        "receiver_granularity_role": surface_flux_payload.get(
+            "receiver_granularity_role"
+        ),
         "optical_profile": {
             "profile_id": optical_profile.profile_id,
             "profile_version": optical_profile.profile_version,

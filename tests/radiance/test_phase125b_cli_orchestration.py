@@ -619,12 +619,14 @@ def test_smd_simulation_includes_plants_only_when_gate_enabled(
     surface_flux = json.loads(
         (runtime / "plant_surface_flux.json").read_text(encoding="utf-8")
     )
-    assert receiver_sample_counts == [surface_flux["leaf_count"]]
+    assert receiver_sample_counts == [surface_flux["leaf_count"] * 4]
     assert surface_flux["baseline_transport_scene"] == "room_emitters_only"
     assert surface_flux["fspm_receiver_transport_scene"] == "room_emitters_plants"
     assert surface_flux["receiver_trace_count"] == 1
-    assert surface_flux["receiver_granularity"] == "leaf_centroid"
-    assert surface_flux["receiver_sample_count"] == surface_flux["leaf_count"]
+    assert surface_flux["receiver_granularity"] == "leaf_quadrature_4"
+    assert surface_flux["receiver_granularity_role"] == "development_demo_default"
+    assert surface_flux["receiver_sample_count"] == surface_flux["leaf_count"] * 4
+    assert surface_flux["receiver_samples_per_leaf"] == pytest.approx(4.0)
 
 
 def test_static_room_octree_keeps_baseline_and_fspm_receiver_inputs_separate(

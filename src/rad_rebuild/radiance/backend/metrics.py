@@ -183,6 +183,7 @@ def _load_plant_surface_flux_summary(workspace_root: Path) -> dict[str, object] 
             "receiver_rows_per_mesh_surface_row"
         ),
         "normal_generation_basis": payload.get("normal_generation_basis"),
+        "receiver_granularity_role": payload.get("receiver_granularity_role"),
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),
         "surface_count": payload.get("surface_count"),
@@ -358,6 +359,7 @@ def _load_plant_spectral_absorption_summary(workspace_root: Path) -> dict[str, o
             "receiver_rows_per_mesh_surface_row"
         ),
         "normal_generation_basis": payload.get("normal_generation_basis"),
+        "receiver_granularity_role": payload.get("receiver_granularity_role"),
         "source_spectrum_id": source.get("distribution_id"),
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),

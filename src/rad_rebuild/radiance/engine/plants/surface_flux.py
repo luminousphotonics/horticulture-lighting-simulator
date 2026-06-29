@@ -40,7 +40,10 @@ FSPM_RECEIVER_GRANULARITY_ENV = "FSPM_RECEIVER_GRANULARITY"
 RECEIVER_GRANULARITY_LEAF_CENTROID = "leaf_centroid"
 RECEIVER_GRANULARITY_LEAF_QUADRATURE_4 = "leaf_quadrature_4"
 RECEIVER_GRANULARITY_MESH_PATCH = "mesh_patch"
-DEFAULT_FSPM_RECEIVER_GRANULARITY = RECEIVER_GRANULARITY_LEAF_CENTROID
+# Manual live validation showed quadrature is close enough to mesh-patch
+# reference behavior for normal development/demo iteration while avoiding the
+# full reference receiver count.
+DEFAULT_FSPM_RECEIVER_GRANULARITY = RECEIVER_GRANULARITY_LEAF_QUADRATURE_4
 FSPM_RECEIVER_GRANULARITIES = frozenset(
     {
         RECEIVER_GRANULARITY_LEAF_CENTROID,
@@ -74,6 +77,15 @@ def receiver_generation_basis(granularity: str) -> str:
     if normalized == RECEIVER_GRANULARITY_LEAF_QUADRATURE_4:
         return "four_area_partition_mesh_patch_centroids_per_leaf"
     return "leaf_surface_patch_centroids_and_normals_front_back_samples"
+
+
+def receiver_granularity_role(granularity: str) -> str:
+    normalized = normalize_receiver_granularity(granularity)
+    if normalized == RECEIVER_GRANULARITY_LEAF_CENTROID:
+        return "smoke_debug"
+    if normalized == RECEIVER_GRANULARITY_LEAF_QUADRATURE_4:
+        return "development_demo_default"
+    return "high_resolution_reference"
 
 
 def receiver_area_basis(granularity: str) -> str:
@@ -942,6 +954,7 @@ def write_radiance_receiver_plant_surface_flux_artifact(
     area_basis = receiver_area_basis(granularity)
     side_policy = receiver_side_policy(granularity)
     normal_basis = normal_generation_basis(granularity)
+    granularity_role = receiver_granularity_role(granularity)
     receiver_sample_area_sum = sum(
         _finite_non_negative(
             f"receiver_sample_area_m2[{sample.get('sample_id', index)}]",
@@ -971,6 +984,7 @@ def write_radiance_receiver_plant_surface_flux_artifact(
             "receiver_side_policy": side_policy,
             "receiver_rows_per_mesh_surface_row": receiver_rows_per_mesh_surface_row,
             "normal_generation_basis": normal_basis,
+            "receiver_granularity_role": granularity_role,
             "two_sided": any(sample.get("side") == "back" for sample in samples),
             "source_octree": source_octree,
             "receiver_scale_multiplier": receiver_scale_multiplier,
@@ -985,6 +999,7 @@ def write_radiance_receiver_plant_surface_flux_artifact(
         receiver_side_policy=side_policy,
         receiver_rows_per_mesh_surface_row=receiver_rows_per_mesh_surface_row,
         normal_generation_basis=normal_basis,
+        receiver_granularity_role_value=granularity_role,
         target_ppfd_umol_m2_s=target_ppfd_umol_m2_s,
         target_tolerance_umol_m2_s=target_tolerance_umol_m2_s,
         target_classification_ppfd_map_path=target_classification_ppfd_map_path,
@@ -1004,6 +1019,7 @@ def write_radiance_receiver_plant_surface_flux_artifact(
             "receiver_side_policy": side_policy,
             "receiver_rows_per_mesh_surface_row": receiver_rows_per_mesh_surface_row,
             "normal_generation_basis": normal_basis,
+            "receiver_granularity_role": granularity_role,
         }
     )
     return write_plant_surface_flux_artifact(target_dir, payload)
@@ -1194,6 +1210,7 @@ def build_plant_surface_flux_payload(
     receiver_side_policy: str | None = None,
     receiver_rows_per_mesh_surface_row: float | None = None,
     normal_generation_basis: str | None = None,
+    receiver_granularity_role_value: str | None = None,
 ) -> dict[str, Any]:
     normalized_rows, incident_by_surface_id = _normalize_surface_rows(scene, surface_flux_rows)
     classification_by_surface_id = target_classification_ppfd_by_surface_id
@@ -1370,6 +1387,7 @@ def build_plant_surface_flux_payload(
         "receiver_side_policy": receiver_side_policy,
         "receiver_rows_per_mesh_surface_row": receiver_rows_per_mesh_surface_row,
         "normal_generation_basis": normal_generation_basis,
+        "receiver_granularity_role": receiver_granularity_role_value,
         "one_sided_leaf_area_m2": absorption_metrics["one_sided_leaf_area_m2"],
         "total_incident_photon_flux_umol_s": absorption_metrics[
             "total_incident_photon_flux_umol_s"

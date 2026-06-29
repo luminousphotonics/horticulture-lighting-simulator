@@ -135,6 +135,7 @@ def _surface_absorption(payload: Mapping[str, Any] | None) -> dict[str, object] 
             "receiver_rows_per_mesh_surface_row"
         ),
         "normal_generation_basis": payload.get("normal_generation_basis"),
+        "receiver_granularity_role": payload.get("receiver_granularity_role"),
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),
         "surface_count": payload.get("surface_count"),
@@ -268,6 +269,7 @@ def _spectral_absorption(payload: Mapping[str, Any] | None) -> dict[str, object]
             "receiver_rows_per_mesh_surface_row"
         ),
         "normal_generation_basis": payload.get("normal_generation_basis"),
+        "receiver_granularity_role": payload.get("receiver_granularity_role"),
         "source_spectrum_id": source.get("distribution_id"),
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),
@@ -496,6 +498,12 @@ def build_fspm_panel_metrics(workspace_root: Path) -> dict[str, object] | None:
             if spectral_absorption_summary
             else None,
             surface_summary.get("receiver_granularity") if surface_summary else None,
+        ),
+        "receiver_granularity_role": _first_present(
+            spectral_absorption_summary.get("receiver_granularity_role")
+            if spectral_absorption_summary
+            else None,
+            surface_summary.get("receiver_granularity_role") if surface_summary else None,
         ),
         "receiver_samples_per_leaf": _first_present(
             spectral_absorption_summary.get("receiver_samples_per_leaf")

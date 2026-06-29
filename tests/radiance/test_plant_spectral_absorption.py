@@ -50,6 +50,7 @@ def _surface_flux_payload(*, density: float = 100.0, area: float = 2.0) -> dict[
         "receiver_side_policy": "single_light_facing_side",
         "receiver_rows_per_mesh_surface_row": 1.0,
         "normal_generation_basis": "nearest_mesh_patch_to_leaf_area_centroid_oriented_upward",
+        "receiver_granularity_role": "smoke_debug",
         "plant_count": 1,
         "leaf_count": 1,
         "surface_count": 1,
@@ -157,6 +158,7 @@ def test_wavelength_spectral_absorption_uses_expected_flux_formula() -> None:
     assert payload["normal_generation_basis"] == (
         "nearest_mesh_patch_to_leaf_area_centroid_oriented_upward"
     )
+    assert payload["receiver_granularity_role"] == "smoke_debug"
 
     expected_absorbed_density = 100.0 * sum(
         fraction * absorptance
