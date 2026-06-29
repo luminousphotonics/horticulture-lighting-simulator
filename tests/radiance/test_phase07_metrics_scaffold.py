@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -16,6 +17,7 @@ from rad_rebuild.radiance.backend.routes.metrics import (  # noqa: E402
 )
 from rad_rebuild.radiance.config import EXECUTION_MODE_LIVE_LOCAL  # noqa: E402
 from rad_rebuild.radiance.engine.plants import PlantGeometryConfig, generate_plant_scene, write_plant_artifacts  # noqa: E402
+from rad_rebuild.radiance.engine.plants.spectral_absorption import PLANT_SPECTRAL_ABSORPTION_SCHEMA  # noqa: E402
 from rad_rebuild.radiance.engine.plants.surface_flux import write_spatial_proxy_plant_surface_flux_artifact  # noqa: E402
 
 
@@ -82,7 +84,7 @@ def test_metrics_payload_includes_scaffold_only_plant_absorption_summary(tmp_pat
         "growth",
         "crop_output",
     ]
-    assert "Absorbed photon flux values are not computed" in scaffold["note"]
+    assert "Incident leaf-surface flux requires plant_surface_flux.json" in scaffold["note"]
 
 
 def test_metrics_route_plant_query_overrides_align_with_workspace_fingerprint() -> None:
@@ -161,7 +163,9 @@ def test_metrics_payload_prefers_surface_flux_artifact_when_available(tmp_path) 
     payload = _metrics_payload_for_request(req, tmp_path)
     absorption = payload["metrics"]["plant_photon_absorption"]
 
+    assert payload["metrics"]["plant_incident_surface_flux"] is absorption
     assert absorption["source_artifact"] == "runtime_state/plant_surface_flux.json"
+    assert absorption["artifact_role"] == "incident_leaf_surface_flux"
     assert absorption["status"] == "proxy"
     assert absorption["method"] == "baseline_ppfd_spatial_interpolation_orientation_proxy_v1"
     assert absorption["target_ppfd_umol_m2_s"] == 275.0
@@ -170,5 +174,64 @@ def test_metrics_payload_prefers_surface_flux_artifact_when_available(tmp_path) 
     assert "target_range_leaf_count" in absorption
     assert "target_capped_incident_flux_total_umol_s" in absorption
     assert absorption["total_absorbed_photon_flux_umol_s"] > 0
+    assert absorption["legacy_broadband_absorbed_flux_total_umol_s"] == absorption[
+        "total_absorbed_photon_flux_umol_s"
+    ]
+    assert "scalar optical-assumption diagnostics" in absorption["broadband_absorption_note"]
     assert absorption["plant_to_plant_absorbed_photon_flux_cv"] >= 0
     assert absorption["leaf_summaries"]
+
+
+def test_metrics_payload_includes_modeled_spectral_absorption_when_available(tmp_path) -> None:
+    _write_ppfd_map(tmp_path)
+    runtime = tmp_path / "runtime_state"
+    runtime.mkdir(parents=True, exist_ok=True)
+    (runtime / "plant_spectral_absorption.json").write_text(
+        json.dumps(
+            {
+                "schema": PLANT_SPECTRAL_ABSORPTION_SCHEMA,
+                "schema_version": 1,
+                "status": "computed",
+                "method": "wavelength_binned_leaf_optical_profile_absorption_v1",
+                "source_surface_flux_method": "radiance_leaf_surface_receiver_sampling_v1",
+                "optical_profile": {
+                    "profile_id": "rex_green_butterhead_mature_leaf_optics_v1",
+                    "profile_version": "v1",
+                },
+                "source_spectrum": {"distribution_id": "curve_data_smd"},
+                "source_spectral_basis": "wavelength_resolved_spd",
+                "scalar_flux_basis": "par_ppfd_umol_m2_s",
+                "plant_count": 1,
+                "leaf_count": 2,
+                "surface_count": 4,
+                "crop_summary": {
+                    "scalar_incident_par_ppfd_umol_m2_s": 300.0,
+                    "absorbed_par_ppfd_umol_m2_s": 190.0,
+                    "absorbed_epar_ppfd_umol_m2_s": 204.0,
+                    "absorbed_blue_ppfd_umol_m2_s": 38.0,
+                    "absorbed_green_ppfd_umol_m2_s": 52.0,
+                    "absorbed_orange_ppfd_umol_m2_s": 14.0,
+                    "absorbed_red_ppfd_umol_m2_s": 86.0,
+                    "absorbed_far_red_ppfd_umol_m2_s": 14.0,
+                    "absorbed_fraction": 0.63,
+                    "reflected_fraction": 0.25,
+                    "transmitted_fraction": 0.12,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    req = RadianceRunRequest(
+        action="metrics",
+        execution_mode=EXECUTION_MODE_LIVE_LOCAL,
+        plants_enabled=True,
+    )
+
+    payload = _metrics_payload_for_request(req, tmp_path)
+    spectral = payload["metrics"]["plant_spectral_absorption"]
+
+    assert spectral["artifact_role"] == "modeled_spectral_leaf_photon_absorption"
+    assert spectral["optical_profile_id"] == "rex_green_butterhead_mature_leaf_optics_v1"
+    assert spectral["source_spectral_basis"] == "wavelength_resolved_spd"
+    assert spectral["absorbed_par_ppfd_umol_m2_s"] == 190.0
+    assert spectral["absorbed_far_red_ppfd_umol_m2_s"] == 14.0

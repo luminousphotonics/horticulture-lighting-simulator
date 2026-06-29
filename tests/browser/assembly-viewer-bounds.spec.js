@@ -404,7 +404,7 @@ test("FSPM panel formatter summarizes available plant metrics", async ({ page })
 
   expect(result.emptyAvailable).toBe(false);
   expect(result.available).toBe(true);
-  expect(result.sectionTitles).toContain("plant-surface absorption");
+  expect(result.sectionTitles).toContain("incident leaf-surface PPFD");
   expect(result.sectionTitles).toContain("spectral exposure");
   expect(result.sectionTitles).toContain("photosynthetic light-response potential");
   expect(result.sectionTitles).toContain("photoreceptor exposure");

@@ -291,6 +291,11 @@ def build_plant_spectral_absorption_payload(
     return {
         "schema": PLANT_SPECTRAL_ABSORPTION_SCHEMA,
         "schema_version": PLANT_SPECTRAL_ABSORPTION_SCHEMA_VERSION,
+        "artifact_role": "modeled_spectral_leaf_photon_absorption",
+        "artifact_description": (
+            "Modeled wavelength-binned absorbed, reflected, and transmitted "
+            "leaf photon flux from an explicitly selected optical profile."
+        ),
         "status": "computed",
         "method": method,
         "source_artifact": "runtime_state/plant_surface_flux.json",

@@ -176,7 +176,7 @@ function renderPlantStatus(controller) {
   const state = controller.getState();
   const leafText = `${state.leafCount} ${state.leafCount === 1 ? "leaf" : "leaves"}`;
   const colorText = state.hasAbsorptionColor
-    ? (state.absorptionColor ? " · absorption color" : " · geometry color")
+    ? (state.absorptionColor ? " · surface-flux color" : " · geometry color")
     : "";
   plantsStatusEl.textContent = `${leafText}${colorText}`;
 }

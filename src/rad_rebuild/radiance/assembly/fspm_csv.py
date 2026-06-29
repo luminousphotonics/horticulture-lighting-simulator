@@ -40,7 +40,10 @@ FSPM_CSV_HEADERS = (
     "target_capped_incident_flux_total_umol_s",
     "target_capacity_incident_flux_umol_s",
     "raw_incident_flux_total_umol_s",
+    "incident_leaf_surface_ppfd_umol_m2_s",
+    "incident_leaf_surface_flux_total_umol_s",
     "raw_absorbed_flux_total_umol_s",
+    "legacy_broadband_absorbed_flux_total_umol_s",
     "absorbed_fraction_percent",
     "excess_incident_flux_above_target_umol_s",
     "excess_incident_fraction_of_raw_percent",
@@ -54,6 +57,19 @@ FSPM_CSV_HEADERS = (
     "lower_tail_raw_flux_density_umol_m2_s",
     "raw_plant_to_plant_absorption_cv_percent",
     "target_capped_incident_plant_to_plant_cv_percent",
+    "spectral_absorption_optical_profile_id",
+    "spectral_absorption_source_spectrum_basis",
+    "spectral_absorption_scalar_flux_basis",
+    "modeled_absorbed_par_ppfd_umol_m2_s",
+    "modeled_absorbed_epar_ppfd_umol_m2_s",
+    "modeled_absorbed_blue_ppfd_umol_m2_s",
+    "modeled_absorbed_green_ppfd_umol_m2_s",
+    "modeled_absorbed_orange_ppfd_umol_m2_s",
+    "modeled_absorbed_red_ppfd_umol_m2_s",
+    "modeled_absorbed_far_red_ppfd_umol_m2_s",
+    "modeled_absorbed_fraction_percent",
+    "modeled_reflected_fraction_percent",
+    "modeled_transmitted_fraction_percent",
     "blue_pfd_umol_m2_s",
     "green_pfd_umol_m2_s",
     "red_pfd_umol_m2_s",
@@ -119,7 +135,10 @@ def _summary_row(
     system_label: str,
 ) -> dict[str, str]:
     counts = _object(panel.get("counts"))
-    absorption = _object(panel.get("plant_surface_absorption"))
+    absorption = _object(
+        panel.get("incident_leaf_surface_flux") or panel.get("plant_surface_absorption")
+    )
+    spectral_absorption = _object(panel.get("modeled_spectral_absorption"))
     spectral = _object(panel.get("spectral_exposure"))
     response = _object(panel.get("photosynthetic_light_response_potential"))
     exposure = _object(panel.get("photoreceptor_exposure"))
@@ -133,7 +152,10 @@ def _summary_row(
     )
     note = (
         f"{note} Raw receiver incident flux is physical receiver accounting, "
-        "not target-equivalent PPFD classification."
+        "not target-equivalent PPFD classification. Legacy broadband absorbed "
+        "flux columns are scalar optical-assumption diagnostics; modeled "
+        "spectral absorption columns are populated only when "
+        "plant_spectral_absorption.json is available."
     )
     target_ppfd = absorption.get("target_ppfd_umol_m2_s")
     leaf_area = counts.get("one_sided_leaf_area_m2")
@@ -203,7 +225,14 @@ def _summary_row(
             "target_capped_incident_flux_total_umol_s": target_capped_incident,
             "target_capacity_incident_flux_umol_s": target_capacity,
             "raw_incident_flux_total_umol_s": raw_incident,
+            "incident_leaf_surface_ppfd_umol_m2_s": absorption.get(
+                "raw_mean_flux_density_umol_m2_s"
+            ),
+            "incident_leaf_surface_flux_total_umol_s": raw_incident,
             "raw_absorbed_flux_total_umol_s": absorption.get(
+                "total_absorbed_photon_flux_umol_s"
+            ),
+            "legacy_broadband_absorbed_flux_total_umol_s": absorption.get(
                 "total_absorbed_photon_flux_umol_s"
             ),
             "absorbed_fraction_percent": _percent(
@@ -250,6 +279,45 @@ def _summary_row(
                     "plant_to_plant_target_capped_incident_flux_cv",
                     "plant_to_plant_target_capped_flux_cv",
                 )
+            ),
+            "spectral_absorption_optical_profile_id": spectral_absorption.get(
+                "optical_profile_id"
+            ),
+            "spectral_absorption_source_spectrum_basis": spectral_absorption.get(
+                "source_spectral_basis"
+            ),
+            "spectral_absorption_scalar_flux_basis": spectral_absorption.get(
+                "scalar_flux_basis"
+            ),
+            "modeled_absorbed_par_ppfd_umol_m2_s": spectral_absorption.get(
+                "absorbed_par_ppfd_umol_m2_s"
+            ),
+            "modeled_absorbed_epar_ppfd_umol_m2_s": spectral_absorption.get(
+                "absorbed_epar_ppfd_umol_m2_s"
+            ),
+            "modeled_absorbed_blue_ppfd_umol_m2_s": spectral_absorption.get(
+                "absorbed_blue_ppfd_umol_m2_s"
+            ),
+            "modeled_absorbed_green_ppfd_umol_m2_s": spectral_absorption.get(
+                "absorbed_green_ppfd_umol_m2_s"
+            ),
+            "modeled_absorbed_orange_ppfd_umol_m2_s": spectral_absorption.get(
+                "absorbed_orange_ppfd_umol_m2_s"
+            ),
+            "modeled_absorbed_red_ppfd_umol_m2_s": spectral_absorption.get(
+                "absorbed_red_ppfd_umol_m2_s"
+            ),
+            "modeled_absorbed_far_red_ppfd_umol_m2_s": spectral_absorption.get(
+                "absorbed_far_red_ppfd_umol_m2_s"
+            ),
+            "modeled_absorbed_fraction_percent": _percent(
+                spectral_absorption.get("absorbed_fraction")
+            ),
+            "modeled_reflected_fraction_percent": _percent(
+                spectral_absorption.get("reflected_fraction")
+            ),
+            "modeled_transmitted_fraction_percent": _percent(
+                spectral_absorption.get("transmitted_fraction")
             ),
             "blue_pfd_umol_m2_s": exposure.get("mean_absorbed_blue_pfd_umol_m2_s"),
             "green_pfd_umol_m2_s": exposure.get("mean_absorbed_green_pfd_umol_m2_s"),

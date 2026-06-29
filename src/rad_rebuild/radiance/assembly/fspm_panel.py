@@ -22,6 +22,10 @@ from rad_rebuild.radiance.engine.plants.spectral import (
     PLANT_SPECTRAL_RESPONSE_FILENAME,
     PLANT_SPECTRAL_RESPONSE_SCHEMA,
 )
+from rad_rebuild.radiance.engine.plants.spectral_absorption import (
+    PLANT_SPECTRAL_ABSORPTION_FILENAME,
+    PLANT_SPECTRAL_ABSORPTION_SCHEMA,
+)
 from rad_rebuild.radiance.engine.plants.surface_flux import (
     PLANT_SURFACE_FLUX_FILENAME,
     PLANT_SURFACE_FLUX_SCHEMA,
@@ -106,6 +110,16 @@ def _surface_absorption(payload: Mapping[str, Any] | None) -> dict[str, object] 
     mean_density = absorbed / area if absorbed is not None and area and area > 0.0 else None
     return {
         **_safe_artifact_meta(payload),
+        "artifact_role": payload.get("artifact_role", "incident_leaf_surface_flux"),
+        "display_label": "Incident leaf-surface PPFD",
+        "modeled_spectral_absorption_artifact": payload.get(
+            "modeled_spectral_absorption_artifact",
+            f"runtime_state/{PLANT_SPECTRAL_ABSORPTION_FILENAME}",
+        ),
+        "broadband_absorption_note": (
+            "Legacy absorbed fields are scalar optical-assumption diagnostics, "
+            "not wavelength-resolved modeled leaf absorption."
+        ),
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),
         "surface_count": payload.get("surface_count"),
@@ -200,6 +214,62 @@ def _surface_absorption(payload: Mapping[str, Any] | None) -> dict[str, object] 
             "plant_to_plant_absorbed_photon_flux_cv"
         ),
         "lower_tail_absorbed_photon_flux_density_umol_m2_s": _lower_tail_leaf_density(payload),
+    }
+
+
+def _spectral_absorption(payload: Mapping[str, Any] | None) -> dict[str, object] | None:
+    if not payload or payload.get("schema") != PLANT_SPECTRAL_ABSORPTION_SCHEMA:
+        return None
+    crop = payload.get("crop_summary")
+    crop_summary = crop if isinstance(crop, Mapping) else {}
+    optical = payload.get("optical_profile")
+    optical_profile = optical if isinstance(optical, Mapping) else {}
+    source_spectrum = payload.get("source_spectrum")
+    source = source_spectrum if isinstance(source_spectrum, Mapping) else {}
+    return {
+        **_safe_artifact_meta(payload),
+        "artifact_role": payload.get(
+            "artifact_role",
+            "modeled_spectral_leaf_photon_absorption",
+        ),
+        "display_label": "Modeled spectral leaf absorption",
+        "source_artifact": f"runtime_state/{PLANT_SPECTRAL_ABSORPTION_FILENAME}",
+        "optical_profile_id": optical_profile.get("profile_id"),
+        "optical_profile_version": optical_profile.get("profile_version"),
+        "source_spectral_basis": payload.get("source_spectral_basis"),
+        "scalar_flux_basis": payload.get("scalar_flux_basis"),
+        "source_spectrum_id": source.get("distribution_id"),
+        "plant_count": payload.get("plant_count"),
+        "leaf_count": payload.get("leaf_count"),
+        "surface_count": payload.get("surface_count"),
+        "area_m2": crop_summary.get("area_m2"),
+        "scalar_incident_par_ppfd_umol_m2_s": crop_summary.get(
+            "scalar_incident_par_ppfd_umol_m2_s"
+        ),
+        "absorbed_par_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_par_ppfd_umol_m2_s"
+        ),
+        "absorbed_epar_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_epar_ppfd_umol_m2_s"
+        ),
+        "absorbed_blue_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_blue_ppfd_umol_m2_s"
+        ),
+        "absorbed_green_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_green_ppfd_umol_m2_s"
+        ),
+        "absorbed_orange_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_orange_ppfd_umol_m2_s"
+        ),
+        "absorbed_red_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_red_ppfd_umol_m2_s"
+        ),
+        "absorbed_far_red_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_far_red_ppfd_umol_m2_s"
+        ),
+        "absorbed_fraction": crop_summary.get("absorbed_fraction"),
+        "reflected_fraction": crop_summary.get("reflected_fraction"),
+        "transmitted_fraction": crop_summary.get("transmitted_fraction"),
     }
 
 
@@ -327,6 +397,9 @@ def build_fspm_panel_metrics(workspace_root: Path) -> dict[str, object] | None:
     plants = _load_json(runtime / PLANTS_VIEWER_FILENAME)
     surface = _load_json(_runtime_artifact(workspace_root, PLANT_SURFACE_FLUX_FILENAME))
     spectral = _load_json(_runtime_artifact(workspace_root, PLANT_SPECTRAL_RESPONSE_FILENAME))
+    spectral_absorption = _load_json(
+        _runtime_artifact(workspace_root, PLANT_SPECTRAL_ABSORPTION_FILENAME)
+    )
     photosynthesis = _load_json(_runtime_artifact(workspace_root, PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME))
     photoreceptor = _load_json(_runtime_artifact(workspace_root, PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME))
     morphology = _load_json(_runtime_artifact(workspace_root, PLANT_PHOTOMORPHOGENESIS_RESPONSE_FILENAME))
@@ -334,6 +407,7 @@ def build_fspm_panel_metrics(workspace_root: Path) -> dict[str, object] | None:
     viewer_counts = _count_viewer_plants(plants)
     surface_summary = _surface_absorption(surface)
     spectral_summary = _spectral_exposure(spectral)
+    spectral_absorption_summary = _spectral_absorption(spectral_absorption)
     photosynthesis_summary = _photosynthetic_response(photosynthesis)
     photoreceptor_summary = _photoreceptor_exposure(photoreceptor)
     morphology_summary = _legacy_morphology_scaffold(morphology)
@@ -343,6 +417,7 @@ def build_fspm_panel_metrics(workspace_root: Path) -> dict[str, object] | None:
             viewer_counts,
             surface_summary,
             spectral_summary,
+            spectral_absorption_summary,
             photosynthesis_summary,
             photoreceptor_summary,
             morphology_summary,
@@ -354,6 +429,9 @@ def build_fspm_panel_metrics(workspace_root: Path) -> dict[str, object] | None:
         "plant_count": _first_present(
             photoreceptor_summary.get("plant_count") if photoreceptor_summary else None,
             photosynthesis_summary.get("plant_count") if photosynthesis_summary else None,
+            spectral_absorption_summary.get("plant_count")
+            if spectral_absorption_summary
+            else None,
             spectral_summary.get("plant_count") if spectral_summary else None,
             surface_summary.get("plant_count") if surface_summary else None,
             viewer_counts.get("plant_count"),
@@ -361,6 +439,9 @@ def build_fspm_panel_metrics(workspace_root: Path) -> dict[str, object] | None:
         "leaf_count": _first_present(
             photoreceptor_summary.get("leaf_count") if photoreceptor_summary else None,
             photosynthesis_summary.get("leaf_count") if photosynthesis_summary else None,
+            spectral_absorption_summary.get("leaf_count")
+            if spectral_absorption_summary
+            else None,
             spectral_summary.get("leaf_count") if spectral_summary else None,
             surface_summary.get("leaf_count") if surface_summary else None,
             viewer_counts.get("leaf_count"),
@@ -368,6 +449,9 @@ def build_fspm_panel_metrics(workspace_root: Path) -> dict[str, object] | None:
         "surface_count": _first_present(
             photoreceptor_summary.get("surface_count") if photoreceptor_summary else None,
             photosynthesis_summary.get("surface_count") if photosynthesis_summary else None,
+            spectral_absorption_summary.get("surface_count")
+            if spectral_absorption_summary
+            else None,
             spectral_summary.get("surface_count") if spectral_summary else None,
             surface_summary.get("surface_count") if surface_summary else None,
         ),
@@ -384,7 +468,10 @@ def build_fspm_panel_metrics(workspace_root: Path) -> dict[str, object] | None:
         ),
     }
     if surface_summary is not None:
+        payload["incident_leaf_surface_flux"] = surface_summary
         payload["plant_surface_absorption"] = surface_summary
+    if spectral_absorption_summary is not None:
+        payload["modeled_spectral_absorption"] = spectral_absorption_summary
     if spectral_summary is not None:
         payload["spectral_exposure"] = spectral_summary
     if photosynthesis_summary is not None:

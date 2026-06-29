@@ -25,6 +25,7 @@ from rad_rebuild.radiance.config import EXECUTION_MODE_LIVE_DOCKER, MODE_HPS, MO
 from rad_rebuild.radiance.engine.plants.photoreceptor import PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA  # noqa: E402
 from rad_rebuild.radiance.engine.plants.photosynthesis import PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA  # noqa: E402
 from rad_rebuild.radiance.engine.plants.spectral import PLANT_SPECTRAL_RESPONSE_SCHEMA  # noqa: E402
+from rad_rebuild.radiance.engine.plants.spectral_absorption import PLANT_SPECTRAL_ABSORPTION_SCHEMA  # noqa: E402
 from rad_rebuild.radiance.engine.plants.surface_flux import PLANT_SURFACE_FLUX_SCHEMA  # noqa: E402
 from rad_rebuild.web.app import load_web_settings  # noqa: E402
 
@@ -337,6 +338,41 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            (runtime / "plant_spectral_absorption.json").write_text(
+                json.dumps(
+                    {
+                        "schema": PLANT_SPECTRAL_ABSORPTION_SCHEMA,
+                        "schema_version": 1,
+                        "status": "computed",
+                        "method": "wavelength_binned_leaf_optical_profile_absorption_v1",
+                        "source_surface_flux_method": "radiance_leaf_surface_receiver_sampling_v1",
+                        "optical_profile": {
+                            "profile_id": "rex_green_butterhead_mature_leaf_optics_v1",
+                            "profile_version": "v1",
+                        },
+                        "source_spectrum": {"distribution_id": "curve_data_smd"},
+                        "source_spectral_basis": "wavelength_resolved_spd",
+                        "scalar_flux_basis": "par_ppfd_umol_m2_s",
+                        "plant_count": 2,
+                        "leaf_count": 8,
+                        "surface_count": 16,
+                        "crop_summary": {
+                            "scalar_incident_par_ppfd_umol_m2_s": 320.0,
+                            "absorbed_par_ppfd_umol_m2_s": 211.0,
+                            "absorbed_epar_ppfd_umol_m2_s": 223.0,
+                            "absorbed_blue_ppfd_umol_m2_s": 42.0,
+                            "absorbed_green_ppfd_umol_m2_s": 55.0,
+                            "absorbed_orange_ppfd_umol_m2_s": 16.0,
+                            "absorbed_red_ppfd_umol_m2_s": 98.0,
+                            "absorbed_far_red_ppfd_umol_m2_s": 12.0,
+                            "absorbed_fraction": 0.64,
+                            "reflected_fraction": 0.24,
+                            "transmitted_fraction": 0.12,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
             return root
 
         with patch.object(
@@ -417,8 +453,33 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
             34.1,
         )
         self.assertEqual(row["raw_incident_flux_total_umol_s"], "60")
+        self.assertEqual(row["incident_leaf_surface_ppfd_umol_m2_s"], "320")
+        self.assertEqual(row["incident_leaf_surface_flux_total_umol_s"], "60")
         self.assertEqual(row["raw_absorbed_flux_total_umol_s"], "42")
+        self.assertEqual(row["legacy_broadband_absorbed_flux_total_umol_s"], "42")
         self.assertEqual(row["absorbed_fraction_percent"], "70")
+        self.assertEqual(
+            row["spectral_absorption_optical_profile_id"],
+            "rex_green_butterhead_mature_leaf_optics_v1",
+        )
+        self.assertEqual(
+            row["spectral_absorption_source_spectrum_basis"],
+            "wavelength_resolved_spd",
+        )
+        self.assertEqual(
+            row["spectral_absorption_scalar_flux_basis"],
+            "par_ppfd_umol_m2_s",
+        )
+        self.assertEqual(row["modeled_absorbed_par_ppfd_umol_m2_s"], "211")
+        self.assertEqual(row["modeled_absorbed_epar_ppfd_umol_m2_s"], "223")
+        self.assertEqual(row["modeled_absorbed_blue_ppfd_umol_m2_s"], "42")
+        self.assertEqual(row["modeled_absorbed_green_ppfd_umol_m2_s"], "55")
+        self.assertEqual(row["modeled_absorbed_orange_ppfd_umol_m2_s"], "16")
+        self.assertEqual(row["modeled_absorbed_red_ppfd_umol_m2_s"], "98")
+        self.assertEqual(row["modeled_absorbed_far_red_ppfd_umol_m2_s"], "12")
+        self.assertEqual(row["modeled_absorbed_fraction_percent"], "64")
+        self.assertEqual(row["modeled_reflected_fraction_percent"], "24")
+        self.assertEqual(row["modeled_transmitted_fraction_percent"], "12")
         self.assertAlmostEqual(
             float(row["target_capped_incident_fraction_of_raw_percent"]),
             34.0 / 60.0 * 100.0,
@@ -469,6 +530,9 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
                 "artifact_schema",
                 "target_classification_basis",
                 "target_classification_source",
+                "spectral_absorption_optical_profile_id",
+                "spectral_absorption_source_spectrum_basis",
+                "spectral_absorption_scalar_flux_basis",
                 "calibration_status",
                 "note",
             }:
@@ -533,6 +597,8 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         self.assertEqual(row["target_capacity_incident_flux_umol_s"], "0")
         self.assertEqual(row["target_capped_incident_fraction_of_capacity_percent"], "")
         self.assertEqual(row["deficit_to_target_capacity_percent"], "")
+        self.assertEqual(row["spectral_absorption_optical_profile_id"], "")
+        self.assertEqual(row["modeled_absorbed_par_ppfd_umol_m2_s"], "")
         self.assertEqual(row["blue_pfd_umol_m2_s"], "")
         self.assertEqual(row["photosynthetic_light_response_mean"], "")
         self.assertEqual(row["calibration_status"], "")

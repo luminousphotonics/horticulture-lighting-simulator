@@ -26,6 +26,7 @@ from rad_rebuild.radiance.engine.plants import PlantGeometryConfig, write_plant_
 from rad_rebuild.radiance.engine.plants.photoreceptor import PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA  # noqa: E402
 from rad_rebuild.radiance.engine.plants.photosynthesis import PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA  # noqa: E402
 from rad_rebuild.radiance.engine.plants.spectral import PLANT_SPECTRAL_RESPONSE_SCHEMA  # noqa: E402
+from rad_rebuild.radiance.engine.plants.spectral_absorption import PLANT_SPECTRAL_ABSORPTION_SCHEMA  # noqa: E402
 from rad_rebuild.radiance.engine.plants.surface_flux import PLANT_SURFACE_FLUX_SCHEMA  # noqa: E402
 
 
@@ -428,10 +429,46 @@ def test_builder_attaches_sanitized_fspm_panel_metrics(tmp_path: Path) -> None:
         ),
         encoding="utf-8",
     )
+    (runtime / "plant_spectral_absorption.json").write_text(
+        json.dumps(
+            {
+                "schema": PLANT_SPECTRAL_ABSORPTION_SCHEMA,
+                "schema_version": 1,
+                "status": "computed",
+                "method": "wavelength_binned_leaf_optical_profile_absorption_v1",
+                "optical_profile": {
+                    "profile_id": "rex_green_butterhead_mature_leaf_optics_v1",
+                    "profile_version": "v1",
+                },
+                "source_spectrum": {"distribution_id": "curve_data_smd"},
+                "source_spectral_basis": "wavelength_resolved_spd",
+                "scalar_flux_basis": "par_ppfd_umol_m2_s",
+                "plant_count": 1,
+                "leaf_count": 1,
+                "surface_count": 2,
+                "crop_summary": {
+                    "scalar_incident_par_ppfd_umol_m2_s": 500.0,
+                    "absorbed_par_ppfd_umol_m2_s": 320.0,
+                    "absorbed_epar_ppfd_umol_m2_s": 338.0,
+                    "absorbed_blue_ppfd_umol_m2_s": 60.0,
+                    "absorbed_green_ppfd_umol_m2_s": 85.0,
+                    "absorbed_orange_ppfd_umol_m2_s": 25.0,
+                    "absorbed_red_ppfd_umol_m2_s": 150.0,
+                    "absorbed_far_red_ppfd_umol_m2_s": 18.0,
+                    "absorbed_fraction": 0.64,
+                    "reflected_fraction": 0.24,
+                    "transmitted_fraction": 0.12,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
 
     scene = build_assembly_scene(tmp_path, _smd_req(plants_enabled=True, plant_seed=17, plant_rows=1, plant_columns=1, plant_leaf_count=1))
 
     panel = scene["fspm_metrics"]
+    assert panel["incident_leaf_surface_flux"]["target_ppfd_umol_m2_s"] == 275.0
+    assert panel["incident_leaf_surface_flux"]["artifact_role"] == "incident_leaf_surface_flux"
     assert panel["plant_surface_absorption"]["target_ppfd_umol_m2_s"] == 275.0
     assert (
         panel["plant_surface_absorption"]["target_classification_source"]
@@ -439,6 +476,12 @@ def test_builder_attaches_sanitized_fspm_panel_metrics(tmp_path: Path) -> None:
     )
     assert panel["plant_surface_absorption"]["target_range_leaf_count"] == 1
     assert panel["plant_surface_absorption"]["mean_absorbed_photon_flux_density_umol_m2_s"] == 500.0
+    assert (
+        panel["modeled_spectral_absorption"]["optical_profile_id"]
+        == "rex_green_butterhead_mature_leaf_optics_v1"
+    )
+    assert panel["modeled_spectral_absorption"]["absorbed_par_ppfd_umol_m2_s"] == 320.0
+    assert panel["modeled_spectral_absorption"]["absorbed_far_red_ppfd_umol_m2_s"] == 18.0
     assert panel["spectral_exposure"]["total_absorbed_par_photon_flux_umol_s"] == 5.0
     assert panel["photosynthetic_light_response_potential"]["local_response_p10_0_1"] == 0.58
     assert panel["photoreceptor_exposure"]["mean_absorbed_blue_pfd_umol_m2_s"] == 83.3

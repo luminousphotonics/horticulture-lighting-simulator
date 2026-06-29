@@ -137,6 +137,21 @@ def _manifest_payload(
             "spectral_absorption": PLANT_SPECTRAL_ABSORPTION_FILENAME,
             "manifest": PLANTS_MANIFEST_FILENAME,
         },
+        "artifact_descriptions": {
+            "radiance": "Plant geometry Radiance primitives.",
+            "viewer": "Plant geometry for the browser assembly viewer.",
+            "config": "Deterministic plant geometry configuration.",
+            "absorption_surfaces": "Legacy deterministic leaf-face receiver registry; not flux.",
+            "surface_flux": (
+                "Incident leaf-surface photon flux and target-fit metrics; "
+                "legacy broadband absorbed fields are scalar optical-assumption diagnostics."
+            ),
+            "spectral_absorption": (
+                "Modeled spectral absorbed/reflected/transmitted leaf photon flux "
+                "when an optical profile is explicitly selected."
+            ),
+            "manifest": "Plant artifact inventory.",
+        },
         "active_simulation_integration": active_simulation_integration,
         "config": _config_payload(scene.config),
         "counts": {

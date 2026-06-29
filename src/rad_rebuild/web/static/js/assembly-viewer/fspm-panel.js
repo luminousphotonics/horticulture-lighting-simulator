@@ -57,7 +57,9 @@ function bandAbsorbedFlux(bandTotals, bandId) {
 
 function hasAnySection(panel) {
   return Boolean(
-    asObject(panel?.plant_surface_absorption)
+    asObject(panel?.incident_leaf_surface_flux)
+      || asObject(panel?.plant_surface_absorption)
+      || asObject(panel?.modeled_spectral_absorption)
       || asObject(panel?.spectral_exposure)
       || asObject(panel?.photosynthetic_light_response_potential)
       || asObject(panel?.photoreceptor_exposure)
@@ -96,6 +98,7 @@ function fallbackPanelFromScene(scene) {
     limitations_note: "Lighting-analysis input only; response potentials are unvalidated and are not biological production forecasts.",
   };
   if (surface) {
+    panel.incident_leaf_surface_flux = surface;
     panel.plant_surface_absorption = surface;
   }
   return panel;
@@ -134,10 +137,10 @@ export function buildFspmPanelSections(scene) {
     ],
   });
 
-  const absorption = asObject(panel.plant_surface_absorption);
+  const absorption = asObject(panel.incident_leaf_surface_flux) || asObject(panel.plant_surface_absorption);
   if (absorption) {
     sections.push({
-      title: "plant-surface absorption",
+      title: "incident leaf-surface PPFD",
       rows: [
         ["Status", labelStatus(absorption.status)],
         ["Method", labelStatus(absorption.method)],
@@ -222,15 +225,55 @@ export function buildFspmPanelSections(scene) {
           ),
         ],
         [
-          "Raw/uncapped absorbed flux",
+          "Raw incident flux",
+          formatMetric(absorption.total_incident_photon_flux_umol_s, "umol/s", 2),
+        ],
+        [
+          "Legacy broadband absorbed flux",
           formatMetric(absorption.total_absorbed_photon_flux_umol_s, "umol/s", 2),
         ],
         [
-          "Raw/uncapped incident flux",
-          formatMetric(absorption.total_incident_photon_flux_umol_s, "umol/s", 2),
+          "Legacy broadband absorbed fraction",
+          formatPercent(absorption.mean_absorbed_fraction_of_incident, 1),
         ],
-        ["Raw absorbed fraction", formatPercent(absorption.mean_absorbed_fraction_of_incident, 1)],
-        ["Raw plant-to-plant absorbed-flux CV", formatPercent(absorption.plant_to_plant_absorbed_photon_flux_cv, 1)],
+        [
+          "Legacy broadband absorbed-flux CV",
+          formatPercent(absorption.plant_to_plant_absorbed_photon_flux_cv, 1),
+        ],
+      ],
+    });
+  }
+
+  const spectralAbsorption = asObject(panel.modeled_spectral_absorption);
+  if (spectralAbsorption) {
+    sections.push({
+      title: "modeled spectral leaf absorption",
+      rows: [
+        ["Status", labelStatus(spectralAbsorption.status)],
+        ["Method", labelStatus(spectralAbsorption.method)],
+        ["Optical profile", labelStatus(spectralAbsorption.optical_profile_id)],
+        ["Source spectrum basis", labelStatus(spectralAbsorption.source_spectral_basis)],
+        ["Scalar flux basis", labelStatus(spectralAbsorption.scalar_flux_basis)],
+        [
+          "Incident PAR PPFD",
+          formatMetric(spectralAbsorption.scalar_incident_par_ppfd_umol_m2_s, "umol/m2/s", 1),
+        ],
+        [
+          "Modeled absorbed PAR PPFD",
+          formatMetric(spectralAbsorption.absorbed_par_ppfd_umol_m2_s, "umol/m2/s", 1),
+        ],
+        [
+          "Modeled absorbed ePAR PPFD",
+          formatMetric(spectralAbsorption.absorbed_epar_ppfd_umol_m2_s, "umol/m2/s", 1),
+        ],
+        ["Blue", formatMetric(spectralAbsorption.absorbed_blue_ppfd_umol_m2_s, "umol/m2/s", 1)],
+        ["Green", formatMetric(spectralAbsorption.absorbed_green_ppfd_umol_m2_s, "umol/m2/s", 1)],
+        ["Orange", formatMetric(spectralAbsorption.absorbed_orange_ppfd_umol_m2_s, "umol/m2/s", 1)],
+        ["Red", formatMetric(spectralAbsorption.absorbed_red_ppfd_umol_m2_s, "umol/m2/s", 1)],
+        ["Far-red", formatMetric(spectralAbsorption.absorbed_far_red_ppfd_umol_m2_s, "umol/m2/s", 1)],
+        ["Absorbed fraction", formatPercent(spectralAbsorption.absorbed_fraction, 1)],
+        ["Reflected fraction", formatPercent(spectralAbsorption.reflected_fraction, 1)],
+        ["Transmitted fraction", formatPercent(spectralAbsorption.transmitted_fraction, 1)],
       ],
     });
   }

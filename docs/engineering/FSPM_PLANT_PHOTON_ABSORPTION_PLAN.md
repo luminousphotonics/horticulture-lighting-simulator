@@ -90,6 +90,7 @@ Current plant artifacts:
 * `plant_config.json`
 * `plant_surface_flux.json`
 * `plant_spectral_response.json`
+* `plant_spectral_absorption.json`
 * `plant_photosynthesis_response.json`
 * `plant_photomorphogenesis_response.json`
 
@@ -482,9 +483,9 @@ Completed checklist:
 
 * Replaced the visible 3D Assembly viewer Diagnostics Panel with `FSPM Panel`.
 * Added a sanitized assembly-scene `fspm_metrics` block only when plant/FSPM data exists, preserving no-plant scene shape.
-* Displayed summarized plant-model counts, plant-surface absorption, spectral exposure, photosynthetic light-response potential, and photoreceptor exposure without raw artifact JSON.
+* Displayed summarized plant-model counts, incident leaf-surface flux, spectral exposure, photosynthetic light-response potential, and photoreceptor exposure without raw artifact JSON.
 * Kept the panel hidden when no plant/FSPM scene data exists.
-* Preserved fixture rendering, plant rendering, PPFD heatmap controls, absorption coloring, camera controls, and assembly viewer controls.
+* Preserved fixture rendering, plant rendering, PPFD heatmap controls, surface-flux coloring, camera controls, and assembly viewer controls.
 * Kept visible UI labels framed as lighting-analysis inputs and unvalidated response potential, not biological production forecasts.
 * Refreshed OpenAPI and frontend API typedef contracts for the additive scene field.
 
@@ -540,7 +541,7 @@ Completed checklist:
 * Preferred interpolated runtime `ppfd_map.txt` values at plant-surface XY positions for target classification, with a labeled plant-surface receiver fallback when no PPFD map is available.
 * Added target-range leaf/surface/plant counts and target metadata to `plant_surface_flux.json`.
 * Added target-capped incident flux, excess incident above target, deficit-to-target incident flux, lower-tail target-classification PPFD, and plant-to-plant target-capped incident CV metrics.
-* Updated the external `PLANT PHOTON ABSORPTION` block and 3D Assembly viewer `FSPM Panel` to label target classification basis/source separately from raw receiver incident/absorbed totals.
+* Updated the external FSPM metrics block and 3D Assembly viewer `FSPM Panel` to label target classification basis/source separately from raw receiver incident flux and legacy broadband absorbed diagnostics.
 * Preserved baseline PPFD, DOU, CV, mean PPFD, heatmap, fixture-output, and no-plant public behavior.
 
 Validation run:
@@ -747,6 +748,50 @@ Unresolved issues:
 Next recommended implementation step:
 
 * Phase 3 — UI/CSV/artifact relabeling so user-facing surfaces distinguish scalar incident receiver flux, wavelength-binned modeled absorption, and legacy band-response artifacts.
+* Phase 4 — optional plant-geometry occlusion mode for plant-shaded receiver sampling.
+
+### Step 4.10 — FSPM UI/CSV/Artifact Relabeling
+
+Status: complete.
+
+Completed checklist:
+
+* Added artifact role/description metadata to `plant_surface_flux.json` so it is identified as incident leaf-surface receiver flux and target-fit metrics.
+* Added artifact role/description metadata to `plant_spectral_absorption.json` so it is identified as modeled spectral absorbed/reflected/transmitted leaf photon flux.
+* Added manifest artifact descriptions for surface-flux and spectral-absorption outputs.
+* Added `incident_leaf_surface_flux` panel metrics while preserving the legacy `plant_surface_absorption` alias for compatibility.
+* Added compact `modeled_spectral_absorption` panel and API summaries only when `plant_spectral_absorption.json` is present.
+* Added backend `plant_incident_surface_flux` and `plant_spectral_absorption` metric blocks while preserving legacy `plant_photon_absorption` behavior.
+* Added CSV columns for incident leaf-surface PPFD/flux, legacy broadband absorbed diagnostics, optical profile ID, source spectrum basis, scalar flux basis, modeled absorbed PAR/ePAR/band PPFD, and modeled absorbed/reflected/transmitted fractions.
+* Left spectral absorption CSV cells blank when no optical-profile artifact exists.
+* Updated simulator and assembly-viewer labels to distinguish incident leaf-surface flux, legacy broadband diagnostics, target-fit metrics, and modeled spectral absorption.
+* Renamed the viewer coloring label/status from absorption color to surface-flux color.
+* Preserved baseline canopy-plane PPFD/uniformity calculations, Rex opt-in behavior, Rex source data, and existing JSON compatibility fields.
+
+Validation run:
+
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_spectral_absorption.py tests/radiance/test_plant_optical_profiles.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_surface_flux_artifact.py tests/radiance/test_assembly_scene.py tests/radiance/test_phase07_metrics_scaffold.py tests/radiance/test_route_query_contracts.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_public_web_contract.py`
+* `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance/engine/plants/surface_flux.py src/rad_rebuild/radiance/engine/plants/spectral_absorption.py src/rad_rebuild/radiance/engine/plants/artifacts.py src/rad_rebuild/radiance/assembly/fspm_panel.py src/rad_rebuild/radiance/assembly/fspm_csv.py src/rad_rebuild/radiance/backend/metrics.py tests/radiance/test_assembly_scene.py tests/radiance/test_phase07_metrics_scaffold.py tests/radiance/test_route_query_contracts.py`
+* `npm run lint:js`
+* `npm run typecheck:js`
+* `npx playwright test tests/browser/frontend-smoke.spec.js tests/browser/assembly-viewer-bounds.spec.js --project=desktop --grep "metrics formatter|plant scaffold|assembly viewer exposes|FSPM panel"`
+* `npx playwright test tests/browser/frontend-smoke.spec.js --project=desktop --grep "metrics panel formats plant absorption scaffold"`
+* `git diff --check`
+
+Validation results:
+
+* Spectral-absorption and optical-profile tests: passed, 12 tests.
+* Surface-flux artifact, assembly-scene, metrics scaffold, and route-query contract tests: passed, 57 tests.
+* Public web contract tests: passed, 9 tests, 3 subtests.
+* Focused Ruff check: passed.
+* ESLint and TypeScript checks: passed.
+* Focused Playwright tests: passed, 3 desktop tests total. Initial sandboxed run could not start the local Flask server; reruns with local-server escalation passed.
+* Diff whitespace check: passed.
+
+Next recommended implementation step:
+
 * Phase 4 — optional plant-geometry occlusion mode for plant-shaded receiver sampling.
 
 ### Step 5 — Workshop Demo Hardening

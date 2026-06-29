@@ -30,6 +30,10 @@ from rad_rebuild.radiance.engine.plants.spectral import (
     PLANT_SPECTRAL_RESPONSE_FILENAME,
     PLANT_SPECTRAL_RESPONSE_SCHEMA,
 )
+from rad_rebuild.radiance.engine.plants.spectral_absorption import (
+    PLANT_SPECTRAL_ABSORPTION_FILENAME,
+    PLANT_SPECTRAL_ABSORPTION_SCHEMA,
+)
 
 from .artifacts import BACKEND_SERVER_FILE, _cache_fresh, _layout_file_for_mode
 from .costs import build_cost_estimate
@@ -103,6 +107,7 @@ def _metrics_dependencies(workspace_root: Path | None = None) -> list[Path | Non
         work_root / "runtime_state" / "last_run.json",
         work_root / "runtime_state" / PLANT_ABSORPTION_SURFACES_FILENAME,
         work_root / "runtime_state" / PLANT_SURFACE_FLUX_FILENAME,
+        work_root / "runtime_state" / PLANT_SPECTRAL_ABSORPTION_FILENAME,
         work_root / "runtime_state" / PLANT_SPECTRAL_RESPONSE_FILENAME,
         work_root / "runtime_state" / PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME,
         work_root / "runtime_state" / PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME,
@@ -142,19 +147,23 @@ def _load_plant_surface_flux_summary(workspace_root: Path) -> dict[str, object] 
     note = (
         "Radiance receiver sampling present. Values are sampled at leaf surface "
         "centroids/normals against the unblocked baseline lighting field. "
-        "Target classification uses target-equivalent PPFD; raw receiver "
-        "absorption remains separate."
+        "Target classification uses target-equivalent PPFD; incident receiver "
+        "flux remains separate from modeled spectral absorption."
         if status == "computed" and method == RADIANCE_RECEIVER_METHOD
         else (
-            "Surface flux artifact present. Current values are proxy values until "
-            "the Radiance per-surface receiver method is reviewed. Target "
-            "classification uses target-equivalent PPFD where available."
+            "Incident surface-flux artifact present. Current values are proxy "
+            "values until the Radiance per-surface receiver method is reviewed. "
+            "Target classification uses target-equivalent PPFD where available; "
+            "modeled spectral absorption is reported only when "
+            "plant_spectral_absorption.json is available."
         )
     )
 
     return {
         "schema": payload.get("schema"),
         "schema_version": payload.get("schema_version"),
+        "artifact_role": payload.get("artifact_role", "incident_leaf_surface_flux"),
+        "display_label": "Incident leaf-surface PPFD",
         "status": status,
         "method": method,
         "source_artifact": f"runtime_state/{PLANT_SURFACE_FLUX_FILENAME}",
@@ -164,7 +173,20 @@ def _load_plant_surface_flux_summary(workspace_root: Path) -> dict[str, object] 
         "surface_count": payload.get("surface_count"),
         "one_sided_leaf_area_m2": payload.get("one_sided_leaf_area_m2"),
         "total_incident_photon_flux_umol_s": payload.get("total_incident_photon_flux_umol_s"),
+        "incident_leaf_surface_flux_total_umol_s": payload.get(
+            "total_incident_photon_flux_umol_s"
+        ),
+        "incident_leaf_surface_ppfd_umol_m2_s": payload.get(
+            "raw_mean_flux_density_umol_m2_s"
+        ),
         "total_absorbed_photon_flux_umol_s": payload.get("total_absorbed_photon_flux_umol_s"),
+        "legacy_broadband_absorbed_flux_total_umol_s": payload.get(
+            "total_absorbed_photon_flux_umol_s"
+        ),
+        "broadband_absorption_note": (
+            "Legacy absorbed fields are scalar optical-assumption diagnostics, "
+            "not wavelength-resolved modeled leaf absorption."
+        ),
         "mean_absorbed_fraction_of_incident": payload.get("mean_absorbed_fraction_of_incident"),
         "plant_to_plant_absorbed_photon_flux_cv": payload.get("plant_to_plant_absorbed_photon_flux_cv"),
         "target": payload.get("target"),
@@ -267,6 +289,87 @@ def _load_plant_surface_flux_summary(workspace_root: Path) -> dict[str, object] 
         "warnings": payload.get("warnings", []),
         "limitations": payload.get("limitations", []),
         "note": note,
+    }
+
+
+def _load_plant_spectral_absorption_summary(workspace_root: Path) -> dict[str, object] | None:
+    path = workspace_root / "runtime_state" / PLANT_SPECTRAL_ABSORPTION_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("schema") != PLANT_SPECTRAL_ABSORPTION_SCHEMA:
+        return None
+
+    crop = payload.get("crop_summary")
+    crop_summary = crop if isinstance(crop, dict) else {}
+    optical = payload.get("optical_profile")
+    optical_profile = optical if isinstance(optical, dict) else {}
+    source_spectrum = payload.get("source_spectrum")
+    source = source_spectrum if isinstance(source_spectrum, dict) else {}
+
+    return {
+        "schema": payload.get("schema"),
+        "schema_version": payload.get("schema_version"),
+        "artifact_role": payload.get(
+            "artifact_role",
+            "modeled_spectral_leaf_photon_absorption",
+        ),
+        "display_label": "Modeled spectral leaf absorption",
+        "status": payload.get("status"),
+        "method": payload.get("method"),
+        "source_artifact": f"runtime_state/{PLANT_SPECTRAL_ABSORPTION_FILENAME}",
+        "source_surface_flux_method": payload.get("source_surface_flux_method"),
+        "optical_profile_id": optical_profile.get("profile_id"),
+        "optical_profile_version": optical_profile.get("profile_version"),
+        "source_spectral_basis": payload.get("source_spectral_basis"),
+        "scalar_flux_basis": payload.get("scalar_flux_basis"),
+        "source_spectrum_id": source.get("distribution_id"),
+        "plant_count": payload.get("plant_count"),
+        "leaf_count": payload.get("leaf_count"),
+        "surface_count": payload.get("surface_count"),
+        "scalar_incident_par_ppfd_umol_m2_s": crop_summary.get(
+            "scalar_incident_par_ppfd_umol_m2_s"
+        ),
+        "absorbed_par_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_par_ppfd_umol_m2_s"
+        ),
+        "absorbed_epar_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_epar_ppfd_umol_m2_s"
+        ),
+        "absorbed_blue_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_blue_ppfd_umol_m2_s"
+        ),
+        "absorbed_green_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_green_ppfd_umol_m2_s"
+        ),
+        "absorbed_orange_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_orange_ppfd_umol_m2_s"
+        ),
+        "absorbed_red_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_red_ppfd_umol_m2_s"
+        ),
+        "absorbed_far_red_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_far_red_ppfd_umol_m2_s"
+        ),
+        "absorbed_fraction": crop_summary.get("absorbed_fraction"),
+        "reflected_fraction": crop_summary.get("reflected_fraction"),
+        "transmitted_fraction": crop_summary.get("transmitted_fraction"),
+        "outputs_do_not_predict": payload.get(
+            "outputs_do_not_predict",
+            ["yield", "biomass", "growth", "crop_output"],
+        ),
+        "warnings": payload.get("warnings", []),
+        "limitations": payload.get("limitations", []),
+        "note": (
+            "Modeled spectral absorption artifact present. Values summarize "
+            "absorbed/reflected/transmitted leaf photon flux from the selected "
+            "optical profile and source spectrum basis."
+        ),
     }
 
 
@@ -504,8 +607,9 @@ def _load_plant_photon_absorption_scaffold(workspace_root: Path) -> dict[str, ob
         ),
         "limitations": payload.get("limitations", []),
         "note": (
-            "Surface registry only. Absorbed photon flux values are not computed "
-            "until a Radiance per-surface flux mapping method is reviewed."
+            "Surface registry only. Incident leaf-surface flux requires "
+            "plant_surface_flux.json; modeled spectral absorption requires "
+            "plant_spectral_absorption.json."
         ),
     }
 
@@ -583,7 +687,13 @@ def _metrics_payload_for_request(req: RadianceRunRequest, workspace_root: Path) 
         or _load_plant_photon_absorption_scaffold(workspace_root)
     )
     if plant_photon_absorption is not None:
+        if plant_photon_absorption.get("artifact_role") == "incident_leaf_surface_flux":
+            metrics["plant_incident_surface_flux"] = plant_photon_absorption
         metrics["plant_photon_absorption"] = plant_photon_absorption
+
+    plant_spectral_absorption = _load_plant_spectral_absorption_summary(workspace_root)
+    if plant_spectral_absorption is not None:
+        metrics["plant_spectral_absorption"] = plant_spectral_absorption
 
     plant_spectral_response = _load_plant_spectral_response_summary(workspace_root)
     if plant_spectral_response is not None:

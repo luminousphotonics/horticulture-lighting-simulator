@@ -518,7 +518,7 @@ test("metrics panel formats plant absorption scaffold without object dumps", asy
               absorptance: 0.7,
             },
             outputs_do_not_predict: ["yield", "biomass", "growth", "crop_output"],
-            note: "Surface registry only. Absorbed photon flux values are not computed until a Radiance per-surface flux mapping method is reviewed.",
+            note: "Surface registry only. Incident leaf-surface flux requires a reviewed Radiance surface-flux mapping method.",
           },
         },
         cost_estimate: null,
@@ -530,10 +530,10 @@ test("metrics panel formats plant absorption scaffold without object dumps", asy
   await page.getByRole("button", { name: "Run + Visualize" }).click();
 
   const metrics = page.locator("#rad-metrics");
-  await expect(metrics).toContainText("PLANT PHOTON ABSORPTION SCAFFOLD");
+  await expect(metrics).toContainText("PLANT SURFACE REGISTRY");
   await expect(metrics).toContainText("status: scaffold only · runtime_state/plant_absorption_surfaces.json");
   await expect(metrics).toContainText("registry: 1 plants · 4 leaves · 64 surfaces");
-  await expect(metrics).toContainText("absorbed_flux: not computed");
+  await expect(metrics).toContainText("incident_leaf_surface_flux: not computed");
   await expect(metrics).toContainText("absorptance=70.0%");
   await expect(metrics).not.toContainText("[object Object]");
 });
@@ -577,10 +577,35 @@ test("metrics formatter prioritizes target-aware plant absorption fields", async
         plant_to_plant_absorbed_photon_flux_cv: 0.12,
         note: "Target-capped values are lighting-analysis inputs, not biological validation.",
       },
+      plant_spectral_absorption: {
+        schema: "rad_rebuild.fspm.plant_spectral_absorption.v1",
+        schema_version: 1,
+        status: "computed",
+        source_artifact: "runtime_state/plant_spectral_absorption.json",
+        optical_profile_id: "rex_green_butterhead_mature_leaf_optics_v1",
+        source_spectral_basis: "wavelength_resolved_spd",
+        scalar_flux_basis: "par_ppfd_umol_m2_s",
+        scalar_incident_par_ppfd_umol_m2_s: 320,
+        absorbed_par_ppfd_umol_m2_s: 212,
+        absorbed_epar_ppfd_umol_m2_s: 225,
+        absorbed_blue_ppfd_umol_m2_s: 42,
+        absorbed_green_ppfd_umol_m2_s: 54,
+        absorbed_orange_ppfd_umol_m2_s: 18,
+        absorbed_red_ppfd_umol_m2_s: 98,
+        absorbed_far_red_ppfd_umol_m2_s: 13,
+        absorbed_fraction: 0.64,
+        reflected_fraction: 0.24,
+        transmitted_fraction: 0.12,
+      },
     });
   });
 
-  expect(text).toContain("PLANT PHOTON ABSORPTION");
+  expect(text).toContain("INCIDENT LEAF-SURFACE FLUX");
+  expect(text).toContain("MODELED SPECTRAL LEAF ABSORPTION");
+  expect(text).toContain("optical_profile: rex_green_butterhead_mature_leaf_optics_v1");
+  expect(text).toContain("modeled_absorbed_PAR_PPFD: 212.0 umol/m2/s");
+  expect(text).toContain("modeled_absorbed_band_PPFD: blue=42.0");
+  expect(text).not.toContain("wavelength_nm");
   expect(text).toContain("target_ppfd: 275 umol/m2/s +/- 20");
   expect(text).toContain("target_classification_basis: canopy-plane equivalent incident PPFD");
   expect(text).toContain("target_classification_source: interpolated runtime ppfd map");
@@ -589,9 +614,9 @@ test("metrics formatter prioritizes target-aware plant absorption fields", async
   expect(text).toContain("over_lit_leaves: 1");
   expect(text).toContain("target_classification_mean_ppfd: 270.0 umol/m2/s");
   expect(text).toContain("target_capped_incident_flux_total: 30.000 umol/s");
-  expect(text).toContain("raw_absorbed_flux_total: 26.000 umol/s");
+  expect(text).toContain("legacy_broadband_absorbed_flux_total: 26.000 umol/s");
   expect(text.indexOf("target_capped_incident_flux_total")).toBeLessThan(
-    text.indexOf("raw_absorbed_flux_total"),
+    text.indexOf("legacy_broadband_absorbed_flux_total"),
   );
   expect(text).not.toContain("[object Object]");
   expect(text).not.toMatch(/yield|biomass|harvest|crop output|growth prediction/i);
@@ -1280,7 +1305,7 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
   const heatmapOpacity = frame.getByLabel("Opacity");
   const fixturesToggle = frame.getByRole("checkbox", { name: "Show fixtures" });
   const plantsToggle = frame.getByRole("checkbox", { name: "Show plants" });
-  const plantsColorToggle = frame.getByRole("checkbox", { name: "Absorption color" });
+  const plantsColorToggle = frame.getByRole("checkbox", { name: "Surface-flux color" });
   const fixtureHeight = frame.getByLabel("Fixture height");
   const fixtureHeightValue = frame.locator("#assembly-fixture-height-value");
   const fixtureHeightReset = frame.getByRole("button", { name: "Reset Height" });
@@ -1294,7 +1319,7 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
   await expect(plantsColorToggle).toBeEnabled();
   await expect(plantsColorToggle).toBeChecked();
   await expect(frame.locator("#assembly-plants-status")).toContainText("1 leaf");
-  await expect(frame.locator("#assembly-plants-status")).toContainText("absorption color");
+  await expect(frame.locator("#assembly-plants-status")).toContainText("surface-flux color");
   await expect(fixtureHeight).toBeEnabled();
   await expect(fixtureHeightValue).toContainText("Visual mount: 0.46 m (0.00 m)");
   await expect(fixtureHeightReset).toBeEnabled();
@@ -1317,7 +1342,7 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
     await expect(frame.locator("#assembly-plants-status")).toContainText("geometry color");
     await plantsColorToggle.check();
     await expect(plantsColorToggle).toBeChecked();
-    await expect(frame.locator("#assembly-plants-status")).toContainText("absorption color");
+    await expect(frame.locator("#assembly-plants-status")).toContainText("surface-flux color");
     await fixtureHeight.evaluate((input) => {
       input.value = "0.25";
       input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1345,7 +1370,7 @@ test("radiance assembly button opens 3D viewer after completed SMD run", async (
     await expect(frame.locator("#assembly-fspm-panel")).toContainText("FSPM Panel");
     await expect(frame.getByRole("button", { name: "Export Data" })).toBeVisible();
     await expect(frame.getByRole("button", { name: "Export Data" })).toBeEnabled();
-    await expect(frame.locator("#assembly-fspm-panel")).toContainText("plant-surface absorption");
+    await expect(frame.locator("#assembly-fspm-panel")).toContainText("incident leaf-surface PPFD");
     await expect(frame.locator("#assembly-fspm-panel")).toContainText("spectral exposure");
     await expect(frame.locator("#assembly-fspm-panel")).toContainText("photosynthetic light-response potential");
     await expect(frame.locator("#assembly-fspm-panel")).toContainText("photoreceptor exposure");
