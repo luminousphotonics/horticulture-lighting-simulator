@@ -11,7 +11,7 @@
   "devDependencies": {
     "@gltf-transform/cli": "^4.4.0",
     "@playwright/test": "^1.61.0",
-    "eslint": "^10.5.0",
+    "eslint": "^10.6.0",
     "gltfpack": "^1.1.0",
     "html-validate": "^11.5.3",
     "three": "^0.184.0",
