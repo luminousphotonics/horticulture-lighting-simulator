@@ -82,7 +82,7 @@ docs = [
 ]
 build = [
     "build==1.5.0",
-    "uv==0.11.21",
+    "uv==0.11.25",
 ]
 # Canonical source-checkout app/development profile used by README and CI.
 dev = [
@@ -104,7 +104,7 @@ dev = [
     "ruff==0.15.17",
     "scipy==1.11.4",
     "seaborn==0.13.2",
-    "uv==0.11.21",
+    "uv==0.11.25",
     "uvicorn==0.30.6",
 ]
 
