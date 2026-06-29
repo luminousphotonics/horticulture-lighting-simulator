@@ -243,6 +243,31 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
                         "schema_version": 1,
                         "status": "computed",
                         "method": "radiance_leaf_surface_receiver_sampling_v1",
+                        "fspm_spectral_transport_mode": "banded_5",
+                        "leaf_radiance_material_mode": "rex_source_weighted_trans",
+                        "leaf_material_profile_id": "rex_green_butterhead_mature_leaf_optics_v1",
+                        "leaf_material_profile_version": "0.2",
+                        "leaf_material_weighting_basis": "band_source_weighted",
+                        "leaf_material_source_spectrum_id": "curve_data_smd",
+                        "leaf_material_source_spectrum_source": "curve_data_spd:/tmp/smd.csv",
+                        "banded_transport_band_count": 5,
+                        "banded_transport_active_trace_count": 5,
+                        "band_scaling_basis": "source_band_photon_fraction_relative_to_par",
+                        "scalar_flux_basis": "par_ppfd_umol_m2_s",
+                        "source_spectrum_basis": "wavelength_resolved_spd",
+                        "receiver_trace_count": 5,
+                        "receiver_sample_count": 3072,
+                        "receiver_granularity": "leaf_quadrature_4",
+                        "receiver_samples_per_leaf": 4.0,
+                        "ppfd_field_summary": {
+                            "baseline_ppfd_transport_basis": "canopy_plane_scalar_par_ppfd",
+                            "baseline_ppfd_rgb_decode_method": "grey_channel_average_after_equality_assertion",
+                            "baseline_source_channel_policy": "r_equals_g_equals_b_scalar_par_ppfd_carrier",
+                            "ppfd_conversion_basis": "radiance_rgb_values_are_scalar_par_ppfd_no_179_luminous_conversion",
+                            "photopic_luminance_weighting_avoided": True,
+                            "uses_179_luminous_efficacy_factor": False,
+                            "uses_falsecolor_or_illuminance_conversion": False,
+                        },
                         "plant_count": 2,
                         "leaf_count": 8,
                         "surface_count": 16,
@@ -277,6 +302,24 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
                         "mean_absorbed_fraction_of_incident": 0.7,
                         "plant_to_plant_absorbed_photon_flux_cv": 0.08,
                         "plant_to_plant_target_capped_incident_flux_cv": 0.06,
+                        "banded_transport_bands": [
+                            {
+                                "band_id": "blue",
+                                "wavelength_min_nm": 400,
+                                "wavelength_max_nm": 499,
+                                "source_photon_fraction_relative_to_par": 0.2,
+                                "receiver_trace_required": True,
+                                "effective_reflectance": 0.1,
+                                "effective_transmittance": 0.2,
+                                "effective_absorptance": 0.7,
+                                "radiance_primitive": "trans",
+                                "radiance_red": 0.3,
+                                "radiance_green": 0.3,
+                                "radiance_blue": 0.3,
+                                "radiance_trans": 0.66,
+                                "radiance_tspec": 0.0,
+                            }
+                        ],
                     }
                 ),
                 encoding="utf-8",
@@ -344,20 +387,36 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
                         "schema": PLANT_SPECTRAL_ABSORPTION_SCHEMA,
                         "schema_version": 1,
                         "status": "computed",
-                        "method": "wavelength_binned_leaf_optical_profile_absorption_v1",
+                        "method": "banded_5_radiance_leaf_receiver_transport_v1",
                         "source_surface_flux_method": "radiance_leaf_surface_receiver_sampling_v1",
+                        "fspm_spectral_transport_mode": "banded_5",
+                        "leaf_radiance_material_mode": "rex_source_weighted_trans",
+                        "leaf_material_profile_id": "rex_green_butterhead_mature_leaf_optics_v1",
+                        "leaf_material_profile_version": "0.2",
+                        "leaf_material_weighting_basis": "band_source_weighted",
+                        "leaf_material_source_spectrum_id": "curve_data_smd",
+                        "leaf_material_source_spectrum_source": "curve_data_spd:/tmp/smd.csv",
+                        "banded_transport_band_count": 5,
+                        "banded_transport_active_trace_count": 5,
+                        "band_scaling_basis": "source_band_photon_fraction_relative_to_par",
+                        "receiver_trace_count": 5,
+                        "receiver_sample_count": 3072,
+                        "receiver_granularity": "leaf_quadrature_4",
                         "optical_profile": {
                             "profile_id": "rex_green_butterhead_mature_leaf_optics_v1",
                             "profile_version": "v1",
                         },
                         "source_spectrum": {"distribution_id": "curve_data_smd"},
                         "source_spectral_basis": "wavelength_resolved_spd",
+                        "source_spectrum_basis": "wavelength_resolved_spd",
                         "scalar_flux_basis": "par_ppfd_umol_m2_s",
                         "plant_count": 2,
                         "leaf_count": 8,
                         "surface_count": 16,
                         "crop_summary": {
                             "scalar_incident_par_ppfd_umol_m2_s": 320.0,
+                            "incident_par_ppfd_umol_m2_s": 320.0,
+                            "incident_epar_ppfd_umol_m2_s": 331.0,
                             "absorbed_par_ppfd_umol_m2_s": 211.0,
                             "absorbed_epar_ppfd_umol_m2_s": 223.0,
                             "absorbed_blue_ppfd_umol_m2_s": 42.0,
@@ -369,6 +428,40 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
                             "reflected_fraction": 0.24,
                             "transmitted_fraction": 0.12,
                         },
+                        "band_summaries": [
+                            {
+                                "band_id": "blue",
+                                "wavelength_min_nm": 400,
+                                "wavelength_max_nm": 499,
+                                "source_photon_fraction_relative_to_par": 0.2,
+                                "receiver_trace_required": True,
+                                "effective_reflectance": 0.1,
+                                "effective_transmittance": 0.2,
+                                "effective_absorptance": 0.7,
+                                "incident_pfd_umol_m2_s": 60.0,
+                                "absorbed_pfd_umol_m2_s": 42.0,
+                                "reflected_pfd_umol_m2_s": 6.0,
+                                "transmitted_pfd_umol_m2_s": 12.0,
+                            }
+                        ],
+                        "banded_transport_bands": [
+                            {
+                                "band_id": "blue",
+                                "wavelength_min_nm": 400,
+                                "wavelength_max_nm": 499,
+                                "source_photon_fraction_relative_to_par": 0.2,
+                                "receiver_trace_required": True,
+                                "effective_reflectance": 0.1,
+                                "effective_transmittance": 0.2,
+                                "effective_absorptance": 0.7,
+                                "radiance_primitive": "trans",
+                                "radiance_red": 0.3,
+                                "radiance_green": 0.3,
+                                "radiance_blue": 0.3,
+                                "radiance_trans": 0.66,
+                                "radiance_tspec": 0.0,
+                            }
+                        ],
                     }
                 ),
                 encoding="utf-8",
@@ -432,6 +525,50 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         self.assertEqual(row["system_label"], "Proposed LED System")
         self.assertEqual(row["artifact_schema"], PLANT_SURFACE_FLUX_SCHEMA)
         self.assertEqual(row["method"], "radiance_leaf_surface_receiver_sampling_v1")
+        self.assertEqual(row["fspm_spectral_transport_mode"], "banded_5")
+        self.assertEqual(row["leaf_radiance_material_mode"], "rex_source_weighted_trans")
+        self.assertEqual(row["receiver_sample_count"], "3072")
+        self.assertEqual(row["receiver_granularity"], "leaf_quadrature_4")
+        self.assertEqual(row["receiver_samples_per_leaf"], "4")
+        self.assertEqual(row["receiver_trace_count"], "5")
+        self.assertEqual(row["banded_transport_band_count"], "5")
+        self.assertEqual(row["banded_transport_active_trace_count"], "5")
+        self.assertEqual(
+            row["band_scaling_basis"],
+            "source_band_photon_fraction_relative_to_par",
+        )
+        self.assertEqual(row["scalar_flux_basis"], "par_ppfd_umol_m2_s")
+        self.assertEqual(row["source_spectrum_basis"], "wavelength_resolved_spd")
+        self.assertEqual(
+            row["leaf_material_profile_id"],
+            "rex_green_butterhead_mature_leaf_optics_v1",
+        )
+        self.assertEqual(row["leaf_material_profile_version"], "0.2")
+        self.assertEqual(row["leaf_material_weighting_basis"], "band_source_weighted")
+        self.assertEqual(row["leaf_material_source_spectrum_id"], "curve_data_smd")
+        self.assertEqual(
+            row["leaf_material_source_spectrum_source"],
+            "curve_data_spd:/tmp/smd.csv",
+        )
+        self.assertEqual(
+            row["baseline_ppfd_transport_basis"],
+            "canopy_plane_scalar_par_ppfd",
+        )
+        self.assertEqual(
+            row["baseline_ppfd_rgb_decode_method"],
+            "grey_channel_average_after_equality_assertion",
+        )
+        self.assertEqual(
+            row["baseline_source_channel_policy"],
+            "r_equals_g_equals_b_scalar_par_ppfd_carrier",
+        )
+        self.assertEqual(
+            row["ppfd_conversion_basis"],
+            "radiance_rgb_values_are_scalar_par_ppfd_no_179_luminous_conversion",
+        )
+        self.assertEqual(row["photopic_luminance_weighting_avoided"], "True")
+        self.assertEqual(row["uses_179_luminous_efficacy_factor"], "False")
+        self.assertEqual(row["uses_falsecolor_or_illuminance_conversion"], "False")
         self.assertEqual(row["plant_count"], "2")
         self.assertEqual(row["leaf_count"], "8")
         self.assertEqual(row["receiver_surface_count"], "16")
@@ -470,6 +607,8 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
             row["spectral_absorption_scalar_flux_basis"],
             "par_ppfd_umol_m2_s",
         )
+        self.assertEqual(row["modeled_incident_par_ppfd_umol_m2_s"], "320")
+        self.assertEqual(row["modeled_incident_epar_ppfd_umol_m2_s"], "331")
         self.assertEqual(row["modeled_absorbed_par_ppfd_umol_m2_s"], "211")
         self.assertEqual(row["modeled_absorbed_epar_ppfd_umol_m2_s"], "223")
         self.assertEqual(row["modeled_absorbed_blue_ppfd_umol_m2_s"], "42")
@@ -480,6 +619,25 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         self.assertEqual(row["modeled_absorbed_fraction_percent"], "64")
         self.assertEqual(row["modeled_reflected_fraction_percent"], "24")
         self.assertEqual(row["modeled_transmitted_fraction_percent"], "12")
+        band_rows = json.loads(row["banded_transport_band_summaries_json"])
+        self.assertEqual(len(band_rows), 1)
+        self.assertEqual(band_rows[0]["band_id"], "blue")
+        self.assertEqual(band_rows[0]["wavelength_min_nm"], 400)
+        self.assertEqual(band_rows[0]["wavelength_max_nm"], 499)
+        self.assertEqual(
+            band_rows[0]["source_photon_fraction_relative_to_par"],
+            0.2,
+        )
+        self.assertTrue(band_rows[0]["receiver_trace_required"])
+        self.assertEqual(band_rows[0]["effective_reflectance"], 0.1)
+        self.assertEqual(band_rows[0]["effective_transmittance"], 0.2)
+        self.assertEqual(band_rows[0]["effective_absorptance"], 0.7)
+        self.assertEqual(band_rows[0]["incident_pfd_umol_m2_s"], 60.0)
+        self.assertEqual(band_rows[0]["absorbed_pfd_umol_m2_s"], 42.0)
+        self.assertEqual(band_rows[0]["reflected_pfd_umol_m2_s"], 6.0)
+        self.assertEqual(band_rows[0]["transmitted_pfd_umol_m2_s"], 12.0)
+        self.assertEqual(band_rows[0]["radiance_primitive"], "trans")
+        self.assertNotIn("surface_id", row["banded_transport_band_summaries_json"])
         self.assertAlmostEqual(
             float(row["target_capped_incident_fraction_of_raw_percent"]),
             34.0 / 60.0 * 100.0,
@@ -528,11 +686,32 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
                 "system_label",
                 "method",
                 "artifact_schema",
+                "receiver_granularity",
+                "receiver_side_policy",
+                "receiver_area_basis",
+                "fspm_spectral_transport_mode",
+                "leaf_radiance_material_mode",
+                "band_scaling_basis",
+                "scalar_flux_basis",
+                "source_spectrum_basis",
+                "leaf_material_profile_id",
+                "leaf_material_profile_version",
+                "leaf_material_weighting_basis",
+                "leaf_material_source_spectrum_id",
+                "leaf_material_source_spectrum_source",
+                "baseline_ppfd_transport_basis",
+                "baseline_ppfd_rgb_decode_method",
+                "baseline_source_channel_policy",
+                "ppfd_conversion_basis",
+                "photopic_luminance_weighting_avoided",
+                "uses_179_luminous_efficacy_factor",
+                "uses_falsecolor_or_illuminance_conversion",
                 "target_classification_basis",
                 "target_classification_source",
                 "spectral_absorption_optical_profile_id",
                 "spectral_absorption_source_spectrum_basis",
                 "spectral_absorption_scalar_flux_basis",
+                "banded_transport_band_summaries_json",
                 "calibration_status",
                 "note",
             }:
@@ -598,7 +777,12 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         self.assertEqual(row["target_capped_incident_fraction_of_capacity_percent"], "")
         self.assertEqual(row["deficit_to_target_capacity_percent"], "")
         self.assertEqual(row["spectral_absorption_optical_profile_id"], "")
+        self.assertEqual(row["fspm_spectral_transport_mode"], "")
+        self.assertEqual(row["leaf_material_profile_id"], "")
+        self.assertEqual(row["baseline_ppfd_rgb_decode_method"], "")
+        self.assertEqual(row["modeled_incident_par_ppfd_umol_m2_s"], "")
         self.assertEqual(row["modeled_absorbed_par_ppfd_umol_m2_s"], "")
+        self.assertEqual(row["banded_transport_band_summaries_json"], "")
         self.assertEqual(row["blue_pfd_umol_m2_s"], "")
         self.assertEqual(row["photosynthetic_light_response_mean"], "")
         self.assertEqual(row["calibration_status"], "")

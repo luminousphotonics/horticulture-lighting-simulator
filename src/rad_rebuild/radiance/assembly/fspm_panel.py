@@ -32,6 +32,31 @@ from rad_rebuild.radiance.engine.plants.surface_flux import (
 )
 
 FSPM_PANEL_SCHEMA = "rad_rebuild.fspm.viewer_panel.v1"
+FSPM_TRANSPORT_METADATA_KEYS: tuple[str, ...] = (
+    "fspm_spectral_transport_mode",
+    "leaf_radiance_material_mode",
+    "receiver_trace_count",
+    "banded_transport_band_count",
+    "banded_transport_active_trace_count",
+    "band_scaling_basis",
+    "scalar_flux_basis",
+    "source_spectrum_basis",
+    "source_spectral_basis",
+    "leaf_material_profile_id",
+    "leaf_material_profile_version",
+    "leaf_material_weighting_basis",
+    "leaf_material_source_spectrum_id",
+    "leaf_material_source_spectrum_source",
+)
+BASELINE_PPFD_METADATA_KEYS: tuple[str, ...] = (
+    "baseline_ppfd_transport_basis",
+    "baseline_ppfd_rgb_decode_method",
+    "baseline_source_channel_policy",
+    "ppfd_conversion_basis",
+    "photopic_luminance_weighting_avoided",
+    "uses_179_luminous_efficacy_factor",
+    "uses_falsecolor_or_illuminance_conversion",
+)
 
 
 def _load_json(path: Path) -> dict[str, Any] | None:
@@ -105,11 +130,23 @@ def _safe_artifact_meta(payload: Mapping[str, Any]) -> dict[str, object]:
 def _surface_absorption(payload: Mapping[str, Any] | None) -> dict[str, object] | None:
     if not payload or payload.get("schema") != PLANT_SURFACE_FLUX_SCHEMA:
         return None
+    ppfd_field = payload.get("ppfd_field_summary")
+    ppfd_field_summary = ppfd_field if isinstance(ppfd_field, Mapping) else {}
     area = _finite(payload.get("one_sided_leaf_area_m2"))
     absorbed = _finite(payload.get("total_absorbed_photon_flux_umol_s"))
     mean_density = absorbed / area if absorbed is not None and area and area > 0.0 else None
     return {
         **_safe_artifact_meta(payload),
+        **{
+            key: payload.get(key)
+            for key in FSPM_TRANSPORT_METADATA_KEYS
+            if key in payload
+        },
+        **{
+            key: ppfd_field_summary.get(key)
+            for key in BASELINE_PPFD_METADATA_KEYS
+            if key in ppfd_field_summary
+        },
         "artifact_role": payload.get("artifact_role", "incident_leaf_surface_flux"),
         "display_label": "Incident leaf-surface PPFD",
         "modeled_spectral_absorption_artifact": payload.get(
@@ -271,12 +308,37 @@ def _spectral_absorption(payload: Mapping[str, Any] | None) -> dict[str, object]
         "normal_generation_basis": payload.get("normal_generation_basis"),
         "receiver_granularity_role": payload.get("receiver_granularity_role"),
         "source_spectrum_id": source.get("distribution_id"),
+        "fspm_spectral_transport_mode": payload.get("fspm_spectral_transport_mode"),
+        "leaf_radiance_material_mode": payload.get("leaf_radiance_material_mode"),
+        "leaf_material_profile_id": payload.get("leaf_material_profile_id"),
+        "leaf_material_profile_version": payload.get("leaf_material_profile_version"),
+        "leaf_material_weighting_basis": payload.get("leaf_material_weighting_basis"),
+        "leaf_material_source_spectrum_id": payload.get(
+            "leaf_material_source_spectrum_id"
+        ),
+        "leaf_material_source_spectrum_source": payload.get(
+            "leaf_material_source_spectrum_source"
+        ),
+        "banded_transport_band_count": payload.get("banded_transport_band_count"),
+        "banded_transport_active_trace_count": payload.get(
+            "banded_transport_active_trace_count"
+        ),
+        "band_scaling_basis": payload.get("band_scaling_basis"),
+        "source_spectrum_basis": payload.get("source_spectrum_basis"),
+        "banded_transport_bands": payload.get("banded_transport_bands"),
+        "band_summaries": payload.get("band_summaries"),
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),
         "surface_count": payload.get("surface_count"),
         "area_m2": crop_summary.get("area_m2"),
         "scalar_incident_par_ppfd_umol_m2_s": crop_summary.get(
             "scalar_incident_par_ppfd_umol_m2_s"
+        ),
+        "incident_par_ppfd_umol_m2_s": crop_summary.get(
+            "incident_par_ppfd_umol_m2_s"
+        ),
+        "incident_epar_ppfd_umol_m2_s": crop_summary.get(
+            "incident_epar_ppfd_umol_m2_s"
         ),
         "absorbed_par_ppfd_umol_m2_s": crop_summary.get(
             "absorbed_par_ppfd_umol_m2_s"

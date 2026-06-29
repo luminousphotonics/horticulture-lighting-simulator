@@ -869,6 +869,16 @@ class FspmReceiverPlantMaterial:
     metadata: dict[str, Any]
 
 
+FSPM_RTRACE_PROFILE_ENV = "FSPM_RTRACE_PROFILE"
+FSPM_RTRACE_NPROC_ENV = "FSPM_RTRACE_NPROC"
+FSPM_RTRACE_AMBIENT_MODE_ENV = "FSPM_RTRACE_AMBIENT_MODE"
+FSPM_RTRACE_AMBIENT_MODE_DEFAULT = "default"
+FSPM_RTRACE_AMBIENT_MODE_PER_BAND_AF = "per_band_af"
+FSPM_RTRACE_AMBIENT_MODES = frozenset(
+    {FSPM_RTRACE_AMBIENT_MODE_DEFAULT, FSPM_RTRACE_AMBIENT_MODE_PER_BAND_AF}
+)
+
+
 def _runtime_config(raw_env: Mapping[str, str] | None = None, *, smd_defaults: bool = False) -> RuntimeConfig:
     env = dict(os.environ if raw_env is None else raw_env)
     repo_root = REPO_ROOT
@@ -932,6 +942,28 @@ def _int_env(env: Mapping[str, str], key: str, default: int) -> int:
         return int(_env_text(env, key, str(default)))
     except ValueError as exc:
         raise ValueError(f"{key} must be an integer") from exc
+
+
+def _strict_binary_env(env: Mapping[str, str], key: str, default: str = "0") -> bool:
+    raw = _env_text(env, key, default).strip()
+    if raw == "0":
+        return False
+    if raw == "1":
+        return True
+    raise ValueError(f"{key} must be 0 or 1")
+
+
+def _optional_positive_int_env(env: Mapping[str, str], key: str) -> int | None:
+    raw = env.get(key)
+    if raw is None or not raw.strip():
+        return None
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{key} must be a positive integer") from exc
+    if value < 1:
+        raise ValueError(f"{key} must be a positive integer")
+    return value
 
 
 def _float_range_env(
@@ -1231,6 +1263,132 @@ def _print_optional_plant_artifact_note(plant_artifacts: PlantArtifactPaths | No
     print("  note: excluded from baseline PPFD octree; used by dedicated FSPM receiver transport.")
 
 
+def _plant_receiver_rtrace_argv(
+    *,
+    rtrace_bin: str,
+    octree: Path,
+    options: Sequence[str],
+    nthreads: int,
+) -> list[str]:
+    return [rtrace_bin, "-h", "-I+", "-n", str(nthreads), *options, str(octree)]
+
+
+def _plant_receiver_rtrace_args_metadata(
+    *,
+    octree: Path,
+    options: Sequence[str],
+    nthreads: int,
+) -> list[str]:
+    return _plant_receiver_rtrace_argv(
+        rtrace_bin="rtrace",
+        octree=octree,
+        options=options,
+        nthreads=nthreads,
+    )
+
+
+def _fspm_rtrace_profile_enabled(env: Mapping[str, str]) -> bool:
+    return _strict_binary_env(env, FSPM_RTRACE_PROFILE_ENV)
+
+
+def _fspm_rtrace_nproc(env: Mapping[str, str]) -> int | None:
+    return _optional_positive_int_env(env, FSPM_RTRACE_NPROC_ENV)
+
+
+def _fspm_rtrace_ambient_mode(env: Mapping[str, str]) -> str:
+    mode = _env_text(
+        env,
+        FSPM_RTRACE_AMBIENT_MODE_ENV,
+        FSPM_RTRACE_AMBIENT_MODE_DEFAULT,
+    ).strip()
+    if mode not in FSPM_RTRACE_AMBIENT_MODES:
+        allowed = ", ".join(sorted(FSPM_RTRACE_AMBIENT_MODES))
+        raise ValueError(
+            f"Unknown {FSPM_RTRACE_AMBIENT_MODE_ENV}: {mode!r}. "
+            f"Expected one of: {allowed}."
+        )
+    return mode
+
+
+def _radiance_option_value(options: Sequence[str], name: str) -> str | None:
+    for index, token in enumerate(options):
+        if token == name and index + 1 < len(options):
+            return options[index + 1]
+    return None
+
+
+def _replace_radiance_option_value(
+    options: Sequence[str],
+    name: str,
+    value: str,
+) -> list[str]:
+    adjusted = list(options)
+    for index, token in enumerate(adjusted):
+        if token == name and index + 1 < len(adjusted):
+            adjusted[index + 1] = value
+            return adjusted
+    adjusted.extend([name, value])
+    return adjusted
+
+
+def _radiance_ambient_bounce_count(options: Sequence[str]) -> int:
+    raw = _radiance_option_value(options, "-ab")
+    if raw is None:
+        return 0
+    try:
+        return int(raw)
+    except ValueError:
+        return 0
+
+
+def _fspm_receiver_trace_options(
+    config: RuntimeConfig,
+    *,
+    base_options: Sequence[str],
+    band_id: str,
+    configured_nproc: int | None,
+    ambient_mode: str,
+) -> tuple[list[str], str | None]:
+    options = list(base_options)
+    if (
+        ambient_mode != FSPM_RTRACE_AMBIENT_MODE_PER_BAND_AF
+        or configured_nproc is None
+        or configured_nproc <= 1
+        or _radiance_ambient_bounce_count(options) <= 0
+    ):
+        return options, None
+
+    ambient_file = _fresh_ambient_cache(
+        config,
+        f"amb_plant_receivers_{band_id}_per_band_af",
+    )
+    return _replace_radiance_option_value(options, "-af", str(ambient_file)), str(
+        ambient_file
+    )
+
+
+def _fspm_receiver_trace_metadata(
+    *,
+    receiver_sample_count: int,
+    rtrace_args: Sequence[str],
+    configured_nproc: int | None,
+    ambient_mode: str,
+    ambient_file: str | None = None,
+    trace_stream_count: int = 1,
+) -> dict[str, Any]:
+    metadata: dict[str, Any] = {
+        "receiver_sample_count": receiver_sample_count,
+        "receiver_trace_stream_count": trace_stream_count,
+        "receiver_rtrace_args": list(rtrace_args),
+        "receiver_ambient_mode": ambient_mode,
+        "receiver_subprocess_granularity": "per_active_band_not_per_sample",
+    }
+    if configured_nproc is not None:
+        metadata["receiver_rtrace_nproc"] = configured_nproc
+    if ambient_file is not None:
+        metadata["receiver_ambient_file"] = ambient_file
+    return metadata
+
 
 def _trace_plant_surface_receivers(
     config: RuntimeConfig,
@@ -1272,7 +1430,12 @@ def _trace_plant_surface_receivers(
             encoding="utf-8",
         ) as stdout_handle:
             result = subprocess.run(  # nosec B603
-                [rtrace_bin, "-h", "-I+", "-n", str(nthreads), *options, str(octree)],
+                _plant_receiver_rtrace_argv(
+                    rtrace_bin=rtrace_bin,
+                    octree=octree,
+                    options=options,
+                    nthreads=nthreads,
+                ),
                 cwd=config.repo_root,
                 env=dict(config.env),
                 stdin=stdin_handle,
@@ -1626,6 +1789,9 @@ def _write_banded_plant_surface_flux_artifact(
             receiver_granularity=receiver_granularity,
         )
         plan = _prepare_banded_transport_plan(config, spectral_mode=spectral_mode)
+        profile_rtrace = _fspm_rtrace_profile_enabled(config.env)
+        configured_nproc = _fspm_rtrace_nproc(config.env)
+        ambient_mode = _fspm_rtrace_ambient_mode(config.env)
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return int(RadianceScriptExit.VALIDATION)
@@ -1641,6 +1807,7 @@ def _write_banded_plant_surface_flux_artifact(
     active_trace_count = 0
 
     try:
+        trace_nthreads = configured_nproc or nthreads
         for band_material in plan.bands:
             band = band_material.band
             band_payload = band_material.to_payload()
@@ -1659,6 +1826,22 @@ def _write_banded_plant_surface_flux_artifact(
                         "receiver_plant_rad": None,
                     }
                 )
+                band_payload.update(
+                    {
+                        "receiver_sample_count": len(samples),
+                        "receiver_trace_stream_count": 0,
+                        "receiver_subprocess_granularity": (
+                            "per_active_band_not_per_sample"
+                        ),
+                    }
+                )
+                if profile_rtrace:
+                    band_payload.update(
+                        {
+                            "receiver_octree_build_wall_time_s": 0.0,
+                            "receiver_rtrace_wall_time_s": 0.0,
+                        }
+                    )
                 band_payloads.append(band_payload)
                 continue
 
@@ -1668,6 +1851,7 @@ def _write_banded_plant_surface_flux_artifact(
                 band_material=band_material,
             )
             band_octree = config.cache_root / _banded_octree_label(mode, band.band_id)
+            octree_start = time.perf_counter()
             receiver_oct_exit = _build_fspm_receiver_octree(
                 config,
                 room=room,
@@ -1676,6 +1860,7 @@ def _write_banded_plant_surface_flux_artifact(
                 out_path=band_octree,
                 static_room_oct=static_room_oct,
             )
+            octree_wall_time_s = time.perf_counter() - octree_start
             if receiver_oct_exit != 0:
                 return receiver_oct_exit
 
@@ -1684,17 +1869,32 @@ def _write_banded_plant_surface_flux_artifact(
                 / f"plant_surface_receivers_{band.band_id}_{os.getpid()}_"
                 f"{secrets.token_hex(6)}.rgb"
             )
+            base_options = _radiance_options(
+                mode,
+                _fresh_ambient_cache(config, f"amb_plant_receivers_{band.band_id}"),
+            )
+            trace_options, ambient_file = _fspm_receiver_trace_options(
+                config,
+                base_options=base_options,
+                band_id=band.band_id,
+                configured_nproc=configured_nproc,
+                ambient_mode=ambient_mode,
+            )
+            rtrace_args = _plant_receiver_rtrace_args_metadata(
+                octree=band_octree,
+                options=trace_options,
+                nthreads=trace_nthreads,
+            )
+            trace_start = time.perf_counter()
             trace_exit = _trace_plant_surface_receivers(
                 config,
                 receiver_input_path=receiver_input,
                 receiver_rgb_path=receiver_rgb,
                 octree=band_octree,
-                options=_radiance_options(
-                    mode,
-                    _fresh_ambient_cache(config, f"amb_plant_receivers_{band.band_id}"),
-                ),
-                nthreads=nthreads,
+                options=trace_options,
+                nthreads=trace_nthreads,
             )
+            trace_wall_time_s = time.perf_counter() - trace_start
             if trace_exit != 0:
                 return trace_exit
 
@@ -1730,6 +1930,22 @@ def _write_banded_plant_surface_flux_artifact(
                     "receiver_plant_rad": str(receiver_rad),
                 }
             )
+            band_payload.update(
+                _fspm_receiver_trace_metadata(
+                    receiver_sample_count=len(samples),
+                    rtrace_args=rtrace_args,
+                    configured_nproc=configured_nproc,
+                    ambient_mode=ambient_mode,
+                    ambient_file=ambient_file,
+                )
+            )
+            if profile_rtrace:
+                band_payload.update(
+                    {
+                        "receiver_octree_build_wall_time_s": octree_wall_time_s,
+                        "receiver_rtrace_wall_time_s": trace_wall_time_s,
+                    }
+                )
             band_payloads.append(band_payload)
 
         banded_metadata = {
@@ -1739,7 +1955,14 @@ def _write_banded_plant_surface_flux_artifact(
             ),
             "banded_transport_active_trace_count": active_trace_count,
             "banded_transport_bands": band_payloads,
+            "fspm_rtrace_profile_enabled": profile_rtrace,
+            "fspm_rtrace_ambient_mode": ambient_mode,
+            "receiver_trace_process_policy": "one_rtrace_stream_per_active_band",
+            "receiver_trace_streams_per_active_band": 1,
+            "receiver_subprocess_granularity": "per_active_band_not_per_sample",
         }
+        if configured_nproc is not None:
+            banded_metadata["fspm_rtrace_nproc"] = configured_nproc
         path = write_radiance_receiver_plant_surface_flux_artifact(
             config.runtime_state_root,
             scene,

@@ -239,6 +239,8 @@ def test_builder_returns_schema3_geometry_aware_fixture_instances(tmp_path: Path
     assert scene["schema_version"] == 3
     assert scene["system"] == "proposed_led_system"
     assert scene["mode"] == MODE_SMD
+    assert scene["mode_label"] == "Proposed LED System"
+    assert scene["display_name"] == "Proposed LED System"
     assert scene["assets"] == {
         "manifest": "/static/viewer/proposed_led_system/manifest.json",
         "anchors": "/static/viewer/proposed_led_system/anchors.json",
@@ -567,6 +569,8 @@ def test_builder_returns_conventional_single_fixture_instances(tmp_path: Path) -
     assert scene["schema_version"] == 3
     assert scene["system"] == "conventional_led_system"
     assert scene["mode"] == MODE_COMPETITOR
+    assert scene["mode_label"] == "Conventional LED System"
+    assert scene["display_name"] == "Conventional LED System"
     assert scene["placement_strategy"] == "single_fixture_center"
     assert scene["assets"] == {
         "manifest": "/static/viewer/conventional_led_system/manifest.json",
@@ -618,6 +622,8 @@ def test_builder_returns_hps_single_fixture_instances(tmp_path: Path) -> None:
     assert scene["schema_version"] == 3
     assert scene["system"] == "hps_1000w_system"
     assert scene["mode"] == MODE_HPS
+    assert scene["mode_label"] == "1000W HPS"
+    assert scene["display_name"] == "1000W HPS"
     assert scene["placement_strategy"] == "single_fixture_center"
     assert scene["assets"] == {
         "manifest": "/static/viewer/hps_1000w_system/manifest.json",

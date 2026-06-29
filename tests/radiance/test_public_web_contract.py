@@ -71,6 +71,8 @@ class PublicRadianceWebContractTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
         self.assertIn("Horticulture Lighting Simulator 3D Assembly Viewer", html)
+        self.assertIn('<h1 id="assembly-title">Lighting System</h1>', html)
+        self.assertNotIn("<h1>Proposed LED System</h1>", html)
         self.assertIn("js/assembly-viewer/main.js", html)
         self.assertIn("Show FSPM Panel", html)
         self.assertNotIn("Show Diagnostics", html)

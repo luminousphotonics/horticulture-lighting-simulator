@@ -414,9 +414,25 @@ Level 3B uses this top-level metadata shape for `banded_5` outputs:
   "source_spectral_basis": "wavelength_resolved_spd",
   "source_spectrum_basis": "wavelength_resolved_spd",
   "source_spectrum_id": "curve_data_smd",
-  "source_spectrum_source": "curve_data_spd:..."
+  "source_spectrum_source": "curve_data_spd:...",
+  "fspm_rtrace_profile_enabled": false,
+  "fspm_rtrace_ambient_mode": "default",
+  "receiver_trace_process_policy": "one_rtrace_stream_per_active_band",
+  "receiver_trace_streams_per_active_band": 1,
+  "receiver_subprocess_granularity": "per_active_band_not_per_sample"
 }
 ```
+
+Optional runtime controls:
+
+* `FSPM_RTRACE_PROFILE=0|1` records Level 3 octree-build and receiver-`rtrace`
+  wall times when enabled.
+* `FSPM_RTRACE_NPROC` is unset by default so existing receiver `rtrace`
+  arguments are preserved. When set, it supplies the receiver trace `-n` value
+  and is recorded as `fspm_rtrace_nproc`.
+* `FSPM_RTRACE_AMBIENT_MODE=default|per_band_af` keeps default ambient behavior
+  unchanged unless `per_band_af` is selected with ambient bounces and
+  `FSPM_RTRACE_NPROC>1`.
 
 `plant_spectral_absorption.json` also carries compatibility blocks used by the
 FSPM panel and CSV/report readers:

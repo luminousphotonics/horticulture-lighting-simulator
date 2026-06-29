@@ -713,6 +713,57 @@ def test_smd_simulation_includes_plants_only_when_gate_enabled(
     assert not (runtime / "plants_fspm_receiver_material.rad").exists()
 
 
+def test_fspm_rtrace_controls_default_preserves_existing_receiver_args(
+    tmp_path: Path,
+) -> None:
+    config = scripts._runtime_config(_base_env(tmp_path))
+    base_options = ["-ab", "3", "-aa", "0.22", "-af", "default.amb"]
+
+    assert scripts._fspm_rtrace_profile_enabled(config.env) is False
+    assert scripts._fspm_rtrace_nproc(config.env) is None
+    assert scripts._fspm_rtrace_ambient_mode(config.env) == "default"
+
+    options, ambient_file = scripts._fspm_receiver_trace_options(
+        config,
+        base_options=base_options,
+        band_id="blue",
+        configured_nproc=None,
+        ambient_mode="default",
+    )
+    octree = tmp_path / "receiver.oct"
+    args = scripts._plant_receiver_rtrace_args_metadata(
+        octree=octree,
+        options=options,
+        nthreads=5,
+    )
+    metadata = scripts._fspm_receiver_trace_metadata(
+        receiver_sample_count=12,
+        rtrace_args=args,
+        configured_nproc=None,
+        ambient_mode="default",
+    )
+
+    assert options == base_options
+    assert ambient_file is None
+    assert args == ["rtrace", "-h", "-I+", "-n", "5", *base_options, str(octree)]
+    assert "receiver_rtrace_nproc" not in metadata
+
+
+def test_fspm_rtrace_controls_validate_env_values() -> None:
+    assert scripts._fspm_rtrace_profile_enabled({"FSPM_RTRACE_PROFILE": "1"}) is True
+    assert scripts._fspm_rtrace_nproc({"FSPM_RTRACE_NPROC": "2"}) == 2
+    assert scripts._fspm_rtrace_ambient_mode(
+        {"FSPM_RTRACE_AMBIENT_MODE": "per_band_af"}
+    ) == "per_band_af"
+
+    with pytest.raises(ValueError, match="FSPM_RTRACE_PROFILE must be 0 or 1"):
+        scripts._fspm_rtrace_profile_enabled({"FSPM_RTRACE_PROFILE": "true"})
+    with pytest.raises(ValueError, match="FSPM_RTRACE_NPROC"):
+        scripts._fspm_rtrace_nproc({"FSPM_RTRACE_NPROC": "0"})
+    with pytest.raises(ValueError, match="FSPM_RTRACE_AMBIENT_MODE"):
+        scripts._fspm_rtrace_ambient_mode({"FSPM_RTRACE_AMBIENT_MODE": "shared"})
+
+
 def test_smd_banded_transport_traces_active_bands_without_scalar_receiver(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -731,11 +782,14 @@ def test_smd_banded_transport_traces_active_bands_without_scalar_receiver(
                 LEAF_RADIANCE_MATERIAL_MODE_REX_SOURCE_WEIGHTED_TRANS
             ),
             "FSPM_SPECTRAL_TRANSPORT_MODE": "banded_5",
+            "FSPM_RTRACE_PROFILE": "1",
+            "FSPM_RTRACE_NPROC": "3",
+            "FSPM_RTRACE_AMBIENT_MODE": "per_band_af",
             "FSPM_SPECTRAL_PHOTON_FRACTIONS": (
                 "blue=0.2,green=0.3,red=0.5,far_red=0.0"
             ),
             "RADIANCE_CURVE_DATA_ROOT": str(tmp_path / "empty_curve_data"),
-            "MODE": "direct",
+            "MODE": "standard",
         }
     )
     octree_argvs: list[tuple[str, ...]] = []
@@ -803,7 +857,7 @@ def test_smd_banded_transport_traces_active_bands_without_scalar_receiver(
     ) -> int:
         assert octree.name != "smd_fspm_receiver.oct"
         assert options
-        assert nthreads == 1
+        assert nthreads == 3
         receiver_trace_octrees.append(octree.name)
         sample_count = len(receiver_input_path.read_text(encoding="utf-8").splitlines())
         value = {
@@ -812,7 +866,13 @@ def test_smd_banded_transport_traces_active_bands_without_scalar_receiver(
             "orange": 30.0,
             "red": 40.0,
             "far_red": 50.0,
-        }[next(band for band in ("blue", "green", "orange", "red", "far_red") if band in octree.name)]
+        }[
+            next(
+                band
+                for band in ("blue", "green", "orange", "red", "far_red")
+                if band in octree.name
+            )
+        ]
         receiver_rgb_path.write_text(
             "".join(f"{value} {value} {value}\n" for _ in range(sample_count)),
             encoding="utf-8",
@@ -861,6 +921,16 @@ def test_smd_banded_transport_traces_active_bands_without_scalar_receiver(
     assert surface_flux["fspm_spectral_transport_mode"] == "banded_5"
     assert surface_flux["receiver_trace_count"] == len(active_bands)
     assert surface_flux["banded_transport_active_trace_count"] == len(active_bands)
+    assert surface_flux["fspm_rtrace_profile_enabled"] is True
+    assert surface_flux["fspm_rtrace_nproc"] == 3
+    assert surface_flux["fspm_rtrace_ambient_mode"] == "per_band_af"
+    assert surface_flux["receiver_trace_process_policy"] == (
+        "one_rtrace_stream_per_active_band"
+    )
+    assert surface_flux["receiver_trace_streams_per_active_band"] == 1
+    assert surface_flux["receiver_subprocess_granularity"] == (
+        "per_active_band_not_per_sample"
+    )
     assert surface_flux["receiver_granularity"] == "leaf_centroid"
     assert surface_flux["par_band_ids"] == ["blue", "green", "orange", "red"]
     assert surface_flux["epar_band_ids"] == [
@@ -880,8 +950,29 @@ def test_smd_banded_transport_traces_active_bands_without_scalar_receiver(
         band["source_scale_applied_once"] is True
         for band in surface_flux["banded_transport_bands"]
     )
+    assert all(
+        band["receiver_trace_stream_count"] == 1
+        and band["receiver_sample_count"] == surface_flux["receiver_sample_count"]
+        and band["receiver_rtrace_nproc"] == 3
+        and band["receiver_rtrace_args"][4] == "3"
+        and band["receiver_rtrace_args"].count("-af") == 1
+        and band["receiver_ambient_file"]
+        and band["receiver_octree_build_wall_time_s"] >= 0.0
+        and band["receiver_rtrace_wall_time_s"] >= 0.0
+        for band in active_bands
+    )
+    assert all(
+        surface_flux["receiver_subprocess_granularity"]
+        == band["receiver_subprocess_granularity"]
+        for band in active_bands
+    )
     assert spectral_absorption["fspm_spectral_transport_mode"] == "banded_5"
     assert spectral_absorption["receiver_trace_count"] == len(active_bands)
+    assert spectral_absorption["fspm_rtrace_profile_enabled"] is True
+    assert spectral_absorption["fspm_rtrace_nproc"] == 3
+    assert spectral_absorption["receiver_trace_process_policy"] == (
+        "one_rtrace_stream_per_active_band"
+    )
     assert spectral_absorption["receiver_sample_count"] == surface_flux[
         "receiver_sample_count"
     ]

@@ -1318,9 +1318,62 @@ Validation results:
 * Focused Python Ruff check: passed.
 * `git diff --check`: passed.
 
+### Step 4.19 — Level 3 Receiver Trace Runtime Profiling
+
+Status: complete.
+
+Implemented behavior:
+
+* Added opt-in `FSPM_RTRACE_PROFILE=0|1` for Level 3 `banded_5` receiver-trace
+  runtime metadata.
+* Added optional `FSPM_RTRACE_NPROC`; when unset, the existing receiver `rtrace`
+  command arguments and threading behavior are preserved.
+* Added optional `FSPM_RTRACE_AMBIENT_MODE=default|per_band_af`. The default
+  keeps the existing ambient-cache behavior unchanged. `per_band_af` only
+  substitutes an explicit per-band `-af` path when ambient bounces are active
+  and `FSPM_RTRACE_NPROC` is greater than 1.
+* Added shared receiver `rtrace` argument construction so the recorded metadata
+  matches the subprocess invocation.
+* Added `banded_5` metadata for receiver sample count, active trace count,
+  per-band `rtrace` args, configured nproc, ambient mode/file, one-stream-per
+  active-band process policy, and per-active-band-not-per-sample subprocess
+  granularity.
+* When profiling is enabled, each band records octree build wall time and
+  receiver `rtrace` wall time. Zero-source bands keep trace count at zero and
+  report zero timing values.
+* `plant_spectral_absorption.json` propagates the new Level 3 trace-control
+  metadata from `plant_surface_flux.json`.
+
+Confirmed behavior:
+
+* `banded_5` still performs one receiver trace per active band.
+* The scalar receiver trace is not added in `banded_5`.
+* Receiver samples are still streamed through one stdin file per active band;
+  there are no per-sample subprocess calls.
+* Baseline PPFD/uniformity artifacts and default Radiance parameters remain
+  unchanged by these controls.
+
+Validation:
+
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_phase125b_cli_orchestration.py::test_fspm_rtrace_controls_default_preserves_existing_receiver_args tests/radiance/test_phase125b_cli_orchestration.py::test_fspm_rtrace_controls_validate_env_values tests/radiance/test_phase125b_cli_orchestration.py::test_smd_banded_transport_traces_active_bands_without_scalar_receiver`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_phase125b_cli_orchestration.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_surface_flux_artifact.py tests/radiance/test_plant_spectral_absorption.py tests/radiance/test_fspm_plants.py`
+* `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance/cli/scripts.py src/rad_rebuild/radiance/engine/plants/spectral_absorption.py tests/radiance/test_phase125b_cli_orchestration.py`
+* `git diff --check`
+
+Validation results:
+
+* Focused trace-control orchestration tests: passed, 3 tests.
+* CLI orchestration tests: passed, 35 tests, with existing third-party
+  matplotlib/pyparsing deprecation warnings.
+* Receiver artifact, spectral absorption, and FSPM plant tests: passed, 81
+  tests.
+* Focused Python Ruff check: passed.
+* `git diff --check`: passed.
+
 ### Step 5 — Workshop Demo Hardening
 
-Status: pending.
+Status: in progress.
 
 Goal:
 
@@ -1334,6 +1387,47 @@ Acceptance criteria:
 * Metrics panel uses clear labels and does not dump raw JSON.
 * Response-potential fields are clearly separated from baseline PPFD metrics.
 * Screenshots/demo outputs can be regenerated locally without committing runtime artifacts.
+
+Completed in this pass:
+
+* Confirmed the FSPM export button uses the existing `/radiance/fspm-csv`
+  CSV workflow.
+* Extended the compact CSV export with Level 3/banded metadata:
+  `fspm_spectral_transport_mode`, `leaf_radiance_material_mode`,
+  `receiver_granularity`, `receiver_sample_count`, `receiver_trace_count`,
+  `banded_transport_band_count`, `banded_transport_active_trace_count`,
+  `band_scaling_basis`, `scalar_flux_basis`, `source_spectrum_basis`,
+  `leaf_material_profile_id`, `leaf_material_profile_version`,
+  `leaf_material_weighting_basis`, `leaf_material_source_spectrum_id`, and
+  `leaf_material_source_spectrum_source`.
+* Extended the compact CSV export with baseline PPFD decode metadata:
+  `baseline_ppfd_transport_basis`, `baseline_ppfd_rgb_decode_method`,
+  `baseline_source_channel_policy`, `ppfd_conversion_basis`,
+  `photopic_luminance_weighting_avoided`,
+  `uses_179_luminous_efficacy_factor`, and
+  `uses_falsecolor_or_illuminance_conversion`.
+* Added crop-level incident PAR/ePAR PPFD export fields and retained existing
+  modeled absorbed PAR/ePAR, per-color absorbed PFD, and fraction fields.
+* Added a compact `banded_transport_band_summaries_json` CSV column that merges
+  already-generated per-band metadata and summaries without exporting receiver
+  rows.
+* Fixed the assembly viewer title under `3D Assembly` so it is populated from
+  the loaded scene `display_name`/`mode_label` instead of the static shell
+  default. The scene metadata remains the source of truth for Proposed LED,
+  Conventional LED, and HPS labels.
+
+Validation for this pass:
+
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_route_query_contracts.py::RadianceRouteQueryContractTests::test_fspm_csv_exports_compact_authorized_summary tests/radiance/test_route_query_contracts.py::RadianceRouteQueryContractTests::test_fspm_csv_missing_optional_artifacts_uses_blank_cells tests/radiance/test_public_web_contract.py::PublicRadianceWebContractTests::test_assembly_viewer_shell_route_is_available tests/radiance/test_assembly_scene.py::test_builder_returns_schema3_geometry_aware_fixture_instances tests/radiance/test_assembly_scene.py::test_builder_returns_conventional_single_fixture_instances tests/radiance/test_assembly_scene.py::test_builder_returns_hps_single_fixture_instances`
+
+Validation results for this pass:
+
+* Targeted FSPM CSV export and assembly title tests: passed, 6 tests.
+
+Remaining presentation-output tasks:
+
+* Live browser retest of CSV download from the assembly viewer.
+* Optional screenshot/demo-output regeneration for workshop materials.
 
 ## Validation Matrix
 

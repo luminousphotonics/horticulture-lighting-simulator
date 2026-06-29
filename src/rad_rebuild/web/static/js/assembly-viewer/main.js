@@ -23,6 +23,7 @@ import {
 const root = document.querySelector("[data-viewer-root]");
 const canvas = document.getElementById("assembly-canvas");
 const statusEl = document.getElementById("assembly-status");
+const titleEl = document.getElementById("assembly-title");
 const modeEl = document.getElementById("assembly-mode");
 const roomEl = document.getElementById("assembly-room");
 const countEl = document.getElementById("assembly-count");
@@ -91,7 +92,9 @@ function displayModeLabel(scene) {
 
 function renderSummary(scene, instanceCount) {
   const room = scene.room || {};
-  setText(modeEl, displayModeLabel(scene));
+  const modeLabel = displayModeLabel(scene);
+  setText(titleEl, modeLabel);
+  setText(modeEl, modeLabel);
   setText(
     roomEl,
     `${formatNumber(room.length_m)} m x ${formatNumber(room.width_m)} m, mount ${formatNumber(room.mount_z_m)} m`,

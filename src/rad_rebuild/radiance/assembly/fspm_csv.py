@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 from io import StringIO
+import json
 import math
 from pathlib import Path
 from typing import Any, Mapping
@@ -15,6 +16,26 @@ FSPM_CSV_HEADERS = (
     "system_label",
     "method",
     "artifact_schema",
+    "fspm_spectral_transport_mode",
+    "leaf_radiance_material_mode",
+    "receiver_trace_count",
+    "banded_transport_band_count",
+    "banded_transport_active_trace_count",
+    "band_scaling_basis",
+    "scalar_flux_basis",
+    "source_spectrum_basis",
+    "leaf_material_profile_id",
+    "leaf_material_profile_version",
+    "leaf_material_weighting_basis",
+    "leaf_material_source_spectrum_id",
+    "leaf_material_source_spectrum_source",
+    "baseline_ppfd_transport_basis",
+    "baseline_ppfd_rgb_decode_method",
+    "baseline_source_channel_policy",
+    "ppfd_conversion_basis",
+    "photopic_luminance_weighting_avoided",
+    "uses_179_luminous_efficacy_factor",
+    "uses_falsecolor_or_illuminance_conversion",
     "target_ppfd_umol_m2_s",
     "target_tolerance_umol_m2_s",
     "target_lower_threshold_umol_m2_s",
@@ -66,6 +87,8 @@ FSPM_CSV_HEADERS = (
     "spectral_absorption_optical_profile_id",
     "spectral_absorption_source_spectrum_basis",
     "spectral_absorption_scalar_flux_basis",
+    "modeled_incident_par_ppfd_umol_m2_s",
+    "modeled_incident_epar_ppfd_umol_m2_s",
     "modeled_absorbed_par_ppfd_umol_m2_s",
     "modeled_absorbed_epar_ppfd_umol_m2_s",
     "modeled_absorbed_blue_ppfd_umol_m2_s",
@@ -76,6 +99,7 @@ FSPM_CSV_HEADERS = (
     "modeled_absorbed_fraction_percent",
     "modeled_reflected_fraction_percent",
     "modeled_transmitted_fraction_percent",
+    "banded_transport_band_summaries_json",
     "blue_pfd_umol_m2_s",
     "green_pfd_umol_m2_s",
     "red_pfd_umol_m2_s",
@@ -149,6 +173,7 @@ def _summary_row(
     response = _object(panel.get("photosynthetic_light_response_potential"))
     exposure = _object(panel.get("photoreceptor_exposure"))
     source = _primary_source(absorption, spectral, response, exposure)
+    transport_source = _primary_source(spectral_absorption, absorption)
 
     pss = _object(exposure.get("phytochrome_pss_proxy"))
     dose = _object(exposure.get("blue_photon_dose"))
@@ -192,6 +217,60 @@ def _summary_row(
             "system_label": system_label,
             "method": source.get("method"),
             "artifact_schema": source.get("schema"),
+            "fspm_spectral_transport_mode": transport_source.get(
+                "fspm_spectral_transport_mode"
+            ),
+            "leaf_radiance_material_mode": transport_source.get(
+                "leaf_radiance_material_mode"
+            ),
+            "receiver_trace_count": transport_source.get("receiver_trace_count"),
+            "banded_transport_band_count": transport_source.get(
+                "banded_transport_band_count"
+            ),
+            "banded_transport_active_trace_count": transport_source.get(
+                "banded_transport_active_trace_count"
+            ),
+            "band_scaling_basis": transport_source.get("band_scaling_basis"),
+            "scalar_flux_basis": transport_source.get("scalar_flux_basis"),
+            "source_spectrum_basis": _first(
+                transport_source,
+                "source_spectrum_basis",
+                "source_spectral_basis",
+            ),
+            "leaf_material_profile_id": transport_source.get(
+                "leaf_material_profile_id"
+            ),
+            "leaf_material_profile_version": transport_source.get(
+                "leaf_material_profile_version"
+            ),
+            "leaf_material_weighting_basis": transport_source.get(
+                "leaf_material_weighting_basis"
+            ),
+            "leaf_material_source_spectrum_id": transport_source.get(
+                "leaf_material_source_spectrum_id"
+            ),
+            "leaf_material_source_spectrum_source": transport_source.get(
+                "leaf_material_source_spectrum_source"
+            ),
+            "baseline_ppfd_transport_basis": absorption.get(
+                "baseline_ppfd_transport_basis"
+            ),
+            "baseline_ppfd_rgb_decode_method": absorption.get(
+                "baseline_ppfd_rgb_decode_method"
+            ),
+            "baseline_source_channel_policy": absorption.get(
+                "baseline_source_channel_policy"
+            ),
+            "ppfd_conversion_basis": absorption.get("ppfd_conversion_basis"),
+            "photopic_luminance_weighting_avoided": absorption.get(
+                "photopic_luminance_weighting_avoided"
+            ),
+            "uses_179_luminous_efficacy_factor": absorption.get(
+                "uses_179_luminous_efficacy_factor"
+            ),
+            "uses_falsecolor_or_illuminance_conversion": absorption.get(
+                "uses_falsecolor_or_illuminance_conversion"
+            ),
             "target_ppfd_umol_m2_s": target_ppfd,
             "target_tolerance_umol_m2_s": absorption.get("target_tolerance_umol_m2_s"),
             "target_lower_threshold_umol_m2_s": absorption.get(
@@ -303,6 +382,14 @@ def _summary_row(
             "spectral_absorption_scalar_flux_basis": spectral_absorption.get(
                 "scalar_flux_basis"
             ),
+            "modeled_incident_par_ppfd_umol_m2_s": _first(
+                spectral_absorption,
+                "incident_par_ppfd_umol_m2_s",
+                "scalar_incident_par_ppfd_umol_m2_s",
+            ),
+            "modeled_incident_epar_ppfd_umol_m2_s": spectral_absorption.get(
+                "incident_epar_ppfd_umol_m2_s"
+            ),
             "modeled_absorbed_par_ppfd_umol_m2_s": spectral_absorption.get(
                 "absorbed_par_ppfd_umol_m2_s"
             ),
@@ -332,6 +419,9 @@ def _summary_row(
             ),
             "modeled_transmitted_fraction_percent": _percent(
                 spectral_absorption.get("transmitted_fraction")
+            ),
+            "banded_transport_band_summaries_json": _banded_transport_bands_json(
+                spectral_absorption
             ),
             "blue_pfd_umol_m2_s": exposure.get("mean_absorbed_blue_pfd_umol_m2_s"),
             "green_pfd_umol_m2_s": exposure.get("mean_absorbed_green_pfd_umol_m2_s"),
@@ -365,6 +455,88 @@ def _summary_row(
             "note": note,
         }
     )
+
+
+def _banded_transport_bands_json(spectral_absorption: Mapping[str, Any]) -> str | None:
+    band_metadata = _band_map(spectral_absorption.get("banded_transport_bands"))
+    band_summaries = _band_map(spectral_absorption.get("band_summaries"))
+    band_ids = list(dict.fromkeys([*band_summaries, *band_metadata]))
+    seen: set[str] = set()
+    rows: list[dict[str, object]] = []
+    for band_id in band_ids:
+        if band_id in seen:
+            continue
+        seen.add(band_id)
+        summary = band_summaries.get(band_id, {})
+        metadata = band_metadata.get(band_id, {})
+        rows.append(
+            {
+                "band_id": band_id,
+                "wavelength_min_nm": _first_value(
+                    summary.get("wavelength_min_nm"),
+                    metadata.get("wavelength_min_nm"),
+                ),
+                "wavelength_max_nm": _first_value(
+                    summary.get("wavelength_max_nm"),
+                    metadata.get("wavelength_max_nm"),
+                ),
+                "source_photon_fraction_relative_to_par": _first_value(
+                    summary.get("source_photon_fraction_relative_to_par"),
+                    metadata.get("source_photon_fraction_relative_to_par"),
+                ),
+                "receiver_trace_required": _first_value(
+                    summary.get("receiver_trace_required"),
+                    metadata.get("receiver_trace_required"),
+                ),
+                "effective_reflectance": _first_value(
+                    summary.get("effective_reflectance"),
+                    metadata.get("effective_reflectance"),
+                ),
+                "effective_transmittance": _first_value(
+                    summary.get("effective_transmittance"),
+                    metadata.get("effective_transmittance"),
+                ),
+                "effective_absorptance": _first_value(
+                    summary.get("effective_absorptance"),
+                    metadata.get("effective_absorptance"),
+                ),
+                "incident_pfd_umol_m2_s": summary.get("incident_pfd_umol_m2_s"),
+                "absorbed_pfd_umol_m2_s": summary.get("absorbed_pfd_umol_m2_s"),
+                "reflected_pfd_umol_m2_s": summary.get("reflected_pfd_umol_m2_s"),
+                "transmitted_pfd_umol_m2_s": summary.get(
+                    "transmitted_pfd_umol_m2_s"
+                ),
+                "radiance_primitive": metadata.get("radiance_primitive"),
+                "radiance_red": metadata.get("radiance_red"),
+                "radiance_green": metadata.get("radiance_green"),
+                "radiance_blue": metadata.get("radiance_blue"),
+                "radiance_trans": metadata.get("radiance_trans"),
+                "radiance_tspec": metadata.get("radiance_tspec"),
+            }
+        )
+    if not rows:
+        return None
+    return json.dumps(rows, sort_keys=True, separators=(",", ":"))
+
+
+def _band_map(value: object) -> dict[str, Mapping[str, Any]]:
+    if not isinstance(value, list):
+        return {}
+    result: dict[str, Mapping[str, Any]] = {}
+    for item in value:
+        if not isinstance(item, Mapping):
+            continue
+        band_id = item.get("band_id")
+        if band_id is not None:
+            result[str(band_id)] = item
+    return result
+
+
+def _first_value(*values: object) -> object:
+    for value in values:
+        if value is not None:
+            return value
+    return None
 
 
 def _format_row(values: Mapping[str, object]) -> dict[str, str]:
