@@ -1140,6 +1140,81 @@ Validation results:
 * Focused Python Ruff check: passed.
 * `git diff --check`: passed.
 
+### Step 4.17 — Level 3A Five-Band Spectral Transport Scaffold
+
+Status: complete.
+
+Implemented scaffold:
+
+* Added `FSPM_SPECTRAL_TRANSPORT_MODE=scalar_source_weighted | banded_5`.
+* Kept the default spectral transport mode as `scalar_source_weighted`.
+* Added exact Level 3 band definitions:
+  * blue: 400-499 nm
+  * green: 500-599 nm
+  * orange: 600-624 nm
+  * red: 625-699 nm
+  * far-red: 700-750 nm
+* Added PAR band ids `blue`, `green`, `orange`, and `red`.
+* Added ePAR band ids `blue`, `green`, `orange`, `red`, and `far_red`.
+* Added pure helpers to compute per-band source photon fraction relative to
+  PAR, band-specific effective R/T/A coefficients, and corrected diffuse-only
+  Radiance `trans` material parameters.
+* Added a banded metadata planning payload with `band_scaling_basis:
+  source_band_photon_fraction_relative_to_par`,
+  `scalar_flux_basis: par_ppfd_umol_m2_s`, profile/source identifiers, and
+  one planned metadata block per band.
+
+Scientific scaling rule:
+
+* Current scalar receiver flux remains PAR PPFD.
+* Level 3 band scaling is planned as
+  `band_pfd = scalar_PAR_PPFD * (band_photon_integral / PAR_photon_integral)`.
+* Far-red is included in ePAR planning but is not labeled as part of PAR.
+
+Zero-source band policy:
+
+* Bands with zero source photons skip material fitting.
+* Zero-source bands emit zero coefficient/material metadata.
+* Zero-source bands set `band_has_source_photons: false` and
+  `receiver_trace_required: false`.
+* Zero-source bands do not fail the whole banded plan.
+
+Runtime impact:
+
+* Level 3A does not implement full five-band live Radiance execution.
+* `banded_5` is accepted by config parsing and reported as scaffold-only if a
+  live receiver run tries to execute it before Level 3B.
+* No band-specific receiver `.rad` files are written in Level 3A.
+* No baseline PPFD/uniformity octree inputs are changed.
+* No duplicate receiver tracing is introduced.
+
+Remaining Level 3B work:
+
+* Write band-specific receiver `.rad` files.
+* Scale receiver transport per band.
+* Run one FSPM receiver trace per active band.
+* Aggregate traced band fields into `plant_spectral_absorption.json`.
+* Preserve baseline PPFD/uniformity isolation.
+
+Validation:
+
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_leaf_materials.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_leaf_materials.py tests/radiance/test_plant_spectral_absorption.py tests/radiance/test_plant_surface_flux_artifact.py tests/radiance/test_plant_optical_profiles.py tests/radiance/test_fspm_baseline_octree.py tests/radiance/test_import_boundaries.py tests/radiance/test_config_contracts.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_phase125b_cli_orchestration.py`
+* `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance/engine/plants/leaf_materials.py src/rad_rebuild/radiance/engine/plants/spectral_absorption.py src/rad_rebuild/radiance/engine/plants/surface_flux.py src/rad_rebuild/radiance/engine/plants/__init__.py src/rad_rebuild/radiance/cli/scripts.py tests/radiance/test_plant_leaf_materials.py tests/radiance/test_plant_spectral_absorption.py tests/radiance/test_plant_surface_flux_artifact.py`
+* `git diff --check`
+
+Validation results:
+
+* Level 2 and Level 3A leaf-material scaffold tests: passed, 12 tests.
+* Receiver granularity, spectral absorption, surface-flux, optical profile,
+  baseline-octree, import, and config tests: passed, 69 tests and 39 subtests,
+  with existing third-party matplotlib/pyparsing deprecation warnings.
+* CLI orchestration tests: passed, 28 tests, with existing third-party
+  matplotlib/pyparsing deprecation warnings.
+* Focused Python Ruff check: passed.
+* `git diff --check`: passed.
+
 ### Step 5 — Workshop Demo Hardening
 
 Status: pending.

@@ -38,6 +38,7 @@ SOURCE_SPECTRAL_BASIS_WAVELENGTH_RESOLVED_SPD = "wavelength_resolved_spd"
 SOURCE_SPECTRAL_BASIS_BAND_FRACTION_LEGACY = "band_fraction_legacy"
 NO_CROP_OUTPUT_TERMS = ["yield", "biomass", "growth", "crop_output"]
 LEAF_MATERIAL_METADATA_KEYS: tuple[str, ...] = (
+    "fspm_spectral_transport_mode",
     "leaf_radiance_material_mode",
     "leaf_material_weighting_basis",
     "leaf_material_profile_id",

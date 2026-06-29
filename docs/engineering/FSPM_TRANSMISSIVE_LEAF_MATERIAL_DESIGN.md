@@ -1,7 +1,8 @@
 # FSPM Transmissive Leaf Material Design
 
 Status: Phase 4B Level 2 implemented for scalar source-weighted receiver
-transport. Level 3 banded transport remains design-only.
+transport. Level 3A banded-transport scaffold implemented; Level 3B live
+banded receiver execution remains future work.
 
 ## Purpose
 
@@ -218,6 +219,8 @@ scalar_source_weighted
 `scalar_source_weighted` should mean one FSPM receiver trace using the Level 2
 source-weighted material. `banded_5` should mean five FSPM receiver traces,
 each with a band-specific emitter scale and a band-specific Rex leaf material.
+Level 3A only defines, validates, and plans that banded metadata; it does not
+run the five receiver traces.
 
 Level 3 bands:
 
@@ -237,6 +240,55 @@ Each band should use:
 
 Level 3 must not multiply baseline PPFD/uniformity artifact generation. Only
 the FSPM receiver transport loop may multiply by approximately five.
+
+### Level 3A Scaffold
+
+Implemented scaffold pieces:
+
+* `FSPM_SPECTRAL_TRANSPORT_MODE=scalar_source_weighted | banded_5`
+* default `scalar_source_weighted`
+* exact five-band definitions:
+  * blue: 400-499 nm
+  * green: 500-599 nm
+  * orange: 600-624 nm
+  * red: 625-699 nm
+  * far-red: 700-750 nm
+* PAR band ids: `blue`, `green`, `orange`, `red`
+* ePAR band ids: `blue`, `green`, `orange`, `red`, `far_red`
+* source scaling basis:
+  `source_band_photon_fraction_relative_to_par`
+
+The current scalar receiver basis remains PAR PPFD:
+
+```text
+scalar_flux_basis = par_ppfd_umol_m2_s
+band_pfd = scalar_PAR_PPFD * (band_photon_integral / PAR_photon_integral)
+```
+
+Far-red is planned as an additional ePAR band and is not labeled as PAR.
+
+For each band, the scaffold computes:
+
+* source photon fraction relative to PAR
+* band-specific effective reflectance
+* band-specific effective transmittance
+* band-specific effective absorptance
+* corrected diffuse-only Radiance `trans` parameters through the Level 2
+  fitting helper
+
+Zero-source band policy:
+
+* if a band has zero source photons, skip material fitting for that band.
+* emit zero band metadata.
+* set `source_photon_fraction_relative_to_par: 0`.
+* set `band_has_source_photons: false`.
+* set `receiver_trace_required: false`.
+* do not fail the whole plan.
+
+`banded_5` is recognized by config parsing, but live five-band receiver
+execution is intentionally not implemented in Level 3A. Runtime receiver
+preparation reports a clear validation error if `banded_5` is requested before
+Level 3B is implemented.
 
 ## Implemented Level 2 Runtime Impact
 
@@ -311,6 +363,48 @@ The metadata must state whether coefficients are PAR-weighted or band-specific.
 If any future ePAR weighting is used with scalar PAR receiver output, the
 artifact must include a warning field naming that compromise.
 
+Level 3A prepares this top-level metadata shape for future `banded_5` outputs:
+
+```json
+{
+  "fspm_spectral_transport_mode": "banded_5",
+  "band_scaling_basis": "source_band_photon_fraction_relative_to_par",
+  "banded_transport_band_count": 5,
+  "banded_transport_bands": [],
+  "par_band_ids": ["blue", "green", "orange", "red"],
+  "epar_band_ids": ["blue", "green", "orange", "red", "far_red"],
+  "scalar_flux_basis": "par_ppfd_umol_m2_s",
+  "leaf_material_profile_id": "rex_green_butterhead_mature_leaf_optics_v1",
+  "leaf_material_profile_version": "v0_2",
+  "source_spectrum_id": "curve_data_smd",
+  "source_spectrum_source": "curve_data_spd:..."
+}
+```
+
+Each planned band includes:
+
+```json
+{
+  "band_id": "blue",
+  "wavelength_min_nm": 400,
+  "wavelength_max_nm": 499,
+  "included_in_par": true,
+  "included_in_epar": true,
+  "source_photon_fraction_relative_to_par": 0.0,
+  "band_has_source_photons": false,
+  "receiver_trace_required": false,
+  "effective_reflectance": 0.0,
+  "effective_transmittance": 0.0,
+  "effective_absorptance": 0.0,
+  "radiance_primitive": "none",
+  "radiance_red": 0.0,
+  "radiance_green": 0.0,
+  "radiance_blue": 0.0,
+  "radiance_trans": 0.0,
+  "radiance_tspec": 0.0
+}
+```
+
 ## Self-Intersection And Receiver Risks
 
 Current representative receiver samples use local mesh-patch centroids and
@@ -383,13 +477,11 @@ Focused tests before Level 3 implementation:
 * band definitions exactly match blue, green, orange, red, and far-red ranges.
 * band-specific effective coefficients are computed from the Rex profile using
   only source photons in that band.
-* banded transport runs one receiver trace per band and does not rebuild or
-  retrace baseline PPFD/uniformity artifacts.
-* missing source photons in a band are handled explicitly: either zero band
-  flux with no trace, or a clear validation error. The implementation must
-  choose one behavior before coding.
+* zero-source bands emit zero metadata and require no receiver trace.
+* Level 3B banded transport runs one receiver trace per active band and does
+  not rebuild or retrace baseline PPFD/uniformity artifacts.
 * `plant_spectral_absorption.json` band totals reconcile with the five traced
-  band fields.
+  band fields once Level 3B execution is implemented.
 
 Live validation after implementation:
 
@@ -398,6 +490,8 @@ Live validation after implementation:
 * At least one `mesh_patch` reference run for final workshop data.
 * Compare Level 2 `opaque_occluder` versus `rex_source_weighted_trans` receiver
   incident PAR and spectral absorption metadata.
+* Before Level 3B, compare planned band metadata against selected source SPD
+  and Rex profile.
 * Confirm baseline heatmaps, fixture overlays, 3D scatter, and assembly-viewer
   heatmap overlays are unchanged.
 
@@ -410,6 +504,7 @@ Live validation after implementation:
 * no automatic regeneration of Rex optics data.
 * no replacement of `plant_spectral_absorption.json` with Radiance spectral
   transport in Level 2.
+* no full five-band live Radiance execution in Level 3A.
 * no specular leaf transmission unless a reviewed data basis is added.
 
 ## Open Questions
@@ -417,9 +512,8 @@ Live validation after implementation:
 * The receiver-only `.rad` file approach is implemented for Level 2; keep
   `plants.rad` stable unless a future explicitly versioned manifest change
   requires otherwise.
-* For Level 3, should zero-source bands skip the receiver trace or emit a zero
-  band result after tracing? Skipping is faster, tracing is simpler for uniform
-  metadata.
+* Level 3A zero-source policy is implemented: skip material fitting, emit zero
+  metadata, and do not require a receiver trace.
 * Should banded transport use five separate octrees, or can one geometry file
   be rewritten per band with cached room/emitter inputs? The design should
   prioritize clarity and no baseline artifact multiplication.

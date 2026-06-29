@@ -45,9 +45,12 @@ from rad_rebuild.radiance.engine.plants.config import (
 from rad_rebuild.radiance.engine.plants.generator import generate_plant_scene
 from rad_rebuild.radiance.engine.plants.leaf_materials import (
     FSPM_LEAF_RADIANCE_MATERIAL_MODE_ENV,
+    FSPM_SPECTRAL_TRANSPORT_MODE_ENV,
     LEAF_RADIANCE_MATERIAL_MODE_OPAQUE_OCCLUDER,
     LEAF_RADIANCE_MATERIAL_MODE_REX_SOURCE_WEIGHTED_TRANS,
+    SPECTRAL_TRANSPORT_MODE_BANDED_5,
     fit_diffuse_trans_material,
+    normalize_fspm_spectral_transport_mode,
     normalize_leaf_radiance_material_mode,
     opaque_leaf_material_metadata,
     par_source_weighted_leaf_coefficients,
@@ -1129,6 +1132,14 @@ def _prepare_fspm_receiver_plant_material(
     *,
     spectral_mode: str,
 ) -> FspmReceiverPlantMaterial:
+    spectral_transport_mode = normalize_fspm_spectral_transport_mode(
+        config.env.get(FSPM_SPECTRAL_TRANSPORT_MODE_ENV)
+    )
+    if spectral_transport_mode == SPECTRAL_TRANSPORT_MODE_BANDED_5:
+        raise ValueError(
+            f"{FSPM_SPECTRAL_TRANSPORT_MODE_ENV}=banded_5 is scaffolded but "
+            "live five-band receiver execution is not implemented yet."
+        )
     material_mode = normalize_leaf_radiance_material_mode(
         config.env.get(FSPM_LEAF_RADIANCE_MATERIAL_MODE_ENV)
     )

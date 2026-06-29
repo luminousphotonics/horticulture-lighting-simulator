@@ -684,6 +684,7 @@ def test_radiance_receiver_surface_flux_payload_is_computed(tmp_path) -> None:
     assert payload["receiver_rows_per_mesh_surface_row"] == pytest.approx(
         1.0 / mesh_rows_per_leaf
     )
+    assert payload["fspm_spectral_transport_mode"] == "scalar_source_weighted"
     assert payload["leaf_radiance_material_mode"] == (
         LEAF_RADIANCE_MATERIAL_MODE_OPAQUE_OCCLUDER
     )
@@ -691,6 +692,9 @@ def test_radiance_receiver_surface_flux_payload_is_computed(tmp_path) -> None:
     assert payload["leaf_material_transmission_assumption"] == "opaque_occluder"
     assert payload["ppfd_field_summary"]["leaf_radiance_material_mode"] == (
         payload["leaf_radiance_material_mode"]
+    )
+    assert payload["ppfd_field_summary"]["fspm_spectral_transport_mode"] == (
+        payload["fspm_spectral_transport_mode"]
     )
     assert payload["normal_generation_basis"] == (
         "nearest_mesh_patch_to_leaf_area_centroid_oriented_upward"

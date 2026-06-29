@@ -51,6 +51,7 @@ def _surface_flux_payload(*, density: float = 100.0, area: float = 2.0) -> dict[
         "receiver_rows_per_mesh_surface_row": 1.0,
         "normal_generation_basis": "nearest_mesh_patch_to_leaf_area_centroid_oriented_upward",
         "receiver_granularity_role": "smoke_debug",
+        "fspm_spectral_transport_mode": "scalar_source_weighted",
         "leaf_radiance_material_mode": "rex_source_weighted_trans",
         "leaf_material_weighting_basis": "par_400_700_nm",
         "leaf_material_profile_id": "rex_green_butterhead_mature_leaf_optics_v1",
@@ -242,6 +243,7 @@ def test_spectral_absorption_payload_contains_profile_metadata_and_basis_audit()
     assert payload["fspm_receiver_transport_scene"] == "room_emitters_plants"
     assert payload["receiver_trace_count"] == 1
     assert payload["units"]["optical_coefficients"] == "fraction"
+    assert payload["fspm_spectral_transport_mode"] == "scalar_source_weighted"
     assert payload["leaf_radiance_material_mode"] == "rex_source_weighted_trans"
     assert payload["leaf_material_radiance_primitive"] == "trans"
     assert payload["leaf_material_radiance_trans"] == pytest.approx(0.24 / 0.47)
