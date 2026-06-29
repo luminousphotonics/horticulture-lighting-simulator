@@ -689,6 +689,66 @@ Next recommended implementation step:
 
 * Phase 2 — wavelength-binned spectral absorption artifacts using explicit incident spectral photon flux and selected optical profile curves.
 
+### Step 4.9 — Wavelength-Binned Spectral Absorption Artifact
+
+Status: complete.
+
+Completed checklist:
+
+* Added `src/rad_rebuild/radiance/engine/plants/spectral_absorption.py` for opt-in wavelength-binned modeled leaf absorption.
+* Added `plant_spectral_absorption.json` with schema `rad_rebuild.fspm.plant_spectral_absorption.v1`.
+* Wired runtime generation to write the new artifact only when `FSPM_LEAF_OPTICAL_PROFILE_ID` is set, with `rex_green_butterhead_mature_leaf_optics_v1` supported through the Phase 1 loader.
+* Preserved existing behavior when no optical profile is selected; stale `plant_spectral_absorption.json` is removed and legacy `plant_spectral_response.json` generation remains unchanged.
+* Reused existing curve-data SPD discovery/parsing style, interpolated source spectra onto the selected leaf optical profile wavelength grid, and normalized source photon fractions so the PAR integral maps to the scalar plant receiver PPFD.
+* Added an explicitly labeled `band_fraction_legacy` fallback for cases where only coarse spectral photon fractions are available.
+* Computed crop, plant, leaf, and surface summaries for incident PAR PPFD, absorbed PAR/ePAR and blue/green/orange/red/far-red PPFD, absorbed/reflected/transmitted fractions, and absorptance-basis coverage.
+* Included spectral-grid arrays for wavelength, source photon fraction, model A/R/T coefficients, original absorptance basis, and derived raw-vs-implied absorptance source basis.
+* Updated the plant artifact inventory and package exports for the new artifact helpers.
+* Added focused tests in `tests/radiance/test_plant_spectral_absorption.py`.
+* Left baseline PPFD, uniformity, fixture-output metrics, UI labels, CSV export, route schemas, Rex optics data, numerical goldens, and plant-shaded octree behavior unchanged.
+
+Artifact schema summary:
+
+* Metadata: schema/version, method, source surface-flux artifact, selected optical profile, source spectrum basis, scalar flux basis, wavelength range, band definitions, units, warnings, and limitations.
+* Data: compact spectral grid plus crop, plant, leaf, and surface summary totals. Per-surface per-wavelength rows are not emitted to keep file size reasonable.
+* Scaling: scalar receiver flux is treated as PAR PPFD; wavelength-resolved source spectra are converted from relative spectral power to relative photon weight and normalized so 400-700 nm photons sum to the scalar receiver PPFD.
+
+Limitations and assumptions:
+
+* Current plant receiver scalar flux is treated as PAR PPFD for spectral scaling.
+* ePAR/far-red fields are computed from the same normalized source spectrum where grid/source coverage contributes photons beyond 700 nm.
+* The legacy band-fraction fallback is audit-labeled and should not be presented as measured 1 nm SPD data.
+* Downstream UI/CSV and legacy spectral-response consumers still use their existing artifacts pending Phase 3 relabeling.
+* Plant geometry still does not occlude/shade receiver sampling; plant-geometry occlusion remains Phase 4 work.
+
+Validation run:
+
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_spectral_absorption.py tests/radiance/test_plant_optical_profiles.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_spectral_optics.py tests/radiance/test_fspm_plants.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_import_boundaries.py tests/radiance/test_config_contracts.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_fspm_basis_skip.py tests/radiance/test_phase125b_cli_orchestration.py`
+* `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance/engine/plants/spectral_absorption.py src/rad_rebuild/radiance/engine/plants/__init__.py src/rad_rebuild/radiance/engine/plants/artifacts.py src/rad_rebuild/radiance/cli/scripts.py tests/radiance/test_plant_spectral_absorption.py`
+* `git diff --check`
+
+Validation results:
+
+* Spectral-absorption and optical-profile tests: passed, 12 tests.
+* Plant/FSPM and spectral optics tests: passed, 58 tests.
+* Import-boundary and config-contract tests: passed, 15 tests, 39 subtests, with existing third-party matplotlib/pyparsing deprecation warnings.
+* Focused Ruff check: passed.
+* Diff whitespace check: passed.
+* FSPM basis-skip plus optional CLI orchestration check: 31 passed and 2 known stale CLI orchestration failures remained. The failures are the previously documented fake-octree live `rtrace` path and the stale expectation that plant geometry is appended to the baseline PPFD octree.
+
+Unresolved issues:
+
+* None for the Phase 2 spectral-absorption artifact itself.
+* Existing optional CLI orchestration test staleness remains unrelated to this task.
+
+Next recommended implementation step:
+
+* Phase 3 — UI/CSV/artifact relabeling so user-facing surfaces distinguish scalar incident receiver flux, wavelength-binned modeled absorption, and legacy band-response artifacts.
+* Phase 4 — optional plant-geometry occlusion mode for plant-shaded receiver sampling.
+
 ### Step 5 — Workshop Demo Hardening
 
 Status: pending.

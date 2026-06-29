@@ -60,6 +60,13 @@ from rad_rebuild.radiance.engine.plants.spectral import (
     parse_spectral_photon_fraction_overrides,
     write_plant_spectral_response_artifact,
 )
+from rad_rebuild.radiance.engine.plants.spectral_absorption import (
+    PLANT_SPECTRAL_ABSORPTION_FILENAME,
+    leaf_optical_profile_from_env,
+    wavelength_photon_distribution_from_band_fractions,
+    wavelength_photon_distribution_from_curve_data,
+    write_plant_spectral_absorption_artifact,
+)
 from rad_rebuild.radiance.engine.plants.surface_flux import (
     RADIANCE_RECEIVER_METHOD,
     build_radiance_receiver_samples,
@@ -928,6 +935,7 @@ PLANT_RUNTIME_ARTIFACT_NAMES = (
     "plant_geometry.rad",
     "plant_absorption_surfaces.json",
     "plant_surface_flux.json",
+    "plant_spectral_absorption.json",
     "plant_spectral_response.json",
     "plant_photosynthesis_response.json",
     "plant_photoreceptor_exposure.json",
@@ -1288,6 +1296,40 @@ def _spectral_distribution_from_env(
     )
 
 
+def _write_optional_spectral_absorption_artifact(
+    config: RuntimeConfig,
+    surface_flux_payload: Mapping[str, Any],
+    spectral_distribution,
+    *,
+    spectral_mode: str,
+) -> Path | None:
+    profile = leaf_optical_profile_from_env(config.env, data_root=config.repo_root)
+    path = config.runtime_state_root / PLANT_SPECTRAL_ABSORPTION_FILENAME
+    if profile is None:
+        path.unlink(missing_ok=True)
+        return None
+
+    try:
+        photon_distribution = wavelength_photon_distribution_from_curve_data(
+            config.curve_data_root,
+            spectral_mode,
+            profile.wavelength_nm,
+            env=config.env,
+            fallback_distribution=spectral_distribution,
+        )
+    except ValueError:
+        photon_distribution = wavelength_photon_distribution_from_band_fractions(
+            spectral_distribution,
+            profile.wavelength_nm,
+        )
+    return write_plant_spectral_absorption_artifact(
+        config.runtime_state_root,
+        surface_flux_payload,
+        profile,
+        photon_distribution,
+    )
+
+
 
 def _write_optional_plant_surface_flux_artifact(
     config: RuntimeConfig,
@@ -1343,15 +1385,22 @@ def _write_optional_plant_surface_flux_artifact(
             target_tolerance_umol_m2_s=target_tolerance,
             target_classification_ppfd_map_path=ppfd_map,
         )
+        surface_flux_payload = json.loads(path.read_text(encoding="utf-8"))
         spectral_mode = _infer_fixture_spectral_mode(config.env, octree=octree, mode=mode)
         spectral_distribution = _spectral_distribution_from_env(
             config.env,
             mode=spectral_mode,
             curve_data_root=config.curve_data_root,
         )
+        spectral_absorption_path = _write_optional_spectral_absorption_artifact(
+            config,
+            surface_flux_payload,
+            spectral_distribution,
+            spectral_mode=spectral_mode,
+        )
         spectral_path = write_plant_spectral_response_artifact(
             config.runtime_state_root,
-            json.loads(path.read_text(encoding="utf-8")),
+            surface_flux_payload,
             default_leafy_green_spectral_bands(),
             spectral_distribution,
         )
@@ -1382,6 +1431,11 @@ def _write_optional_plant_surface_flux_artifact(
     print(f"  • {path}")
     print(f"  method: {RADIANCE_RECEIVER_METHOD}")
     print("  note: Radiance receiver sampling uses leaf surface centroids/normals and does not alter heatmap uniformity.")
+    if spectral_absorption_path is not None:
+        print("FSPM plant spectral-absorption artifact:")
+        print(f"  • {spectral_absorption_path}")
+        print("  method: wavelength_binned_leaf_optical_profile_absorption_v1")
+        print("  note: wavelength-binned absorption uses the explicitly selected leaf optical profile.")
     print("FSPM plant spectral-response artifact:")
     print(f"  • {spectral_path}")
     print("  method: surface_flux_band_weighted_leaf_absorptance_v1")
