@@ -870,7 +870,7 @@ Completed:
 
 Actual receiver generation behavior:
 
-* The previous 12,288 receiver count for 64 plants and 768 modeled leaves was expected for the old high-resolution mesh-patch sampling path: 768 leaves x 8 mesh patches per leaf x 2 sides = 12,288 receiver samples.
+* The previous 12,288 receiver-row count for 64 plants and 768 modeled leaves was the deterministic mesh surface row count: 768 leaves x 16 mesh patches per leaf = 12,288 mesh surface rows.
 * `leaf_count` is the modeled botanical leaf count.
 * `surface_count` remains the deterministic mesh-face registry used by absorption summaries and visualization.
 * `receiver_sample_count` is the actual number of `rtrace` receiver rows generated for the selected granularity.
@@ -885,7 +885,7 @@ Receiver counts for the current deterministic leaf mesh:
 
 * For 768 leaves, `leaf_centroid` traces 768 receiver samples.
 * For 768 leaves, `leaf_quadrature_4` traces 3,072 receiver samples.
-* For 768 leaves, `mesh_patch` traces 12,288 receiver samples.
+* For 768 leaves, `mesh_patch` traces 24,576 receiver samples: 12,288 mesh surface rows x 2 sides.
 
 Recommended production/demo setting:
 
@@ -905,6 +905,69 @@ Validation:
 Validation results:
 
 * Receiver, spectral absorption, and CLI orchestration focused tests: passed, 56 tests, with existing third-party matplotlib/pyparsing deprecation warnings.
+
+### Step 4.13 — Receiver Granularity Regression Fix
+
+Status: complete.
+
+Root cause:
+
+* `leaf_centroid` and `leaf_quadrature_4` placed representative receiver points at area-weighted aggregate centroids. In a plant-inclusive receiver octree, those aggregate points can lie inside or behind the opaque leaf mesh, so the representative samples self-occluded and collapsed to very low incident PPFD.
+* `leaf_quadrature_4` also grouped faces by modulo index, which made each representative point cover a non-contiguous patch set instead of a coherent leaf area.
+* `mesh_patch` reported 24,576 receiver samples for the 64-plant / 768-leaf case because it intentionally traces front and back receiver rows for each of 12,288 mesh surface rows.
+* Plant surface color used legacy broadband absorbed PPFD, which is a scalar absorptance multiple of incident flux. That made the color source too easy to confuse with an absorbed-fraction diagnostic.
+
+Corrected receiver generation behavior:
+
+* Representative receiver areas remain area weighted: `leaf_centroid` sample areas sum to one-sided leaf area, and `leaf_quadrature_4` sample areas sum to one-sided leaf area.
+* Representative receiver points now use the local mesh-patch centroid nearest the area-weighted leaf or area-partition centroid, so traced points stay on real leaf surface geometry.
+* Representative normals use the selected local mesh-patch normal oriented toward the light-facing upward hemisphere, avoiding top/bottom cancellation and avoiding a one-sided sample on the dark side.
+* `leaf_quadrature_4` uses contiguous area partitions rather than modulo-indexed face buckets.
+
+Corrected receiver metadata:
+
+* Added `receiver_represented_area_m2`, `receiver_sample_area_sum_m2`, `receiver_area_basis`, `receiver_side_policy`, `receiver_rows_per_mesh_surface_row`, and `normal_generation_basis`.
+* `mesh_patch` explicitly reports `receiver_side_policy: front_and_back_per_mesh_surface_row`, `receiver_rows_per_mesh_surface_row: 2`, and one-sided represented area with doubled sample-area sum.
+* `plant_spectral_absorption.json` propagates the corrected receiver metadata from `plant_surface_flux.json` and still does not trigger receiver tracing.
+
+Corrected surface-flux color source:
+
+* Plant surface-flux visualization now defaults to `incident_photon_flux_density_umol_m2_s` with `color_quantity: incident_leaf_surface_ppfd`.
+* Baseline canopy-plane heatmap colors are unchanged.
+
+Corrected receiver counts for the current deterministic leaf mesh:
+
+* For 768 leaves, `leaf_centroid` traces 768 receiver samples.
+* For 768 leaves, `leaf_quadrature_4` traces 3,072 receiver samples.
+* For 768 leaves, `mesh_patch` traces 24,576 receiver samples over 12,288 mesh surface rows.
+
+Recommended production/demo setting:
+
+* Use `leaf_quadrature_4` for production/demo comparisons until a live convergence check confirms `leaf_centroid` is sufficiently stable for the specific canopy and fixture set.
+* Use `leaf_centroid` for fast smoke/demo iteration where the lower sample count is more important than spatial detail.
+* Keep `mesh_patch` for high-resolution convergence and debugging, not as the default demo path.
+
+Transmissive leaf material deferral:
+
+* Rex-derived transmissive Radiance leaf materials remain deferred until receiver sampling and surface-flux visualization remain stable under live Proposed LED, Conventional LED, and HPS checks.
+
+Validation:
+
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_surface_flux_artifact.py tests/radiance/test_plant_spectral_absorption.py tests/radiance/test_assembly_viewer_plants.py`
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_fspm_plants.py tests/radiance/test_plant_surface_flux_artifact.py tests/radiance/test_plant_spectral_absorption.py tests/radiance/test_phase125b_cli_orchestration.py tests/radiance/test_fspm_baseline_octree.py tests/radiance/test_assembly_scene.py tests/radiance/test_route_query_contracts.py tests/radiance/test_public_web_contract.py tests/radiance/test_assembly_viewer_plants.py tests/radiance/test_import_boundaries.py tests/radiance/test_config_contracts.py`
+* `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance/engine/plants/surface_flux.py src/rad_rebuild/radiance/engine/plants/spectral_absorption.py src/rad_rebuild/radiance/engine/plants/__init__.py src/rad_rebuild/radiance/backend/metrics.py src/rad_rebuild/radiance/assembly/fspm_panel.py src/rad_rebuild/radiance/assembly/fspm_csv.py tests/radiance/test_plant_surface_flux_artifact.py tests/radiance/test_plant_spectral_absorption.py tests/radiance/test_assembly_viewer_plants.py`
+* `npm run lint:js`
+* `npm run typecheck:js`
+* `npm run test:browser`
+* `npx playwright test tests/browser/frontend-smoke.spec.js -g "about modal and GitHub actions are accessible" --project=desktop`
+
+Validation results:
+
+* Focused receiver, spectral absorption, and viewer color-source tests: passed, 32 tests.
+* Broad FSPM/artifact/report/assembly/route/public/import/config tests: passed, 162 tests, 42 subtests, with existing third-party matplotlib/pyparsing deprecation warnings.
+* Focused Ruff check: passed.
+* ESLint and TypeScript checks: passed.
+* Browser smoke: 53 passed, 1 desktop About-modal test timed out because the demo-guide prompt intercepted the close button; isolated rerun of that exact test passed.
 
 Remaining Phase 4B work:
 

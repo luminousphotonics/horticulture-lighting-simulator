@@ -26,6 +26,9 @@ FSPM_CSV_HEADERS = (
     "receiver_sample_count",
     "receiver_granularity",
     "receiver_samples_per_leaf",
+    "receiver_side_policy",
+    "receiver_rows_per_mesh_surface_row",
+    "receiver_area_basis",
     "receiver_surface_count",
     "one_sided_leaf_area_m2",
     "under_lit_leaves",
@@ -204,6 +207,11 @@ def _summary_row(
             "receiver_sample_count": counts.get("receiver_sample_count"),
             "receiver_granularity": counts.get("receiver_granularity"),
             "receiver_samples_per_leaf": counts.get("receiver_samples_per_leaf"),
+            "receiver_side_policy": counts.get("receiver_side_policy"),
+            "receiver_rows_per_mesh_surface_row": counts.get(
+                "receiver_rows_per_mesh_surface_row"
+            ),
+            "receiver_area_basis": counts.get("receiver_area_basis"),
             "receiver_surface_count": counts.get("surface_count"),
             "one_sided_leaf_area_m2": counts.get("one_sided_leaf_area_m2"),
             "under_lit_leaves": absorption.get("under_lit_leaf_count"),

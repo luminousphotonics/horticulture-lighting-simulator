@@ -45,6 +45,20 @@ const scenePayload = {{
       transmittance: 0.08,
       absorptance: 0.7,
     }},
+    surface_flux: {{
+      visualization: {{
+        color_metric: "incident_photon_flux_density_umol_m2_s",
+        color_quantity: "incident_leaf_surface_ppfd",
+        leaf_values: [
+          {{
+            leaf_id: "plant_r000_c000_leaf_000",
+            plant_id: "plant_r000_c000",
+            incident_photon_flux_density_umol_m2_s: 250,
+            visual_intensity_0_1: 0.75,
+          }},
+        ],
+      }},
+    }},
     plants: [
       {{
         plant_id: "plant_r000_c000",
@@ -84,18 +98,21 @@ assert.equal(group.name, "plant-geometry");
 assert.equal(group.userData.plantCount, 1);
 assert.equal(group.userData.leafCount, 1);
 assert.equal(group.userData.renderedLeafCount, 1);
+assert.equal(group.userData.hasAbsorptionColor, true);
+assert.equal(group.userData.colorMetric, "incident_photon_flux_density_umol_m2_s");
 assert.equal(group.children.length, 1);
 assert.equal(group.children[0].children.length, 1);
 assert.equal(group.children[0].children[0].userData.leafId, "plant_r000_c000_leaf_000");
+assert.equal(group.children[0].children[0].userData.visualIntensity, 0.75);
 
 const controller = createPlantVisibilityController(group);
 assert.deepEqual(controller.getState(), {{
   visible: true,
-  absorptionColor: false,
-  hasAbsorptionColor: false,
+  absorptionColor: true,
+  hasAbsorptionColor: true,
   plantCount: 1,
   leafCount: 1,
-  colorMetric: "",
+  colorMetric: "incident_photon_flux_density_umol_m2_s",
 }});
 controller.setVisible(false);
 assert.equal(group.visible, false);

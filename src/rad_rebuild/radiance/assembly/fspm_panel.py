@@ -127,6 +127,14 @@ def _surface_absorption(payload: Mapping[str, Any] | None) -> dict[str, object] 
         "receiver_granularity": payload.get("receiver_granularity"),
         "receiver_samples_per_leaf": payload.get("receiver_samples_per_leaf"),
         "receiver_generation_basis": payload.get("receiver_generation_basis"),
+        "receiver_represented_area_m2": payload.get("receiver_represented_area_m2"),
+        "receiver_sample_area_sum_m2": payload.get("receiver_sample_area_sum_m2"),
+        "receiver_area_basis": payload.get("receiver_area_basis"),
+        "receiver_side_policy": payload.get("receiver_side_policy"),
+        "receiver_rows_per_mesh_surface_row": payload.get(
+            "receiver_rows_per_mesh_surface_row"
+        ),
+        "normal_generation_basis": payload.get("normal_generation_basis"),
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),
         "surface_count": payload.get("surface_count"),
@@ -252,6 +260,14 @@ def _spectral_absorption(payload: Mapping[str, Any] | None) -> dict[str, object]
         "receiver_granularity": payload.get("receiver_granularity"),
         "receiver_samples_per_leaf": payload.get("receiver_samples_per_leaf"),
         "receiver_generation_basis": payload.get("receiver_generation_basis"),
+        "receiver_represented_area_m2": payload.get("receiver_represented_area_m2"),
+        "receiver_sample_area_sum_m2": payload.get("receiver_sample_area_sum_m2"),
+        "receiver_area_basis": payload.get("receiver_area_basis"),
+        "receiver_side_policy": payload.get("receiver_side_policy"),
+        "receiver_rows_per_mesh_surface_row": payload.get(
+            "receiver_rows_per_mesh_surface_row"
+        ),
+        "normal_generation_basis": payload.get("normal_generation_basis"),
         "source_spectrum_id": source.get("distribution_id"),
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),
@@ -492,6 +508,40 @@ def build_fspm_panel_metrics(workspace_root: Path) -> dict[str, object] | None:
             if spectral_absorption_summary
             else None,
             surface_summary.get("receiver_generation_basis") if surface_summary else None,
+        ),
+        "receiver_represented_area_m2": _first_present(
+            spectral_absorption_summary.get("receiver_represented_area_m2")
+            if spectral_absorption_summary
+            else None,
+            surface_summary.get("receiver_represented_area_m2")
+            if surface_summary
+            else None,
+        ),
+        "receiver_area_basis": _first_present(
+            spectral_absorption_summary.get("receiver_area_basis")
+            if spectral_absorption_summary
+            else None,
+            surface_summary.get("receiver_area_basis") if surface_summary else None,
+        ),
+        "receiver_side_policy": _first_present(
+            spectral_absorption_summary.get("receiver_side_policy")
+            if spectral_absorption_summary
+            else None,
+            surface_summary.get("receiver_side_policy") if surface_summary else None,
+        ),
+        "receiver_rows_per_mesh_surface_row": _first_present(
+            spectral_absorption_summary.get("receiver_rows_per_mesh_surface_row")
+            if spectral_absorption_summary
+            else None,
+            surface_summary.get("receiver_rows_per_mesh_surface_row")
+            if surface_summary
+            else None,
+        ),
+        "normal_generation_basis": _first_present(
+            spectral_absorption_summary.get("normal_generation_basis")
+            if spectral_absorption_summary
+            else None,
+            surface_summary.get("normal_generation_basis") if surface_summary else None,
         ),
         "one_sided_leaf_area_m2": surface_summary.get("one_sided_leaf_area_m2") if surface_summary else None,
     }

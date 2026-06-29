@@ -31,6 +31,7 @@ from rad_rebuild.radiance.engine.plants.surface_flux import (  # noqa: E402
     write_baseline_proxy_plant_surface_flux_artifact,
     write_spatial_proxy_plant_surface_flux_artifact,
 )
+from rad_rebuild.radiance.engine.plants.absorption import leaf_absorption_surfaces  # noqa: E402
 
 
 def _scene():
@@ -94,7 +95,8 @@ def test_surface_flux_payload_aggregates_leaf_and_plant_absorption() -> None:
     assert len(payload["leaf_summaries"]) == 8
     assert all("plant_id" in row for row in payload["leaf_summaries"])
     assert all("leaf_index" in row for row in payload["leaf_summaries"])
-    assert payload["visualization"]["color_metric"] == "absorbed_photon_flux_density_umol_m2_s"
+    assert payload["visualization"]["color_metric"] == "incident_photon_flux_density_umol_m2_s"
+    assert payload["visualization"]["color_quantity"] == "incident_leaf_surface_ppfd"
     assert payload["visualization"]["leaf_values"]
     assert all("plant_id" in row for row in payload["visualization"]["leaf_values"])
 
@@ -479,12 +481,19 @@ def test_radiance_receiver_samples_are_two_sided_and_traceable() -> None:
     )
 
     surface_ids = {sample["surface_id"] for sample in samples}
+    one_sided_area = sum(surface.area_m2 for surface in leaf_absorption_surfaces(scene))
 
     assert len(samples) == len(surface_ids) * 2
     assert {sample["side"] for sample in samples} == {"front", "back"}
     assert {sample["receiver_granularity"] for sample in samples} == {
         RECEIVER_GRANULARITY_MESH_PATCH
     }
+    assert {sample["receiver_side_policy"] for sample in samples} == {
+        "front_and_back_per_mesh_surface_row"
+    }
+    assert sum(float(sample["area_m2"]) for sample in samples) == pytest.approx(
+        one_sided_area * 2.0
+    )
     assert receiver_sample_input_text(samples).count("\n") == len(samples)
 
 
@@ -496,6 +505,7 @@ def test_leaf_centroid_receiver_granularity_uses_one_sample_per_leaf() -> None:
     )
 
     leaf_ids = {leaf.leaf_id for plant in scene.plants for leaf in plant.leaves}
+    one_sided_area = sum(surface.area_m2 for surface in leaf_absorption_surfaces(scene))
 
     assert DEFAULT_FSPM_RECEIVER_GRANULARITY == RECEIVER_GRANULARITY_LEAF_CENTROID
     assert len(samples) == len(leaf_ids)
@@ -504,6 +514,13 @@ def test_leaf_centroid_receiver_granularity_uses_one_sample_per_leaf() -> None:
     assert {sample["receiver_granularity"] for sample in samples} == {
         RECEIVER_GRANULARITY_LEAF_CENTROID
     }
+    assert {sample["receiver_side_policy"] for sample in samples} == {
+        "single_light_facing_side"
+    }
+    assert sum(float(sample["area_m2"]) for sample in samples) == pytest.approx(
+        one_sided_area
+    )
+    assert all(float(sample["direction"][2]) > 0.0 for sample in samples)
     assert all(sample["leaf_representative_sample_count"] == 1 for sample in samples)
 
 
@@ -514,11 +531,16 @@ def test_leaf_quadrature_receiver_granularity_uses_four_samples_per_leaf() -> No
         receiver_granularity=RECEIVER_GRANULARITY_LEAF_QUADRATURE_4,
     )
     leaf_ids = {leaf.leaf_id for plant in scene.plants for leaf in plant.leaves}
+    one_sided_area = sum(surface.area_m2 for surface in leaf_absorption_surfaces(scene))
 
     assert len(samples) == len(leaf_ids) * 4
     assert {sample["receiver_granularity"] for sample in samples} == {
         RECEIVER_GRANULARITY_LEAF_QUADRATURE_4
     }
+    assert sum(float(sample["area_m2"]) for sample in samples) == pytest.approx(
+        one_sided_area
+    )
+    assert all(float(sample["direction"][2]) > 0.0 for sample in samples)
     assert all(sample["leaf_representative_sample_count"] == 4 for sample in samples)
 
 
@@ -547,12 +569,15 @@ def test_radiance_receiver_surface_flux_rows_sum_two_sided_density() -> None:
     assert len(rows) * 2 == len(samples)
     assert all(row["receiver_sample_count"] == 2 for row in rows)
     assert all(row["receiver_granularity"] == RECEIVER_GRANULARITY_MESH_PATCH for row in rows)
+    assert all(row["receiver_side_policy"] == "front_and_back_per_mesh_surface_row" for row in rows)
+    assert all(row["receiver_rows_per_mesh_surface_row"] == 2 for row in rows)
     assert all(set(row["receiver_sides"]) == {"front", "back"} for row in rows)
     assert all(row["incident_photon_flux_density_umol_m2_s"] == pytest.approx(125.0) for row in rows)
 
 
 def test_leaf_centroid_receiver_surface_flux_rows_expand_area_weighted_to_mesh_surfaces() -> None:
     scene = _single_plant_scene(leaf_count=2)
+    mesh_rows_per_leaf = len(scene.plants[0].leaves[0].mesh.faces)
     samples = build_radiance_receiver_samples(
         scene,
         receiver_granularity=RECEIVER_GRANULARITY_LEAF_CENTROID,
@@ -570,6 +595,10 @@ def test_leaf_centroid_receiver_surface_flux_rows_expand_area_weighted_to_mesh_s
             next(sample for sample in samples if sample["leaf_id"] == row["leaf_id"])
         )
         assert row["receiver_sample_count"] == 1
+        assert row["receiver_side_policy"] == "single_light_facing_side"
+        assert row["receiver_rows_per_mesh_surface_row"] == pytest.approx(
+            1.0 / mesh_rows_per_leaf
+        )
         assert row["incident_photon_flux_density_umol_m2_s"] == pytest.approx(
             densities[sample_index]
         )
@@ -577,6 +606,7 @@ def test_leaf_centroid_receiver_surface_flux_rows_expand_area_weighted_to_mesh_s
 
 def test_radiance_receiver_surface_flux_payload_is_computed(tmp_path) -> None:
     scene = _scene()
+    mesh_rows_per_leaf = len(scene.plants[0].leaves[0].mesh.faces)
     samples = build_radiance_receiver_samples(
         scene,
         receiver_granularity=RECEIVER_GRANULARITY_LEAF_CENTROID,
@@ -602,11 +632,57 @@ def test_radiance_receiver_surface_flux_payload_is_computed(tmp_path) -> None:
     assert payload["receiver_sample_count"] == payload["leaf_count"]
     assert payload["receiver_samples_per_leaf"] == pytest.approx(1.0)
     assert payload["receiver_generation_basis"]
+    assert payload["receiver_represented_area_m2"] == pytest.approx(
+        payload["one_sided_leaf_area_m2"]
+    )
+    assert payload["receiver_sample_area_sum_m2"] == pytest.approx(
+        payload["one_sided_leaf_area_m2"]
+    )
+    assert payload["receiver_area_basis"] == "one_sided_leaf_mesh_area_representative_sample_weights"
+    assert payload["receiver_side_policy"] == "single_light_facing_side"
+    assert payload["receiver_rows_per_mesh_surface_row"] == pytest.approx(
+        1.0 / mesh_rows_per_leaf
+    )
+    assert payload["normal_generation_basis"] == (
+        "nearest_mesh_patch_to_leaf_area_centroid_oriented_upward"
+    )
     assert payload["ppfd_field_summary"]["receiver_sample_count"] == payload[
         "receiver_sample_count"
     ]
     assert payload["ppfd_field_summary"]["two_sided"] is False
     assert payload["total_absorbed_photon_flux_umol_s"] > 0
+
+
+def test_mesh_patch_receiver_payload_reports_two_sided_policy(tmp_path) -> None:
+    scene = _single_plant_scene(leaf_count=1)
+    samples = build_radiance_receiver_samples(
+        scene,
+        receiver_granularity=RECEIVER_GRANULARITY_MESH_PATCH,
+    )
+    densities = [100.0 for _sample in samples]
+
+    path = write_radiance_receiver_plant_surface_flux_artifact(
+        tmp_path,
+        scene,
+        samples,
+        densities,
+        source_octree="test.oct",
+        receiver_granularity=RECEIVER_GRANULARITY_MESH_PATCH,
+    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert payload["receiver_sample_count"] == payload["surface_count"] * 2
+    assert payload["receiver_rows_per_mesh_surface_row"] == pytest.approx(2.0)
+    assert payload["receiver_side_policy"] == "front_and_back_per_mesh_surface_row"
+    assert payload["receiver_area_basis"] == (
+        "one_sided_leaf_mesh_area_front_back_receiver_samples_summed"
+    )
+    assert payload["receiver_represented_area_m2"] == pytest.approx(
+        payload["one_sided_leaf_area_m2"]
+    )
+    assert payload["receiver_sample_area_sum_m2"] == pytest.approx(
+        payload["one_sided_leaf_area_m2"] * 2.0
+    )
 
 
 def test_radiance_receiver_target_classification_prefers_ppfd_map(tmp_path) -> None:

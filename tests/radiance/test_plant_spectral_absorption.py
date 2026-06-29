@@ -43,7 +43,13 @@ def _surface_flux_payload(*, density: float = 100.0, area: float = 2.0) -> dict[
         "receiver_sample_count": 1,
         "receiver_granularity": "leaf_centroid",
         "receiver_samples_per_leaf": 1.0,
-        "receiver_generation_basis": "leaf_centroids_and_normals_one_sample_per_leaf",
+        "receiver_generation_basis": "one_mesh_patch_centroid_nearest_leaf_area_centroid",
+        "receiver_represented_area_m2": area,
+        "receiver_sample_area_sum_m2": area,
+        "receiver_area_basis": "one_sided_leaf_mesh_area_representative_sample_weights",
+        "receiver_side_policy": "single_light_facing_side",
+        "receiver_rows_per_mesh_surface_row": 1.0,
+        "normal_generation_basis": "nearest_mesh_patch_to_leaf_area_centroid_oriented_upward",
         "plant_count": 1,
         "leaf_count": 1,
         "surface_count": 1,
@@ -143,7 +149,13 @@ def test_wavelength_spectral_absorption_uses_expected_flux_formula() -> None:
     assert payload["receiver_sample_count"] == 1
     assert payload["receiver_samples_per_leaf"] == pytest.approx(1.0)
     assert payload["receiver_generation_basis"] == (
-        "leaf_centroids_and_normals_one_sample_per_leaf"
+        "one_mesh_patch_centroid_nearest_leaf_area_centroid"
+    )
+    assert payload["receiver_represented_area_m2"] == pytest.approx(2.0)
+    assert payload["receiver_sample_area_sum_m2"] == pytest.approx(2.0)
+    assert payload["receiver_side_policy"] == "single_light_facing_side"
+    assert payload["normal_generation_basis"] == (
+        "nearest_mesh_patch_to_leaf_area_centroid_oriented_upward"
     )
 
     expected_absorbed_density = 100.0 * sum(

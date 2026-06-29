@@ -175,6 +175,14 @@ def _load_plant_surface_flux_summary(workspace_root: Path) -> dict[str, object] 
         "receiver_granularity": payload.get("receiver_granularity"),
         "receiver_samples_per_leaf": payload.get("receiver_samples_per_leaf"),
         "receiver_generation_basis": payload.get("receiver_generation_basis"),
+        "receiver_represented_area_m2": payload.get("receiver_represented_area_m2"),
+        "receiver_sample_area_sum_m2": payload.get("receiver_sample_area_sum_m2"),
+        "receiver_area_basis": payload.get("receiver_area_basis"),
+        "receiver_side_policy": payload.get("receiver_side_policy"),
+        "receiver_rows_per_mesh_surface_row": payload.get(
+            "receiver_rows_per_mesh_surface_row"
+        ),
+        "normal_generation_basis": payload.get("normal_generation_basis"),
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),
         "surface_count": payload.get("surface_count"),
@@ -342,6 +350,14 @@ def _load_plant_spectral_absorption_summary(workspace_root: Path) -> dict[str, o
         "receiver_granularity": payload.get("receiver_granularity"),
         "receiver_samples_per_leaf": payload.get("receiver_samples_per_leaf"),
         "receiver_generation_basis": payload.get("receiver_generation_basis"),
+        "receiver_represented_area_m2": payload.get("receiver_represented_area_m2"),
+        "receiver_sample_area_sum_m2": payload.get("receiver_sample_area_sum_m2"),
+        "receiver_area_basis": payload.get("receiver_area_basis"),
+        "receiver_side_policy": payload.get("receiver_side_policy"),
+        "receiver_rows_per_mesh_surface_row": payload.get(
+            "receiver_rows_per_mesh_surface_row"
+        ),
+        "normal_generation_basis": payload.get("normal_generation_basis"),
         "source_spectrum_id": source.get("distribution_id"),
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),

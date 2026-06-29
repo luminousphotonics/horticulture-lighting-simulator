@@ -315,6 +315,18 @@ def build_plant_spectral_absorption_payload(
         "receiver_generation_basis": surface_flux_payload.get(
             "receiver_generation_basis"
         ),
+        "receiver_represented_area_m2": surface_flux_payload.get(
+            "receiver_represented_area_m2"
+        ),
+        "receiver_sample_area_sum_m2": surface_flux_payload.get(
+            "receiver_sample_area_sum_m2"
+        ),
+        "receiver_area_basis": surface_flux_payload.get("receiver_area_basis"),
+        "receiver_side_policy": surface_flux_payload.get("receiver_side_policy"),
+        "receiver_rows_per_mesh_surface_row": surface_flux_payload.get(
+            "receiver_rows_per_mesh_surface_row"
+        ),
+        "normal_generation_basis": surface_flux_payload.get("normal_generation_basis"),
         "optical_profile": {
             "profile_id": optical_profile.profile_id,
             "profile_version": optical_profile.profile_version,

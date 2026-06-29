@@ -398,6 +398,7 @@ def test_smd_simulation_orchestration_succeeds_with_stubbed_tools(
     tmp_path: Path,
 ) -> None:
     env = _base_env(tmp_path)
+    env["FSPM_RECEIVER_GRANULARITY"] = "mesh_patch"
     octree_argvs: list[tuple[str, ...]] = []
 
     def fake_python_module(

@@ -70,10 +70,33 @@ def normalize_receiver_granularity(value: object) -> str:
 def receiver_generation_basis(granularity: str) -> str:
     normalized = normalize_receiver_granularity(granularity)
     if normalized == RECEIVER_GRANULARITY_LEAF_CENTROID:
-        return "leaf_centroids_and_normals_one_sample_per_leaf"
+        return "one_mesh_patch_centroid_nearest_leaf_area_centroid"
     if normalized == RECEIVER_GRANULARITY_LEAF_QUADRATURE_4:
-        return "leaf_mesh_area_quadrature_four_representative_samples_per_leaf"
+        return "four_area_partition_mesh_patch_centroids_per_leaf"
     return "leaf_surface_patch_centroids_and_normals_front_back_samples"
+
+
+def receiver_area_basis(granularity: str) -> str:
+    normalized = normalize_receiver_granularity(granularity)
+    if normalized == RECEIVER_GRANULARITY_MESH_PATCH:
+        return "one_sided_leaf_mesh_area_front_back_receiver_samples_summed"
+    return "one_sided_leaf_mesh_area_representative_sample_weights"
+
+
+def receiver_side_policy(granularity: str) -> str:
+    normalized = normalize_receiver_granularity(granularity)
+    if normalized == RECEIVER_GRANULARITY_MESH_PATCH:
+        return "front_and_back_per_mesh_surface_row"
+    return "single_light_facing_side"
+
+
+def normal_generation_basis(granularity: str) -> str:
+    normalized = normalize_receiver_granularity(granularity)
+    if normalized == RECEIVER_GRANULARITY_MESH_PATCH:
+        return "mesh_face_normal_with_explicit_backside_sample"
+    if normalized == RECEIVER_GRANULARITY_LEAF_CENTROID:
+        return "nearest_mesh_patch_to_leaf_area_centroid_oriented_upward"
+    return "nearest_mesh_patch_to_area_partition_centroid_oriented_upward"
 
 
 def _finite_non_negative(name: str, value: object) -> float:
@@ -116,6 +139,21 @@ def _normalize_vector(vector: Vector3, *, fallback: Vector3 = (0.0, 0.0, 1.0)) -
     if not math.isfinite(mag) or mag <= 0.0:
         return fallback
     return (vector[0] / mag, vector[1] / mag, vector[2] / mag)
+
+
+def _light_facing_normal(normal: Vector3) -> Vector3:
+    unit = _normalize_vector(normal)
+    if unit[2] < 0.0:
+        return (-unit[0], -unit[1], -unit[2])
+    return unit
+
+
+def _distance_squared(a: Vector3, b: Vector3) -> float:
+    return (
+        (a[0] - b[0]) * (a[0] - b[0])
+        + (a[1] - b[1]) * (a[1] - b[1])
+        + (a[2] - b[2]) * (a[2] - b[2])
+    )
 
 
 def _surface_geometry_by_id(scene: PlantScene) -> dict[str, dict[str, Any]]:
@@ -172,20 +210,59 @@ def _aggregate_receiver_geometry(items: Iterable[Mapping[str, Any]]) -> dict[str
         raise ValueError("Receiver representative area must be positive.")
 
     centroid = [0.0, 0.0, 0.0]
-    normal = [0.0, 0.0, 0.0]
     for item in item_list:
         area = float(item["area_m2"])
         item_centroid = item["centroid_m"]
-        item_normal = item["normal"]
         for index in range(3):
             centroid[index] += float(item_centroid[index]) * area
-            normal[index] += float(item_normal[index]) * area
 
+    area_centroid = tuple(value / total_area for value in centroid)
+    # Keep the traced point on an actual mesh patch. Averaged interior points can
+    # self-occlude against opaque plant geometry in the FSPM receiver octree.
+    representative = min(
+        item_list,
+        key=lambda item: _distance_squared(item["centroid_m"], area_centroid),
+    )
     return {
         "area_m2": total_area,
-        "centroid_m": tuple(value / total_area for value in centroid),
-        "normal": _normalize_vector((normal[0], normal[1], normal[2])),
+        "centroid_m": representative["centroid_m"],
+        "normal": _light_facing_normal(representative["normal"]),
+        "area_weighted_centroid_m": area_centroid,
     }
+
+
+def _partition_surface_items_by_area(
+    items: Iterable[dict[str, Any]],
+    partition_count: int,
+) -> list[list[dict[str, Any]]]:
+    ordered = sorted(items, key=lambda item: int(item["face_index"]))
+    if partition_count <= 0:
+        raise ValueError("partition_count must be positive.")
+    if len(ordered) <= partition_count:
+        return [[item] for item in ordered]
+
+    total_area = sum(float(item["area_m2"]) for item in ordered)
+    target_area = total_area / partition_count
+    partitions: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = []
+    current_area = 0.0
+    for index, item in enumerate(ordered):
+        remaining_items = len(ordered) - index
+        remaining_partitions = partition_count - len(partitions)
+        if (
+            len(partitions) < partition_count - 1
+            and current
+            and current_area >= target_area
+            and remaining_items >= remaining_partitions
+        ):
+            partitions.append(current)
+            current = []
+            current_area = 0.0
+        current.append(item)
+        current_area += float(item["area_m2"])
+    if current:
+        partitions.append(current)
+    return partitions
 
 
 def _receiver_sample_metadata(
@@ -222,6 +299,9 @@ def _receiver_sample_metadata(
         "area_m2": float(area_m2),
         "receiver_granularity": granularity,
         "receiver_generation_basis": receiver_generation_basis(granularity),
+        "receiver_area_basis": receiver_area_basis(granularity),
+        "receiver_side_policy": receiver_side_policy(granularity),
+        "normal_generation_basis": normal_generation_basis(granularity),
         "leaf_representative_sample_count": representative_sample_count,
     }
 
@@ -544,13 +624,9 @@ def _build_leaf_quadrature_receiver_samples(
     samples: list[dict[str, Any]] = []
     for leaf_id, items in sorted(_leaf_surface_geometry(scene).items()):
         first = items[0]
-        buckets: list[list[dict[str, Any]]] = [[], [], [], []]
-        for index, item in enumerate(items):
-            buckets[index % 4].append(dict(item))
-        non_empty_bucket_count = sum(1 for bucket in buckets if bucket)
+        buckets = _partition_surface_items_by_area([dict(item) for item in items], 4)
+        non_empty_bucket_count = len(buckets)
         for bucket_index, bucket in enumerate(buckets):
-            if not bucket:
-                continue
             representative = _aggregate_receiver_geometry(bucket)
             samples.append(
                 _receiver_sample_metadata(
@@ -710,6 +786,16 @@ def _build_mesh_patch_receiver_surface_flux_rows(
                 "receiver_generation_basis": receiver_generation_basis(
                     RECEIVER_GRANULARITY_MESH_PATCH
                 ),
+                "receiver_area_basis": receiver_area_basis(
+                    RECEIVER_GRANULARITY_MESH_PATCH
+                ),
+                "receiver_side_policy": receiver_side_policy(
+                    RECEIVER_GRANULARITY_MESH_PATCH
+                ),
+                "receiver_rows_per_mesh_surface_row": len(sample_items),
+                "normal_generation_basis": normal_generation_basis(
+                    RECEIVER_GRANULARITY_MESH_PATCH
+                ),
                 "receiver_sides": [
                     str(sample.get("side") or "unknown")
                     for sample, _density in sample_items
@@ -798,6 +884,14 @@ def _build_representative_receiver_surface_flux_rows(
                     "receiver_sample_count": len(sample_items),
                     "receiver_granularity": receiver_granularity,
                     "receiver_generation_basis": basis,
+                    "receiver_area_basis": receiver_area_basis(receiver_granularity),
+                    "receiver_side_policy": receiver_side_policy(receiver_granularity),
+                    "receiver_rows_per_mesh_surface_row": (
+                        len(sample_items) / len(leaf_geometry[leaf_id])
+                    ),
+                    "normal_generation_basis": normal_generation_basis(
+                        receiver_granularity
+                    ),
                     "representative_leaf_area_m2": leaf_area,
                     "representative_receiver_area_m2": representative_area_total,
                     "incident_photon_flux_density_umol_m2_s": incident_density,
@@ -834,11 +928,27 @@ def write_radiance_receiver_plant_surface_flux_artifact(
             f"{granularity!r} != {detected_granularity!r}."
         )
     leaf_count = len({leaf.leaf_id for plant in scene.plants for leaf in plant.leaves})
+    surfaces = leaf_absorption_surfaces(scene)
+    surface_count = len(surfaces)
+    one_sided_area = sum(surface.area_m2 for surface in surfaces)
     receiver_sample_count = len(samples)
     receiver_samples_per_leaf = (
         receiver_sample_count / leaf_count if leaf_count else 0.0
     )
+    receiver_rows_per_mesh_surface_row = (
+        receiver_sample_count / surface_count if surface_count else 0.0
+    )
     generation_basis = receiver_generation_basis(granularity)
+    area_basis = receiver_area_basis(granularity)
+    side_policy = receiver_side_policy(granularity)
+    normal_basis = normal_generation_basis(granularity)
+    receiver_sample_area_sum = sum(
+        _finite_non_negative(
+            f"receiver_sample_area_m2[{sample.get('sample_id', index)}]",
+            sample.get("area_m2"),
+        )
+        for index, sample in enumerate(samples)
+    )
     rows = build_radiance_receiver_surface_flux_rows(
         scene,
         samples,
@@ -855,6 +965,12 @@ def write_radiance_receiver_plant_surface_flux_artifact(
             "receiver_granularity": granularity,
             "receiver_samples_per_leaf": receiver_samples_per_leaf,
             "receiver_generation_basis": generation_basis,
+            "receiver_represented_area_m2": one_sided_area,
+            "receiver_sample_area_sum_m2": receiver_sample_area_sum,
+            "receiver_area_basis": area_basis,
+            "receiver_side_policy": side_policy,
+            "receiver_rows_per_mesh_surface_row": receiver_rows_per_mesh_surface_row,
+            "normal_generation_basis": normal_basis,
             "two_sided": any(sample.get("side") == "back" for sample in samples),
             "source_octree": source_octree,
             "receiver_scale_multiplier": receiver_scale_multiplier,
@@ -863,6 +979,12 @@ def write_radiance_receiver_plant_surface_flux_artifact(
         receiver_granularity=granularity,
         receiver_samples_per_leaf=receiver_samples_per_leaf,
         receiver_generation_basis=generation_basis,
+        receiver_represented_area_m2=one_sided_area,
+        receiver_sample_area_sum_m2=receiver_sample_area_sum,
+        receiver_area_basis=area_basis,
+        receiver_side_policy=side_policy,
+        receiver_rows_per_mesh_surface_row=receiver_rows_per_mesh_surface_row,
+        normal_generation_basis=normal_basis,
         target_ppfd_umol_m2_s=target_ppfd_umol_m2_s,
         target_tolerance_umol_m2_s=target_tolerance_umol_m2_s,
         target_classification_ppfd_map_path=target_classification_ppfd_map_path,
@@ -876,6 +998,12 @@ def write_radiance_receiver_plant_surface_flux_artifact(
             "receiver_granularity": granularity,
             "receiver_samples_per_leaf": receiver_samples_per_leaf,
             "receiver_generation_basis": generation_basis,
+            "receiver_represented_area_m2": one_sided_area,
+            "receiver_sample_area_sum_m2": receiver_sample_area_sum,
+            "receiver_area_basis": area_basis,
+            "receiver_side_policy": side_policy,
+            "receiver_rows_per_mesh_surface_row": receiver_rows_per_mesh_surface_row,
+            "normal_generation_basis": normal_basis,
         }
     )
     return write_plant_surface_flux_artifact(target_dir, payload)
@@ -996,11 +1124,12 @@ def _visualization_payload(
     plant_summaries: list[dict[str, Any]],
     surface_summaries: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    key = "absorbed_photon_flux_density_umol_m2_s"
+    key = "incident_photon_flux_density_umol_m2_s"
     leaf_min, leaf_max = _density_range(leaf_summaries, key)
     surface_min, surface_max = _density_range(surface_summaries, key)
     return {
         "color_metric": key,
+        "color_quantity": "incident_leaf_surface_ppfd",
         "normalization": "linear_0_1",
         "leaf_scale": {
             "min": leaf_min,
@@ -1015,7 +1144,7 @@ def _visualization_payload(
                 "leaf_id": row["leaf_id"],
                 "plant_id": row["plant_id"],
                 "lighting_region": row["lighting_region"],
-                "absorbed_photon_flux_density_umol_m2_s": row[key],
+                key: row[key],
                 "visual_intensity_0_1": _visual_value(row[key], min_value=leaf_min, max_value=leaf_max),
             }
             for row in leaf_summaries
@@ -1024,7 +1153,7 @@ def _visualization_payload(
             {
                 "plant_id": row["plant_id"],
                 "lighting_region": row["lighting_region"],
-                "absorbed_photon_flux_density_umol_m2_s": row[key],
+                key: row[key],
             }
             for row in plant_summaries
         ],
@@ -1034,7 +1163,7 @@ def _visualization_payload(
                 "leaf_id": row["leaf_id"],
                 "plant_id": row["plant_id"],
                 "lighting_region": row["lighting_region"],
-                "absorbed_photon_flux_density_umol_m2_s": row[key],
+                key: row[key],
                 "visual_intensity_0_1": _visual_value(row[key], min_value=surface_min, max_value=surface_max),
             }
             for row in surface_summaries
@@ -1059,6 +1188,12 @@ def build_plant_surface_flux_payload(
     receiver_granularity: str | None = None,
     receiver_samples_per_leaf: float | None = None,
     receiver_generation_basis: str | None = None,
+    receiver_represented_area_m2: float | None = None,
+    receiver_sample_area_sum_m2: float | None = None,
+    receiver_area_basis: str | None = None,
+    receiver_side_policy: str | None = None,
+    receiver_rows_per_mesh_surface_row: float | None = None,
+    normal_generation_basis: str | None = None,
 ) -> dict[str, Any]:
     normalized_rows, incident_by_surface_id = _normalize_surface_rows(scene, surface_flux_rows)
     classification_by_surface_id = target_classification_ppfd_by_surface_id
@@ -1229,6 +1364,12 @@ def build_plant_surface_flux_payload(
         "receiver_granularity": receiver_granularity,
         "receiver_samples_per_leaf": receiver_samples_per_leaf,
         "receiver_generation_basis": receiver_generation_basis,
+        "receiver_represented_area_m2": receiver_represented_area_m2,
+        "receiver_sample_area_sum_m2": receiver_sample_area_sum_m2,
+        "receiver_area_basis": receiver_area_basis,
+        "receiver_side_policy": receiver_side_policy,
+        "receiver_rows_per_mesh_surface_row": receiver_rows_per_mesh_surface_row,
+        "normal_generation_basis": normal_generation_basis,
         "one_sided_leaf_area_m2": absorption_metrics["one_sided_leaf_area_m2"],
         "total_incident_photon_flux_umol_s": absorption_metrics[
             "total_incident_photon_flux_umol_s"
