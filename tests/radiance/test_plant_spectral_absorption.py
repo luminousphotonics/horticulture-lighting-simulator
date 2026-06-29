@@ -40,6 +40,10 @@ def _surface_flux_payload(*, density: float = 100.0, area: float = 2.0) -> dict[
         "baseline_transport_scene": "room_emitters_only",
         "fspm_receiver_transport_scene": "room_emitters_plants",
         "receiver_trace_count": 1,
+        "receiver_sample_count": 1,
+        "receiver_granularity": "leaf_centroid",
+        "receiver_samples_per_leaf": 1.0,
+        "receiver_generation_basis": "leaf_centroids_and_normals_one_sample_per_leaf",
         "plant_count": 1,
         "leaf_count": 1,
         "surface_count": 1,
@@ -135,6 +139,12 @@ def test_wavelength_spectral_absorption_uses_expected_flux_formula() -> None:
     assert distribution.wavelength_nm == tuple(sorted(distribution.wavelength_nm))
     assert distribution.band_fraction("par") == pytest.approx(1.0)
     assert surface["incident_par_ppfd_umol_m2_s"] == pytest.approx(100.0)
+    assert payload["receiver_granularity"] == "leaf_centroid"
+    assert payload["receiver_sample_count"] == 1
+    assert payload["receiver_samples_per_leaf"] == pytest.approx(1.0)
+    assert payload["receiver_generation_basis"] == (
+        "leaf_centroids_and_normals_one_sample_per_leaf"
+    )
 
     expected_absorbed_density = 100.0 * sum(
         fraction * absorptance

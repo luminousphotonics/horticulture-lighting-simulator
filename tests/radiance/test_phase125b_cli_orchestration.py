@@ -498,6 +498,7 @@ def test_smd_simulation_includes_plants_only_when_gate_enabled(
     )
     octree_argvs: list[tuple[str, ...]] = []
     plant_receiver_calls: list[Path] = []
+    receiver_sample_counts: list[int] = []
 
     def fake_python_module(
         config: scripts.RuntimeConfig,
@@ -564,6 +565,7 @@ def test_smd_simulation_includes_plants_only_when_gate_enabled(
         assert nthreads == 1
         plant_receiver_calls.append(octree)
         sample_count = len(receiver_input_path.read_text(encoding="utf-8").splitlines())
+        receiver_sample_counts.append(sample_count)
         receiver_rgb_path.write_text(
             "".join("1 1 1\n" for _ in range(sample_count)),
             encoding="utf-8",
@@ -616,9 +618,12 @@ def test_smd_simulation_includes_plants_only_when_gate_enabled(
     surface_flux = json.loads(
         (runtime / "plant_surface_flux.json").read_text(encoding="utf-8")
     )
+    assert receiver_sample_counts == [surface_flux["leaf_count"]]
     assert surface_flux["baseline_transport_scene"] == "room_emitters_only"
     assert surface_flux["fspm_receiver_transport_scene"] == "room_emitters_plants"
     assert surface_flux["receiver_trace_count"] == 1
+    assert surface_flux["receiver_granularity"] == "leaf_centroid"
+    assert surface_flux["receiver_sample_count"] == surface_flux["leaf_count"]
 
 
 def test_static_room_octree_keeps_baseline_and_fspm_receiver_inputs_separate(

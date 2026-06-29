@@ -856,6 +856,56 @@ Validation results:
 * Focused Ruff check: passed.
 * ESLint and TypeScript checks: passed.
 
+### Step 4.12 — Explicit Receiver Sampling Granularity
+
+Status: complete.
+
+Completed:
+
+* Added `FSPM_RECEIVER_GRANULARITY=leaf_centroid | leaf_quadrature_4 | mesh_patch`.
+* Set the runtime default to `leaf_centroid`.
+* Preserved the previous high-resolution behavior as `mesh_patch`.
+* Added receiver metadata to `plant_surface_flux.json` and propagated it to `plant_spectral_absorption.json`: `leaf_count`, `receiver_sample_count`, `receiver_granularity`, `receiver_samples_per_leaf`, and `receiver_generation_basis`.
+* Updated summaries, CSV/report fields, and viewer wording so traced receiver load is reported as receiver samples, distinct from mesh surface rows.
+
+Actual receiver generation behavior:
+
+* The previous 12,288 receiver count for 64 plants and 768 modeled leaves was expected for the old high-resolution mesh-patch sampling path: 768 leaves x 8 mesh patches per leaf x 2 sides = 12,288 receiver samples.
+* `leaf_count` is the modeled botanical leaf count.
+* `surface_count` remains the deterministic mesh-face registry used by absorption summaries and visualization.
+* `receiver_sample_count` is the actual number of `rtrace` receiver rows generated for the selected granularity.
+
+Granularity behavior:
+
+* `leaf_centroid`: one centroid/normal receiver sample per modeled leaf. Each sample represents the full one-sided leaf area and is expanded area-weightedly onto the mesh-face registry for existing artifact summaries.
+* `leaf_quadrature_4`: four representative centroid/normal receiver samples per modeled leaf when the current mesh supports four non-empty face groups. Each sample represents its face-group area.
+* `mesh_patch`: current high-resolution behavior, using leaf-surface patch centroids/normals with front/back samples for each patch.
+
+Receiver counts for the current deterministic leaf mesh:
+
+* For 768 leaves, `leaf_centroid` traces 768 receiver samples.
+* For 768 leaves, `leaf_quadrature_4` traces 3,072 receiver samples.
+* For 768 leaves, `mesh_patch` traces 12,288 receiver samples.
+
+Recommended production/demo setting:
+
+* Use `FSPM_RECEIVER_GRANULARITY=leaf_centroid` before Level 2 source-weighted transmissive leaves and Level 3 five-band transport.
+* Use `leaf_quadrature_4` for focused convergence checks when a moderate receiver-count increase is acceptable.
+* Use `mesh_patch` only when the high-resolution leaf-surface patch basis is explicitly needed.
+
+Implications:
+
+* Source-weighted transmissive leaves and five-band spectral transport multiply transport cost; defaulting to leaf centroids prevents the old mesh-patch sampling load from becoming the baseline before those phases.
+* `plant_spectral_absorption.json` continues to reuse the single `plant_surface_flux.json` receiver result and does not introduce duplicate receiver tracing.
+
+Validation:
+
+* `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_surface_flux_artifact.py tests/radiance/test_plant_spectral_absorption.py tests/radiance/test_phase125b_cli_orchestration.py`
+
+Validation results:
+
+* Receiver, spectral absorption, and CLI orchestration focused tests: passed, 56 tests, with existing third-party matplotlib/pyparsing deprecation warnings.
+
 Remaining Phase 4B work:
 
 * Rex-derived diffuse-transmissive Radiance leaf material.

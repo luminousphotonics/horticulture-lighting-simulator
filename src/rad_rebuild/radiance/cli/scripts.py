@@ -68,8 +68,10 @@ from rad_rebuild.radiance.engine.plants.spectral_absorption import (
     write_plant_spectral_absorption_artifact,
 )
 from rad_rebuild.radiance.engine.plants.surface_flux import (
+    FSPM_RECEIVER_GRANULARITY_ENV,
     RADIANCE_RECEIVER_METHOD,
     build_radiance_receiver_samples,
+    normalize_receiver_granularity,
     parse_rtrace_receiver_output,
     receiver_sample_input_text,
     write_radiance_receiver_plant_surface_flux_artifact,
@@ -1112,7 +1114,7 @@ def _trace_plant_surface_receivers(
         ScriptEvent(
             "info",
             "radiance.plant_receivers",
-            "tracing plant surface receivers",
+            "tracing plant receiver samples",
             {"octree": str(octree), "receivers": str(receiver_input_path)},
         )
     )
@@ -1394,7 +1396,17 @@ def _write_optional_plant_surface_flux_artifact(
     plant_config = _fspm_plant_config_from_env(config.env)
     target_ppfd, target_tolerance = _fspm_target_settings_from_env(config.env)
     scene = generate_plant_scene(plant_config)
-    samples = build_radiance_receiver_samples(scene, two_sided=True)
+    try:
+        receiver_granularity = normalize_receiver_granularity(
+            config.env.get(FSPM_RECEIVER_GRANULARITY_ENV)
+        )
+        samples = build_radiance_receiver_samples(
+            scene,
+            receiver_granularity=receiver_granularity,
+        )
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return int(RadianceScriptExit.VALIDATION)
 
     receiver_input = config.cache_root / f"plant_surface_receivers_{os.getpid()}_{secrets.token_hex(6)}.pts"
     receiver_rgb = config.cache_root / f"plant_surface_receivers_{os.getpid()}_{secrets.token_hex(6)}.rgb"
@@ -1423,6 +1435,7 @@ def _write_optional_plant_surface_flux_artifact(
             receiver_densities,
             receiver_scale_multiplier=receiver_scale_multiplier,
             source_octree=str(octree),
+            receiver_granularity=receiver_granularity,
             target_ppfd_umol_m2_s=target_ppfd,
             target_tolerance_umol_m2_s=target_tolerance,
             target_classification_ppfd_map_path=ppfd_map,
@@ -1472,7 +1485,9 @@ def _write_optional_plant_surface_flux_artifact(
     print("FSPM plant surface-flux artifact:")
     print(f"  • {path}")
     print(f"  method: {RADIANCE_RECEIVER_METHOD}")
-    print("  note: Radiance receiver sampling uses leaf surface centroids/normals and does not alter heatmap uniformity.")
+    print(f"  receiver_granularity: {receiver_granularity}")
+    print(f"  receiver_sample_count: {len(samples)}")
+    print("  note: Radiance receiver sampling does not alter heatmap uniformity.")
     if spectral_absorption_path is not None:
         print("FSPM plant spectral-absorption artifact:")
         print(f"  • {spectral_absorption_path}")

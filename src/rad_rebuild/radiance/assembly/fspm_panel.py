@@ -123,6 +123,10 @@ def _surface_absorption(payload: Mapping[str, Any] | None) -> dict[str, object] 
         "baseline_transport_scene": payload.get("baseline_transport_scene"),
         "fspm_receiver_transport_scene": payload.get("fspm_receiver_transport_scene"),
         "receiver_trace_count": payload.get("receiver_trace_count"),
+        "receiver_sample_count": payload.get("receiver_sample_count"),
+        "receiver_granularity": payload.get("receiver_granularity"),
+        "receiver_samples_per_leaf": payload.get("receiver_samples_per_leaf"),
+        "receiver_generation_basis": payload.get("receiver_generation_basis"),
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),
         "surface_count": payload.get("surface_count"),
@@ -244,6 +248,10 @@ def _spectral_absorption(payload: Mapping[str, Any] | None) -> dict[str, object]
         "baseline_transport_scene": payload.get("baseline_transport_scene"),
         "fspm_receiver_transport_scene": payload.get("fspm_receiver_transport_scene"),
         "receiver_trace_count": payload.get("receiver_trace_count"),
+        "receiver_sample_count": payload.get("receiver_sample_count"),
+        "receiver_granularity": payload.get("receiver_granularity"),
+        "receiver_samples_per_leaf": payload.get("receiver_samples_per_leaf"),
+        "receiver_generation_basis": payload.get("receiver_generation_basis"),
         "source_spectrum_id": source.get("distribution_id"),
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),
@@ -460,6 +468,30 @@ def build_fspm_panel_metrics(workspace_root: Path) -> dict[str, object] | None:
             else None,
             spectral_summary.get("surface_count") if spectral_summary else None,
             surface_summary.get("surface_count") if surface_summary else None,
+        ),
+        "receiver_sample_count": _first_present(
+            spectral_absorption_summary.get("receiver_sample_count")
+            if spectral_absorption_summary
+            else None,
+            surface_summary.get("receiver_sample_count") if surface_summary else None,
+        ),
+        "receiver_granularity": _first_present(
+            spectral_absorption_summary.get("receiver_granularity")
+            if spectral_absorption_summary
+            else None,
+            surface_summary.get("receiver_granularity") if surface_summary else None,
+        ),
+        "receiver_samples_per_leaf": _first_present(
+            spectral_absorption_summary.get("receiver_samples_per_leaf")
+            if spectral_absorption_summary
+            else None,
+            surface_summary.get("receiver_samples_per_leaf") if surface_summary else None,
+        ),
+        "receiver_generation_basis": _first_present(
+            spectral_absorption_summary.get("receiver_generation_basis")
+            if spectral_absorption_summary
+            else None,
+            surface_summary.get("receiver_generation_basis") if surface_summary else None,
         ),
         "one_sided_leaf_area_m2": surface_summary.get("one_sided_leaf_area_m2") if surface_summary else None,
     }

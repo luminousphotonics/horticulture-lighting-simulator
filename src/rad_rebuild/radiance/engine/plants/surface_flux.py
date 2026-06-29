@@ -3,9 +3,8 @@
 This module produces a traceable `plant_surface_flux.json` artifact keyed by
 the deterministic leaf-face surface IDs from the plant absorption registry.
 
-The current live integration uses a conservative baseline-PPFD proxy so the
-JSON contract, aggregation, validation, and viewer-coloring data can be tested
-before replacing the proxy with a reviewed Radiance per-surface receiver method.
+The current live integration supports configurable Radiance receiver sampling
+granularity while preserving the deterministic leaf-face artifact registry.
 """
 
 from __future__ import annotations
@@ -37,6 +36,44 @@ BASELINE_PPFD_PROXY_METHOD = "baseline_ppfd_mean_orientation_proxy_v1"
 SPATIAL_PPFD_PROXY_METHOD = "baseline_ppfd_spatial_interpolation_orientation_proxy_v1"
 RADIANCE_RECEIVER_METHOD = "radiance_leaf_surface_receiver_sampling_v1"
 NO_CROP_OUTPUT_TERMS = ["yield", "biomass", "growth", "crop_output"]
+FSPM_RECEIVER_GRANULARITY_ENV = "FSPM_RECEIVER_GRANULARITY"
+RECEIVER_GRANULARITY_LEAF_CENTROID = "leaf_centroid"
+RECEIVER_GRANULARITY_LEAF_QUADRATURE_4 = "leaf_quadrature_4"
+RECEIVER_GRANULARITY_MESH_PATCH = "mesh_patch"
+DEFAULT_FSPM_RECEIVER_GRANULARITY = RECEIVER_GRANULARITY_LEAF_CENTROID
+FSPM_RECEIVER_GRANULARITIES = frozenset(
+    {
+        RECEIVER_GRANULARITY_LEAF_CENTROID,
+        RECEIVER_GRANULARITY_LEAF_QUADRATURE_4,
+        RECEIVER_GRANULARITY_MESH_PATCH,
+    }
+)
+
+
+def normalize_receiver_granularity(value: object) -> str:
+    """Return a supported FSPM receiver granularity value."""
+
+    if value is None:
+        return DEFAULT_FSPM_RECEIVER_GRANULARITY
+    text = str(value).strip().lower()
+    if not text:
+        return DEFAULT_FSPM_RECEIVER_GRANULARITY
+    if text not in FSPM_RECEIVER_GRANULARITIES:
+        allowed = ", ".join(sorted(FSPM_RECEIVER_GRANULARITIES))
+        raise ValueError(
+            f"Unknown {FSPM_RECEIVER_GRANULARITY_ENV}: {value!r}. "
+            f"Expected one of: {allowed}."
+        )
+    return text
+
+
+def receiver_generation_basis(granularity: str) -> str:
+    normalized = normalize_receiver_granularity(granularity)
+    if normalized == RECEIVER_GRANULARITY_LEAF_CENTROID:
+        return "leaf_centroids_and_normals_one_sample_per_leaf"
+    if normalized == RECEIVER_GRANULARITY_LEAF_QUADRATURE_4:
+        return "leaf_mesh_area_quadrature_four_representative_samples_per_leaf"
+    return "leaf_surface_patch_centroids_and_normals_front_back_samples"
 
 
 def _finite_non_negative(name: str, value: object) -> float:
@@ -74,6 +111,13 @@ def _centroid(a: Vector3, b: Vector3, c: Vector3) -> Vector3:
     return ((a[0] + b[0] + c[0]) / 3.0, (a[1] + b[1] + c[1]) / 3.0, (a[2] + b[2] + c[2]) / 3.0)
 
 
+def _normalize_vector(vector: Vector3, *, fallback: Vector3 = (0.0, 0.0, 1.0)) -> Vector3:
+    mag = math.sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2])
+    if not math.isfinite(mag) or mag <= 0.0:
+        return fallback
+    return (vector[0] / mag, vector[1] / mag, vector[2] / mag)
+
+
 def _surface_geometry_by_id(scene: PlantScene) -> dict[str, dict[str, Any]]:
     surface_registry = {surface.surface_id: surface for surface in leaf_absorption_surfaces(scene)}
     geometry: dict[str, dict[str, Any]] = {}
@@ -97,6 +141,89 @@ def _surface_geometry_by_id(scene: PlantScene) -> dict[str, dict[str, Any]]:
     if missing:
         raise ValueError(f"Missing mesh geometry for {len(missing)} plant surfaces.")
     return geometry
+
+
+def _leaf_surface_geometry(scene: PlantScene) -> dict[str, list[dict[str, Any]]]:
+    by_leaf: dict[str, list[dict[str, Any]]] = {}
+    for surface_id, item in _surface_geometry_by_id(scene).items():
+        surface = item["surface"]
+        if not isinstance(surface, LeafAbsorptionSurface):
+            raise ValueError(f"Invalid surface registry entry for {surface_id}.")
+        by_leaf.setdefault(surface.leaf_id, []).append(
+            {
+                **item,
+                "surface_id": surface_id,
+                "area_m2": surface.area_m2,
+                "face_index": surface.face_index,
+                "plant_id": surface.plant_id,
+                "leaf_id": surface.leaf_id,
+                "leaf_index": surface.leaf_index,
+            }
+        )
+    for items in by_leaf.values():
+        items.sort(key=lambda item: int(item["face_index"]))
+    return by_leaf
+
+
+def _aggregate_receiver_geometry(items: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+    item_list = list(items)
+    total_area = sum(float(item.get("area_m2", 0.0) or 0.0) for item in item_list)
+    if total_area <= 0.0:
+        raise ValueError("Receiver representative area must be positive.")
+
+    centroid = [0.0, 0.0, 0.0]
+    normal = [0.0, 0.0, 0.0]
+    for item in item_list:
+        area = float(item["area_m2"])
+        item_centroid = item["centroid_m"]
+        item_normal = item["normal"]
+        for index in range(3):
+            centroid[index] += float(item_centroid[index]) * area
+            normal[index] += float(item_normal[index]) * area
+
+    return {
+        "area_m2": total_area,
+        "centroid_m": tuple(value / total_area for value in centroid),
+        "normal": _normalize_vector((normal[0], normal[1], normal[2])),
+    }
+
+
+def _receiver_sample_metadata(
+    *,
+    sample_id: str,
+    surface_id: str,
+    plant_id: str,
+    leaf_id: str,
+    leaf_index: int,
+    face_index: int | None,
+    side: str,
+    centroid: Vector3,
+    direction: Vector3,
+    area_m2: float,
+    offset_m: float,
+    granularity: str,
+    representative_sample_count: int,
+) -> dict[str, Any]:
+    origin = (
+        centroid[0] + direction[0] * offset_m,
+        centroid[1] + direction[1] * offset_m,
+        centroid[2] + direction[2] * offset_m,
+    )
+    return {
+        "sample_id": sample_id,
+        "surface_id": surface_id,
+        "plant_id": plant_id,
+        "leaf_id": leaf_id,
+        "leaf_index": leaf_index,
+        "face_index": face_index,
+        "side": side,
+        "origin_m": [float(value) for value in origin],
+        "direction": [float(value) for value in direction],
+        "area_m2": float(area_m2),
+        "receiver_granularity": granularity,
+        "receiver_generation_basis": receiver_generation_basis(granularity),
+        "leaf_representative_sample_count": representative_sample_count,
+    }
 
 
 
@@ -304,18 +431,45 @@ def build_baseline_proxy_surface_flux_rows(
 def build_radiance_receiver_samples(
     scene: PlantScene,
     *,
-    two_sided: bool = True,
+    receiver_granularity: str | None = None,
+    two_sided: bool | None = None,
     offset_m: float = 0.0005,
 ) -> list[dict[str, Any]]:
-    """Build rtrace -I+ receiver samples at deterministic plant surface centroids.
+    """Build rtrace -I+ receiver samples at deterministic plant receiver points.
 
-    Plant geometry remains excluded from the lighting octree. These samples read
-    the unblocked lighting field at leaf-face centroids and normals.
+    `mesh_patch` preserves the original per-mesh-face, front/back sampling. The
+    lower-cost modes trace representative leaf samples and later expand their
+    area-weighted density back onto the deterministic mesh-face registry.
     """
 
+    granularity = normalize_receiver_granularity(receiver_granularity)
     if offset_m < 0.0 or not math.isfinite(offset_m):
         raise ValueError("offset_m must be finite and non-negative.")
 
+    if granularity == RECEIVER_GRANULARITY_MESH_PATCH:
+        return _build_mesh_patch_receiver_samples(
+            scene,
+            two_sided=True if two_sided is None else two_sided,
+            offset_m=offset_m,
+        )
+    if two_sided:
+        raise ValueError(
+            "two_sided receiver sampling is only supported for "
+            f"{RECEIVER_GRANULARITY_MESH_PATCH} granularity."
+        )
+    if granularity == RECEIVER_GRANULARITY_LEAF_CENTROID:
+        return _build_leaf_centroid_receiver_samples(scene, offset_m=offset_m)
+    if granularity == RECEIVER_GRANULARITY_LEAF_QUADRATURE_4:
+        return _build_leaf_quadrature_receiver_samples(scene, offset_m=offset_m)
+    raise AssertionError(f"Unhandled receiver granularity: {granularity}")
+
+
+def _build_mesh_patch_receiver_samples(
+    scene: PlantScene,
+    *,
+    two_sided: bool,
+    offset_m: float,
+) -> list[dict[str, Any]]:
     geometry = _surface_geometry_by_id(scene)
     samples: list[dict[str, Any]] = []
 
@@ -332,26 +486,89 @@ def build_radiance_receiver_samples(
             directions.append(("back", (-normal[0], -normal[1], -normal[2])))
 
         for side, direction in directions:
-            origin = (
-                centroid[0] + direction[0] * offset_m,
-                centroid[1] + direction[1] * offset_m,
-                centroid[2] + direction[2] * offset_m,
-            )
             samples.append(
-                {
-                    "sample_id": f"{surface_id}_{side}",
-                    "surface_id": surface.surface_id,
-                    "plant_id": surface.plant_id,
-                    "leaf_id": surface.leaf_id,
-                    "leaf_index": surface.leaf_index,
-                    "face_index": surface.face_index,
-                    "side": side,
-                    "origin_m": [float(value) for value in origin],
-                    "direction": [float(value) for value in direction],
-                    "area_m2": surface.area_m2,
-                }
+                _receiver_sample_metadata(
+                    sample_id=f"{surface_id}_{side}",
+                    surface_id=surface.surface_id,
+                    plant_id=surface.plant_id,
+                    leaf_id=surface.leaf_id,
+                    leaf_index=surface.leaf_index,
+                    face_index=surface.face_index,
+                    side=side,
+                    centroid=centroid,
+                    direction=direction,
+                    area_m2=surface.area_m2,
+                    offset_m=offset_m,
+                    granularity=RECEIVER_GRANULARITY_MESH_PATCH,
+                    representative_sample_count=2 if two_sided else 1,
+                )
             )
 
+    return samples
+
+
+def _build_leaf_centroid_receiver_samples(
+    scene: PlantScene,
+    *,
+    offset_m: float,
+) -> list[dict[str, Any]]:
+    samples: list[dict[str, Any]] = []
+    for leaf_id, items in sorted(_leaf_surface_geometry(scene).items()):
+        representative = _aggregate_receiver_geometry(items)
+        first = items[0]
+        samples.append(
+            _receiver_sample_metadata(
+                sample_id=f"{leaf_id}_centroid",
+                surface_id=f"{leaf_id}_centroid",
+                plant_id=str(first["plant_id"]),
+                leaf_id=leaf_id,
+                leaf_index=int(first["leaf_index"]),
+                face_index=None,
+                side="front",
+                centroid=representative["centroid_m"],
+                direction=representative["normal"],
+                area_m2=representative["area_m2"],
+                offset_m=offset_m,
+                granularity=RECEIVER_GRANULARITY_LEAF_CENTROID,
+                representative_sample_count=1,
+            )
+        )
+    return samples
+
+
+def _build_leaf_quadrature_receiver_samples(
+    scene: PlantScene,
+    *,
+    offset_m: float,
+) -> list[dict[str, Any]]:
+    samples: list[dict[str, Any]] = []
+    for leaf_id, items in sorted(_leaf_surface_geometry(scene).items()):
+        first = items[0]
+        buckets: list[list[dict[str, Any]]] = [[], [], [], []]
+        for index, item in enumerate(items):
+            buckets[index % 4].append(dict(item))
+        non_empty_bucket_count = sum(1 for bucket in buckets if bucket)
+        for bucket_index, bucket in enumerate(buckets):
+            if not bucket:
+                continue
+            representative = _aggregate_receiver_geometry(bucket)
+            samples.append(
+                _receiver_sample_metadata(
+                    sample_id=f"{leaf_id}_quadrature_{bucket_index + 1}",
+                    surface_id=f"{leaf_id}_quadrature_{bucket_index + 1}",
+                    plant_id=str(first["plant_id"]),
+                    leaf_id=leaf_id,
+                    leaf_index=int(first["leaf_index"]),
+                    face_index=None,
+                    side="front",
+                    centroid=representative["centroid_m"],
+                    direction=representative["normal"],
+                    area_m2=representative["area_m2"],
+                    offset_m=offset_m,
+                    granularity=RECEIVER_GRANULARITY_LEAF_QUADRATURE_4,
+                    representative_sample_count=non_empty_bucket_count,
+                )
+            )
     return samples
 
 
@@ -402,6 +619,47 @@ def build_radiance_receiver_surface_flux_rows(
 ) -> list[dict[str, Any]]:
     """Aggregate rtrace receiver samples into surface flux rows."""
 
+    samples = list(receiver_samples)
+    granularity = _receiver_granularity_from_samples(samples)
+    if granularity in {
+        RECEIVER_GRANULARITY_LEAF_CENTROID,
+        RECEIVER_GRANULARITY_LEAF_QUADRATURE_4,
+    }:
+        return _build_representative_receiver_surface_flux_rows(
+            scene,
+            samples,
+            receiver_flux_density_umol_m2_s,
+            receiver_scale_multiplier=receiver_scale_multiplier,
+            receiver_granularity=granularity,
+        )
+    return _build_mesh_patch_receiver_surface_flux_rows(
+        scene,
+        samples,
+        receiver_flux_density_umol_m2_s,
+        receiver_scale_multiplier=receiver_scale_multiplier,
+    )
+
+
+def _receiver_granularity_from_samples(samples: Iterable[Mapping[str, Any]]) -> str:
+    granularities = {
+        sample.get("receiver_granularity")
+        for sample in samples
+        if isinstance(sample.get("receiver_granularity"), str)
+    }
+    if not granularities:
+        return RECEIVER_GRANULARITY_MESH_PATCH
+    if len(granularities) != 1:
+        raise ValueError("Receiver samples must use a single receiver_granularity.")
+    return normalize_receiver_granularity(next(iter(granularities)))
+
+
+def _build_mesh_patch_receiver_surface_flux_rows(
+    scene: PlantScene,
+    receiver_samples: Iterable[Mapping[str, Any]],
+    receiver_flux_density_umol_m2_s: Iterable[float],
+    *,
+    receiver_scale_multiplier: float,
+) -> list[dict[str, Any]]:
     scale = _finite_non_negative("receiver_scale_multiplier", receiver_scale_multiplier)
     samples = list(receiver_samples)
     densities = [
@@ -448,6 +706,10 @@ def build_radiance_receiver_surface_flux_rows(
                 "centroid_m": [float(value) for value in centroid],
                 "normal": [float(value) for value in normal],
                 "receiver_sample_count": len(sample_items),
+                "receiver_granularity": RECEIVER_GRANULARITY_MESH_PATCH,
+                "receiver_generation_basis": receiver_generation_basis(
+                    RECEIVER_GRANULARITY_MESH_PATCH
+                ),
                 "receiver_sides": [
                     str(sample.get("side") or "unknown")
                     for sample, _density in sample_items
@@ -461,6 +723,92 @@ def build_radiance_receiver_surface_flux_rows(
     return rows
 
 
+def _build_representative_receiver_surface_flux_rows(
+    scene: PlantScene,
+    receiver_samples: Iterable[Mapping[str, Any]],
+    receiver_flux_density_umol_m2_s: Iterable[float],
+    *,
+    receiver_scale_multiplier: float,
+    receiver_granularity: str,
+) -> list[dict[str, Any]]:
+    scale = _finite_non_negative("receiver_scale_multiplier", receiver_scale_multiplier)
+    samples = list(receiver_samples)
+    densities = [
+        _finite_non_negative(f"receiver_flux_density_umol_m2_s[{index}]", value)
+        for index, value in enumerate(receiver_flux_density_umol_m2_s)
+    ]
+    if len(samples) != len(densities):
+        raise ValueError(
+            f"Receiver sample count {len(samples)} does not match rtrace output count {len(densities)}."
+        )
+
+    by_leaf: dict[str, list[tuple[Mapping[str, Any], float]]] = {}
+    for sample, density in zip(samples, densities, strict=True):
+        sample_granularity = normalize_receiver_granularity(sample.get("receiver_granularity"))
+        if sample_granularity != receiver_granularity:
+            raise ValueError("Receiver samples must use a single receiver_granularity.")
+        leaf_id = sample.get("leaf_id")
+        if not isinstance(leaf_id, str) or not leaf_id:
+            raise ValueError("Representative receiver sample is missing leaf_id.")
+        by_leaf.setdefault(leaf_id, []).append((sample, density * scale))
+
+    leaf_geometry = _leaf_surface_geometry(scene)
+    expected_leaf_ids = set(leaf_geometry)
+    missing = sorted(expected_leaf_ids - set(by_leaf))
+    unknown = sorted(set(by_leaf) - expected_leaf_ids)
+    if missing:
+        raise ValueError(f"Missing representative receiver samples for {len(missing)} leaves.")
+    if unknown:
+        raise ValueError(f"Unknown representative receiver leaf_id: {unknown[:3]}")
+
+    rows: list[dict[str, Any]] = []
+    basis = receiver_generation_basis(receiver_granularity)
+    for leaf_id in sorted(leaf_geometry):
+        sample_items = by_leaf[leaf_id]
+        sample_area_density_total = 0.0
+        representative_area_total = 0.0
+        for sample, density in sample_items:
+            area = _finite_non_negative(
+                f"receiver_sample_area_m2[{sample.get('sample_id', leaf_id)}]",
+                sample.get("area_m2"),
+            )
+            representative_area_total += area
+            sample_area_density_total += density * area
+        leaf_area = sum(float(item["area_m2"]) for item in leaf_geometry[leaf_id])
+        if representative_area_total <= 0.0:
+            raise ValueError(f"Representative receiver area is zero for leaf_id {leaf_id!r}.")
+        incident_density = sample_area_density_total / representative_area_total
+
+        for item in leaf_geometry[leaf_id]:
+            surface = item["surface"]
+            if not isinstance(surface, LeafAbsorptionSurface):
+                raise ValueError(f"Invalid surface registry entry for {item['surface_id']}.")
+            centroid = item["centroid_m"]
+            normal = item["normal"]
+            rows.append(
+                {
+                    "surface_id": surface.surface_id,
+                    "plant_id": surface.plant_id,
+                    "leaf_id": surface.leaf_id,
+                    "leaf_index": surface.leaf_index,
+                    "face_index": surface.face_index,
+                    "area_m2": surface.area_m2,
+                    "centroid_m": [float(value) for value in centroid],
+                    "normal": [float(value) for value in normal],
+                    "receiver_sample_count": len(sample_items),
+                    "receiver_granularity": receiver_granularity,
+                    "receiver_generation_basis": basis,
+                    "representative_leaf_area_m2": leaf_area,
+                    "representative_receiver_area_m2": representative_area_total,
+                    "incident_photon_flux_density_umol_m2_s": incident_density,
+                    "incident_photon_flux_umol_s": incident_density * surface.area_m2,
+                    "source": f"radiance_{receiver_granularity}_receiver",
+                }
+            )
+
+    return rows
+
+
 def write_radiance_receiver_plant_surface_flux_artifact(
     target_dir: str | Path,
     scene: PlantScene,
@@ -469,6 +817,7 @@ def write_radiance_receiver_plant_surface_flux_artifact(
     *,
     receiver_scale_multiplier: float = 1.0,
     source_octree: str | None = None,
+    receiver_granularity: str | None = None,
     baseline_transport_scene: str = "room_emitters_only",
     fspm_receiver_transport_scene: str = "room_emitters_plants",
     receiver_trace_count: int = 1,
@@ -477,6 +826,19 @@ def write_radiance_receiver_plant_surface_flux_artifact(
     target_classification_ppfd_map_path: str | Path | None = None,
 ) -> Path:
     samples = list(receiver_samples)
+    detected_granularity = _receiver_granularity_from_samples(samples)
+    granularity = normalize_receiver_granularity(receiver_granularity or detected_granularity)
+    if granularity != detected_granularity:
+        raise ValueError(
+            "receiver_granularity does not match receiver sample metadata: "
+            f"{granularity!r} != {detected_granularity!r}."
+        )
+    leaf_count = len({leaf.leaf_id for plant in scene.plants for leaf in plant.leaves})
+    receiver_sample_count = len(samples)
+    receiver_samples_per_leaf = (
+        receiver_sample_count / leaf_count if leaf_count else 0.0
+    )
+    generation_basis = receiver_generation_basis(granularity)
     rows = build_radiance_receiver_surface_flux_rows(
         scene,
         samples,
@@ -489,11 +851,18 @@ def write_radiance_receiver_plant_surface_flux_artifact(
         method=RADIANCE_RECEIVER_METHOD,
         source_ppfd_map=None,
         ppfd_field_summary={
-            "receiver_sample_count": len(samples),
+            "receiver_sample_count": receiver_sample_count,
+            "receiver_granularity": granularity,
+            "receiver_samples_per_leaf": receiver_samples_per_leaf,
+            "receiver_generation_basis": generation_basis,
             "two_sided": any(sample.get("side") == "back" for sample in samples),
             "source_octree": source_octree,
             "receiver_scale_multiplier": receiver_scale_multiplier,
         },
+        receiver_sample_count=receiver_sample_count,
+        receiver_granularity=granularity,
+        receiver_samples_per_leaf=receiver_samples_per_leaf,
+        receiver_generation_basis=generation_basis,
         target_ppfd_umol_m2_s=target_ppfd_umol_m2_s,
         target_tolerance_umol_m2_s=target_tolerance_umol_m2_s,
         target_classification_ppfd_map_path=target_classification_ppfd_map_path,
@@ -503,6 +872,10 @@ def write_radiance_receiver_plant_surface_flux_artifact(
             "baseline_transport_scene": baseline_transport_scene,
             "fspm_receiver_transport_scene": fspm_receiver_transport_scene,
             "receiver_trace_count": receiver_trace_count,
+            "receiver_sample_count": receiver_sample_count,
+            "receiver_granularity": granularity,
+            "receiver_samples_per_leaf": receiver_samples_per_leaf,
+            "receiver_generation_basis": generation_basis,
         }
     )
     return write_plant_surface_flux_artifact(target_dir, payload)
@@ -682,6 +1055,10 @@ def build_plant_surface_flux_payload(
     target_classification_ppfd_map_path: str | Path | None = None,
     target_classification_ppfd_by_surface_id: Mapping[str, float] | None = None,
     target_classification_metadata: Mapping[str, Any] | None = None,
+    receiver_sample_count: int | None = None,
+    receiver_granularity: str | None = None,
+    receiver_samples_per_leaf: float | None = None,
+    receiver_generation_basis: str | None = None,
 ) -> dict[str, Any]:
     normalized_rows, incident_by_surface_id = _normalize_surface_rows(scene, surface_flux_rows)
     classification_by_surface_id = target_classification_ppfd_by_surface_id
@@ -809,11 +1186,11 @@ def build_plant_surface_flux_payload(
     ]
     if status == "proxy":
         warnings.append(
-            "Proxy methods use an unblocked baseline PPFD field, not final plant-shaded Radiance leaf-surface receiver sampling."
+            "Proxy methods use an unblocked baseline PPFD field, not final plant-shaded Radiance receiver sampling."
         )
         limitations.insert(
             0,
-            "Per-surface flux values are contract-valid proxy values until the Radiance receiver method is reviewed.",
+            "Per-surface flux values are contract-valid proxy values until the Radiance receiver-sample method is reviewed.",
         )
     else:
         warnings.append(
@@ -825,7 +1202,7 @@ def build_plant_surface_flux_payload(
         "schema_version": PLANT_SURFACE_FLUX_SCHEMA_VERSION,
         "artifact_role": "incident_leaf_surface_flux",
         "artifact_description": (
-            "Incident leaf-surface receiver photon flux and target-fit metrics. "
+            "Incident leaf receiver-sample photon flux and target-fit metrics. "
             "Legacy broadband absorbed fields use configured scalar optical "
             "assumptions and are not wavelength-resolved modeled leaf absorption."
         ),
@@ -848,6 +1225,10 @@ def build_plant_surface_flux_payload(
         "plant_count": absorption_metrics["plant_count"],
         "leaf_count": absorption_metrics["leaf_count"],
         "surface_count": absorption_metrics["surface_count"],
+        "receiver_sample_count": receiver_sample_count,
+        "receiver_granularity": receiver_granularity,
+        "receiver_samples_per_leaf": receiver_samples_per_leaf,
+        "receiver_generation_basis": receiver_generation_basis,
         "one_sided_leaf_area_m2": absorption_metrics["one_sided_leaf_area_m2"],
         "total_incident_photon_flux_umol_s": absorption_metrics[
             "total_incident_photon_flux_umol_s"

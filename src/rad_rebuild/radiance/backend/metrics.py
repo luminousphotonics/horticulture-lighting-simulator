@@ -145,14 +145,14 @@ def _load_plant_surface_flux_summary(workspace_root: Path) -> dict[str, object] 
     method = payload.get("method")
     status = payload.get("status", "proxy")
     note = (
-        "Radiance receiver sampling present. Values are sampled at leaf surface "
-        "centroids/normals against the unblocked baseline lighting field. "
+        "Radiance receiver sampling present. Values use the selected receiver "
+        "granularity against the FSPM receiver lighting field. "
         "Target classification uses target-equivalent PPFD; incident receiver "
         "flux remains separate from modeled spectral absorption."
         if status == "computed" and method == RADIANCE_RECEIVER_METHOD
         else (
             "Incident surface-flux artifact present. Current values are proxy "
-            "values until the Radiance per-surface receiver method is reviewed. "
+            "values until the Radiance receiver-sample method is reviewed. "
             "Target classification uses target-equivalent PPFD where available; "
             "modeled spectral absorption is reported only when "
             "plant_spectral_absorption.json is available."
@@ -171,6 +171,10 @@ def _load_plant_surface_flux_summary(workspace_root: Path) -> dict[str, object] 
         "baseline_transport_scene": payload.get("baseline_transport_scene"),
         "fspm_receiver_transport_scene": payload.get("fspm_receiver_transport_scene"),
         "receiver_trace_count": payload.get("receiver_trace_count"),
+        "receiver_sample_count": payload.get("receiver_sample_count"),
+        "receiver_granularity": payload.get("receiver_granularity"),
+        "receiver_samples_per_leaf": payload.get("receiver_samples_per_leaf"),
+        "receiver_generation_basis": payload.get("receiver_generation_basis"),
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),
         "surface_count": payload.get("surface_count"),
@@ -334,6 +338,10 @@ def _load_plant_spectral_absorption_summary(workspace_root: Path) -> dict[str, o
         "baseline_transport_scene": payload.get("baseline_transport_scene"),
         "fspm_receiver_transport_scene": payload.get("fspm_receiver_transport_scene"),
         "receiver_trace_count": payload.get("receiver_trace_count"),
+        "receiver_sample_count": payload.get("receiver_sample_count"),
+        "receiver_granularity": payload.get("receiver_granularity"),
+        "receiver_samples_per_leaf": payload.get("receiver_samples_per_leaf"),
+        "receiver_generation_basis": payload.get("receiver_generation_basis"),
         "source_spectrum_id": source.get("distribution_id"),
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),

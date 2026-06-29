@@ -11,9 +11,13 @@ configure_test_runtime()
 from rad_rebuild.radiance.engine.plants import PlantGeometryConfig, generate_plant_scene  # noqa: E402
 from rad_rebuild.radiance.engine.plants.surface_flux import (  # noqa: E402
     BASELINE_PPFD_PROXY_METHOD,
+    DEFAULT_FSPM_RECEIVER_GRANULARITY,
     SPATIAL_PPFD_PROXY_METHOD,
     RADIANCE_RECEIVER_METHOD,
     PLANT_SURFACE_FLUX_SCHEMA,
+    RECEIVER_GRANULARITY_LEAF_CENTROID,
+    RECEIVER_GRANULARITY_LEAF_QUADRATURE_4,
+    RECEIVER_GRANULARITY_MESH_PATCH,
     build_baseline_proxy_surface_flux_rows,
     build_radiance_receiver_samples,
     build_radiance_receiver_surface_flux_rows,
@@ -21,6 +25,7 @@ from rad_rebuild.radiance.engine.plants.surface_flux import (  # noqa: E402
     build_plant_surface_flux_payload,
     parse_rtrace_receiver_output,
     read_ppfd_map_field,
+    normalize_receiver_granularity,
     receiver_sample_input_text,
     write_radiance_receiver_plant_surface_flux_artifact,
     write_baseline_proxy_plant_surface_flux_artifact,
@@ -467,13 +472,59 @@ def test_spatial_proxy_artifact_export_is_deterministic(tmp_path) -> None:
 
 def test_radiance_receiver_samples_are_two_sided_and_traceable() -> None:
     scene = _scene()
-    samples = build_radiance_receiver_samples(scene, two_sided=True)
+    samples = build_radiance_receiver_samples(
+        scene,
+        receiver_granularity=RECEIVER_GRANULARITY_MESH_PATCH,
+        two_sided=True,
+    )
 
     surface_ids = {sample["surface_id"] for sample in samples}
 
     assert len(samples) == len(surface_ids) * 2
     assert {sample["side"] for sample in samples} == {"front", "back"}
+    assert {sample["receiver_granularity"] for sample in samples} == {
+        RECEIVER_GRANULARITY_MESH_PATCH
+    }
     assert receiver_sample_input_text(samples).count("\n") == len(samples)
+
+
+def test_leaf_centroid_receiver_granularity_uses_one_sample_per_leaf() -> None:
+    scene = _scene()
+    samples = build_radiance_receiver_samples(
+        scene,
+        receiver_granularity=RECEIVER_GRANULARITY_LEAF_CENTROID,
+    )
+
+    leaf_ids = {leaf.leaf_id for plant in scene.plants for leaf in plant.leaves}
+
+    assert DEFAULT_FSPM_RECEIVER_GRANULARITY == RECEIVER_GRANULARITY_LEAF_CENTROID
+    assert len(samples) == len(leaf_ids)
+    assert {sample["leaf_id"] for sample in samples} == leaf_ids
+    assert {sample["side"] for sample in samples} == {"front"}
+    assert {sample["receiver_granularity"] for sample in samples} == {
+        RECEIVER_GRANULARITY_LEAF_CENTROID
+    }
+    assert all(sample["leaf_representative_sample_count"] == 1 for sample in samples)
+
+
+def test_leaf_quadrature_receiver_granularity_uses_four_samples_per_leaf() -> None:
+    scene = _scene()
+    samples = build_radiance_receiver_samples(
+        scene,
+        receiver_granularity=RECEIVER_GRANULARITY_LEAF_QUADRATURE_4,
+    )
+    leaf_ids = {leaf.leaf_id for plant in scene.plants for leaf in plant.leaves}
+
+    assert len(samples) == len(leaf_ids) * 4
+    assert {sample["receiver_granularity"] for sample in samples} == {
+        RECEIVER_GRANULARITY_LEAF_QUADRATURE_4
+    }
+    assert all(sample["leaf_representative_sample_count"] == 4 for sample in samples)
+
+
+def test_unknown_receiver_granularity_is_clear() -> None:
+    with pytest.raises(ValueError, match="Unknown FSPM_RECEIVER_GRANULARITY"):
+        normalize_receiver_granularity("too_fine")
 
 
 def test_receiver_output_parser_uses_rgb_mean_density() -> None:
@@ -484,21 +535,53 @@ def test_receiver_output_parser_uses_rgb_mean_density() -> None:
 
 def test_radiance_receiver_surface_flux_rows_sum_two_sided_density() -> None:
     scene = _scene()
-    samples = build_radiance_receiver_samples(scene, two_sided=True)
+    samples = build_radiance_receiver_samples(
+        scene,
+        receiver_granularity=RECEIVER_GRANULARITY_MESH_PATCH,
+        two_sided=True,
+    )
     densities = [100.0 if sample["side"] == "front" else 25.0 for sample in samples]
 
     rows = build_radiance_receiver_surface_flux_rows(scene, samples, densities)
 
     assert len(rows) * 2 == len(samples)
     assert all(row["receiver_sample_count"] == 2 for row in rows)
+    assert all(row["receiver_granularity"] == RECEIVER_GRANULARITY_MESH_PATCH for row in rows)
     assert all(set(row["receiver_sides"]) == {"front", "back"} for row in rows)
     assert all(row["incident_photon_flux_density_umol_m2_s"] == pytest.approx(125.0) for row in rows)
 
 
+def test_leaf_centroid_receiver_surface_flux_rows_expand_area_weighted_to_mesh_surfaces() -> None:
+    scene = _single_plant_scene(leaf_count=2)
+    samples = build_radiance_receiver_samples(
+        scene,
+        receiver_granularity=RECEIVER_GRANULARITY_LEAF_CENTROID,
+    )
+    densities = [100.0, 300.0]
+
+    rows = build_radiance_receiver_surface_flux_rows(scene, samples, densities)
+
+    assert len(rows) == sum(len(leaf.mesh.faces) for plant in scene.plants for leaf in plant.leaves)
+    assert {row["receiver_granularity"] for row in rows} == {
+        RECEIVER_GRANULARITY_LEAF_CENTROID
+    }
+    for row in rows:
+        sample_index = samples.index(
+            next(sample for sample in samples if sample["leaf_id"] == row["leaf_id"])
+        )
+        assert row["receiver_sample_count"] == 1
+        assert row["incident_photon_flux_density_umol_m2_s"] == pytest.approx(
+            densities[sample_index]
+        )
+
+
 def test_radiance_receiver_surface_flux_payload_is_computed(tmp_path) -> None:
     scene = _scene()
-    samples = build_radiance_receiver_samples(scene, two_sided=True)
-    densities = [100.0 if sample["side"] == "front" else 25.0 for sample in samples]
+    samples = build_radiance_receiver_samples(
+        scene,
+        receiver_granularity=RECEIVER_GRANULARITY_LEAF_CENTROID,
+    )
+    densities = [100.0 for _sample in samples]
 
     path = write_radiance_receiver_plant_surface_flux_artifact(
         tmp_path,
@@ -506,6 +589,7 @@ def test_radiance_receiver_surface_flux_payload_is_computed(tmp_path) -> None:
         samples,
         densities,
         source_octree="test.oct",
+        receiver_granularity=RECEIVER_GRANULARITY_LEAF_CENTROID,
     )
     payload = json.loads(path.read_text(encoding="utf-8"))
 
@@ -514,13 +598,24 @@ def test_radiance_receiver_surface_flux_payload_is_computed(tmp_path) -> None:
     assert payload["baseline_transport_scene"] == "room_emitters_only"
     assert payload["fspm_receiver_transport_scene"] == "room_emitters_plants"
     assert payload["receiver_trace_count"] == 1
-    assert payload["ppfd_field_summary"]["two_sided"] is True
+    assert payload["receiver_granularity"] == RECEIVER_GRANULARITY_LEAF_CENTROID
+    assert payload["receiver_sample_count"] == payload["leaf_count"]
+    assert payload["receiver_samples_per_leaf"] == pytest.approx(1.0)
+    assert payload["receiver_generation_basis"]
+    assert payload["ppfd_field_summary"]["receiver_sample_count"] == payload[
+        "receiver_sample_count"
+    ]
+    assert payload["ppfd_field_summary"]["two_sided"] is False
     assert payload["total_absorbed_photon_flux_umol_s"] > 0
 
 
 def test_radiance_receiver_target_classification_prefers_ppfd_map(tmp_path) -> None:
     scene = _single_plant_scene(leaf_count=2)
-    samples = build_radiance_receiver_samples(scene, two_sided=True)
+    samples = build_radiance_receiver_samples(
+        scene,
+        receiver_granularity=RECEIVER_GRANULARITY_MESH_PATCH,
+        two_sided=True,
+    )
     densities = [600.0 for _sample in samples]
     ppfd_path = tmp_path / "ppfd_map.txt"
     _write_uniform_ppfd_map(ppfd_path, 275.0)

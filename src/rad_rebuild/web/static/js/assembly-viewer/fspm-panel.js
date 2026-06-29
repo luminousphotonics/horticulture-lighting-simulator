@@ -132,7 +132,12 @@ export function buildFspmPanelSections(scene) {
     rows: [
       ["Plants", formatCount(counts.plant_count, "plant", "plants")],
       ["Leaves", formatCount(counts.leaf_count, "leaf", "leaves")],
-      ["Surface receivers", formatCount(counts.surface_count, "surface", "surfaces")],
+      [
+        "Receiver samples",
+        formatCount(counts.receiver_sample_count ?? counts.surface_count, "sample", "samples"),
+      ],
+      ["Receiver granularity", labelStatus(counts.receiver_granularity)],
+      ["Mesh surface rows", formatCount(counts.surface_count, "surface", "surfaces")],
       ["One-sided leaf area", formatMetric(counts.one_sided_leaf_area_m2, "m2", 4)],
     ],
   });
