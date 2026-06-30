@@ -39,12 +39,8 @@ SCALAR_FLUX_BASIS_PAR_PPFD = "par_ppfd_umol_m2_s"
 SOURCE_SPECTRAL_BASIS_WAVELENGTH_RESOLVED_SPD = "wavelength_resolved_spd"
 SOURCE_SPECTRAL_BASIS_BAND_FRACTION_LEGACY = "band_fraction_legacy"
 NO_CROP_OUTPUT_TERMS = ["yield", "biomass", "growth", "crop_output"]
-TARGET_CAPPED_ABSORPTION_BASIS = (
-    "response_effective_target_capped_modeled_spectral_absorption"
-)
-TARGET_CAP_SCALE_BASIS = (
-    "min(1,target_range_upper_ppfd_umol_m2_s/incident_par_ppfd_umol_m2_s)"
-)
+TARGET_CAPPED_ABSORPTION_BASIS = "target_classification_ppfd_from_plant_surface_flux"
+TARGET_CAP_SCALE_BASIS = "target_classification_ppfd_umol_m2_s"
 LEAF_MATERIAL_METADATA_KEYS: tuple[str, ...] = (
     "fspm_spectral_transport_mode",
     "leaf_radiance_material_mode",
@@ -495,6 +491,7 @@ def build_banded_plant_spectral_absorption_payload(
     surface_summaries = _banded_surface_absorption_summaries(
         band_surface_flux_rows,
         band_metadata,
+        source_surface_rows=_surface_flux_rows_by_id(surface_flux_payload),
         par_band_ids=par_band_ids,
         epar_band_ids=epar_band_ids,
     )
@@ -800,6 +797,16 @@ def _surface_flux_rows(surface_flux_payload: Mapping[str, Any]) -> list[Mapping[
     return rows
 
 
+def _surface_flux_rows_by_id(
+    surface_flux_payload: Mapping[str, Any],
+) -> dict[str, Mapping[str, Any]]:
+    return {
+        str(row.get("surface_id")): row
+        for row in _surface_flux_rows(surface_flux_payload)
+        if isinstance(row, Mapping) and row.get("surface_id")
+    }
+
+
 def _validate_profile_distribution_alignment(
     optical_profile: LeafOpticalProfile,
     photon_distribution: WavelengthPhotonDistribution,
@@ -937,6 +944,11 @@ def _surface_absorption_summary(
         "area_m2": area,
         "scalar_incident_par_photon_flux_umol_s": scalar_flux,
         "scalar_incident_par_ppfd_umol_m2_s": scalar_density,
+        "target_classification_ppfd_umol_m2_s": _target_classification_ppfd(row),
+        "target_classification_incident_flux_umol_s": (
+            _target_classification_ppfd(row) * area
+        ),
+        "lighting_region": row.get("lighting_region"),
         "total_incident_photon_flux_umol_s": total_incident,
         "total_absorbed_photon_flux_umol_s": total_absorbed,
         "total_reflected_photon_flux_umol_s": total_reflected,
@@ -1062,7 +1074,7 @@ def _add_band_density_fields(summary: dict[str, Any]) -> None:
         )
 
 
-def _target_cap_context(surface_flux_payload: Mapping[str, Any]) -> dict[str, float | None]:
+def _target_cap_context(surface_flux_payload: Mapping[str, Any]) -> dict[str, Any]:
     target = _optional_non_negative_float(
         surface_flux_payload.get("target_ppfd_umol_m2_s")
     )
@@ -1075,20 +1087,37 @@ def _target_cap_context(surface_flux_payload: Mapping[str, Any]) -> dict[str, fl
     upper = _optional_non_negative_float(
         surface_flux_payload.get("target_upper_threshold_umol_m2_s")
     )
-    if lower is None and target is not None and tolerance is not None:
+    if target is not None and tolerance is not None:
         lower = max(0.0, target - tolerance)
-    if upper is None and target is not None and tolerance is not None:
         upper = target + tolerance
     if upper is None:
         upper = target
     if lower is None:
         lower = target
-    return {"lower": lower, "upper": upper}
+    return {
+        "target": target,
+        "tolerance": tolerance,
+        "lower": lower,
+        "upper": upper,
+        "target_classification_basis": surface_flux_payload.get(
+            "target_classification_basis"
+        ),
+        "target_classification_source": surface_flux_payload.get(
+            "target_classification_source"
+        ),
+        "under_lit_leaf_fraction": surface_flux_payload.get("under_lit_leaf_fraction"),
+        "target_range_leaf_fraction": surface_flux_payload.get(
+            "target_range_leaf_fraction"
+        ),
+        "over_lit_leaf_fraction": surface_flux_payload.get("over_lit_leaf_fraction"),
+    }
 
 
-def _target_cap_metadata(context: Mapping[str, float | None]) -> dict[str, Any]:
+def _target_cap_metadata(context: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "target_capped_absorption_basis": TARGET_CAPPED_ABSORPTION_BASIS,
+        "target_classification_basis": context.get("target_classification_basis"),
+        "target_classification_source": context.get("target_classification_source"),
         "target_saturation_cap_ppfd_umol_m2_s": context.get("upper"),
         "target_range_lower_ppfd_umol_m2_s": context.get("lower"),
         "target_range_upper_ppfd_umol_m2_s": context.get("upper"),
@@ -1115,18 +1144,29 @@ def _target_cap_scale(incident_par_ppfd: float, cap_ppfd: float | None) -> float
     return min(1.0, cap_ppfd / incident_par_ppfd)
 
 
+def _target_classification_ppfd(row: Mapping[str, Any]) -> float:
+    classification = _optional_non_negative_float(
+        row.get("target_classification_ppfd_umol_m2_s")
+    )
+    if classification is not None:
+        return classification
+    return float(
+        row.get("incident_par_ppfd_umol_m2_s")
+        or row.get("scalar_incident_par_ppfd_umol_m2_s")
+        or row.get("incident_photon_flux_density_umol_m2_s")
+        or 0.0
+    )
+
+
 def _apply_target_capped_absorption(
     rows: list[dict[str, Any]],
-    context: Mapping[str, float | None],
+    context: Mapping[str, Any],
 ) -> None:
     cap_ppfd = context.get("upper")
     for row in rows:
-        incident_par = float(
-            row.get("incident_par_ppfd_umol_m2_s")
-            or row.get("scalar_incident_par_ppfd_umol_m2_s")
-            or 0.0
-        )
-        cap_scale = _target_cap_scale(incident_par, cap_ppfd)
+        classification_ppfd = _target_classification_ppfd(row)
+        cap_scale = _target_cap_scale(classification_ppfd, cap_ppfd)
+        row["target_classification_ppfd_umol_m2_s"] = classification_ppfd
         row["target_cap_scale"] = cap_scale
         row["target_cap_scale_basis"] = TARGET_CAP_SCALE_BASIS
         capped_band_totals = _empty_band_totals()
@@ -1233,8 +1273,17 @@ def _add_target_capped_reporting_aliases(summary: dict[str, Any]) -> None:
 def _add_target_leaf_fractions(
     summary: dict[str, Any],
     leaf_summaries: list[dict[str, Any]],
-    context: Mapping[str, float | None],
+    context: Mapping[str, Any],
 ) -> None:
+    under_fraction = _optional_non_negative_float(context.get("under_lit_leaf_fraction"))
+    in_fraction = _optional_non_negative_float(context.get("target_range_leaf_fraction"))
+    over_fraction = _optional_non_negative_float(context.get("over_lit_leaf_fraction"))
+    if under_fraction is not None and in_fraction is not None and over_fraction is not None:
+        summary["under_target_leaf_fraction"] = under_fraction
+        summary["in_target_leaf_fraction"] = in_fraction
+        summary["over_target_leaf_fraction"] = over_fraction
+        return
+
     lower = context.get("lower")
     upper = context.get("upper")
     total = len(leaf_summaries)
@@ -1243,7 +1292,8 @@ def _add_target_leaf_fractions(
     over = 0
     for row in leaf_summaries:
         incident = float(
-            row.get("incident_par_ppfd_umol_m2_s")
+            row.get("target_classification_ppfd_umol_m2_s")
+            or row.get("incident_par_ppfd_umol_m2_s")
             or row.get("scalar_incident_par_ppfd_umol_m2_s")
             or 0.0
         )
@@ -1293,6 +1343,7 @@ def _banded_surface_absorption_summaries(
     band_surface_flux_rows: Mapping[str, Iterable[Mapping[str, Any]]],
     band_metadata: Mapping[str, Mapping[str, Any]],
     *,
+    source_surface_rows: Mapping[str, Mapping[str, Any]],
     par_band_ids: Iterable[str],
     epar_band_ids: Iterable[str],
 ) -> list[dict[str, Any]]:
@@ -1317,6 +1368,7 @@ def _banded_surface_absorption_summaries(
             surface_id = str(row.get("surface_id") or "")
             if not surface_id:
                 raise ValueError("Each banded receiver row must include surface_id.")
+            source_row = source_surface_rows.get(surface_id, row)
             area = _finite_non_negative(f"area_m2[{surface_id}]", row.get("area_m2"))
             incident_flux = _finite_non_negative(
                 f"incident_photon_flux_umol_s[{surface_id}:{band_id}]",
@@ -1331,6 +1383,13 @@ def _banded_surface_absorption_summaries(
                     "leaf_index": row.get("leaf_index"),
                     "face_index": row.get("face_index"),
                     "area_m2": area,
+                    "target_classification_ppfd_umol_m2_s": (
+                        _target_classification_ppfd(source_row)
+                    ),
+                    "target_classification_incident_flux_umol_s": (
+                        _target_classification_ppfd(source_row) * area
+                    ),
+                    "lighting_region": source_row.get("lighting_region"),
                     "scalar_incident_par_photon_flux_umol_s": 0.0,
                     "total_incident_photon_flux_umol_s": 0.0,
                     "total_absorbed_photon_flux_umol_s": 0.0,

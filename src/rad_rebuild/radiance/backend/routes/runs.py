@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import ValidationError
 
 from rad_rebuild.radiance.config import (
+    EXECUTION_MODE_LIVE_LOCAL,
     MODE_COMPETITOR,
     PRECOMPUTED_DOWNLOAD_COMMAND,
     PRECOMPUTED_FULL_DATASET_SIZE_TEXT,
@@ -16,6 +17,7 @@ from rad_rebuild.radiance.config import (
     PUBLIC_PRECOMPUTED_MIN_FT,
     RADIANCE_MODE_LABELS,
 )
+from rad_rebuild.radiance.settings import get_settings
 from rad_rebuild.radiance.backend.artifacts import _live_workspace_sync_shell, _visualize_command, _visualize_shell
 from rad_rebuild.radiance.backend.env import (
     _apply_visualize_env,
@@ -82,6 +84,16 @@ def _job_service_for_route(request: Request) -> JobService:
     except (AttributeError, RuntimeError):
         return job_service()
     return getattr(app_state, "job_service", None) or job_service_for_request(request)
+
+
+def _run_job_timeout_s(req: RadianceRunRequest, *, use_precomputed: bool) -> float | None:
+    if (
+        req.execution_mode == EXECUTION_MODE_LIVE_LOCAL
+        and not use_precomputed
+        and not _request_uses_docker(req)
+    ):
+        return get_settings().local_live_job_timeout_s
+    return None
 
 
 def _precomputed_bundle_detail(req: RadianceRunRequest, *, reason: str = "missing") -> dict[str, object]:
@@ -342,6 +354,7 @@ def run_radiance(req: RadianceRunRequest, request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=str(e))
 
     runtime_identity = request_runtime_identity(req)
+    job_timeout_s = _run_job_timeout_s(req, use_precomputed=use_precomputed)
 
     def finalize_workspace(done_job: JobRecord) -> None:
         if done_job.status == "succeeded":
@@ -357,6 +370,7 @@ def run_radiance(req: RadianceRunRequest, request: Request) -> dict[str, Any]:
             owner_session=session_id,
             request_fingerprint=artifact_key_from_request(req),
             kind="radiance_run",
+            timeout_s=job_timeout_s,
             on_complete=finalize_workspace,
         )
     except JobBackpressureError as exc:

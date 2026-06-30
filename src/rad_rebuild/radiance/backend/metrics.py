@@ -43,6 +43,8 @@ from .workspace import ENGINE_PACKAGE_ROOT, ROOT
 
 TARGET_CAPPED_SPECTRAL_METADATA_KEYS: tuple[str, ...] = (
     "target_capped_absorption_basis",
+    "target_classification_basis",
+    "target_classification_source",
     "target_saturation_cap_ppfd_umol_m2_s",
     "target_range_lower_ppfd_umol_m2_s",
     "target_range_upper_ppfd_umol_m2_s",

@@ -33,7 +33,15 @@ from rad_rebuild.radiance.engine.plants.spectral_absorption import (  # noqa: E4
 )
 
 
-def _surface_flux_payload(*, density: float = 100.0, area: float = 2.0) -> dict[str, object]:
+def _surface_flux_payload(
+    *,
+    density: float = 100.0,
+    area: float = 2.0,
+    target_classification_density: float | None = None,
+) -> dict[str, object]:
+    classification_density = (
+        density if target_classification_density is None else target_classification_density
+    )
     return {
         "schema": "rad_rebuild.fspm.plant_surface_flux.v1",
         "schema_version": 1,
@@ -75,6 +83,15 @@ def _surface_flux_payload(*, density: float = 100.0, area: float = 2.0) -> dict[
         "plant_count": 1,
         "leaf_count": 1,
         "surface_count": 1,
+        "target_ppfd_umol_m2_s": 275.0,
+        "target_tolerance_umol_m2_s": 20.0,
+        "target_lower_threshold_umol_m2_s": 255.0,
+        "target_upper_threshold_umol_m2_s": 295.0,
+        "target_classification_basis": "canopy_plane_equivalent_incident_ppfd",
+        "target_classification_source": "interpolated_runtime_ppfd_map",
+        "under_lit_leaf_fraction": 0.0,
+        "target_range_leaf_fraction": 1.0,
+        "over_lit_leaf_fraction": 0.0,
         "surface_summaries": [
             {
                 "surface_id": "plant_000_leaf_000_face_0000",
@@ -85,6 +102,11 @@ def _surface_flux_payload(*, density: float = 100.0, area: float = 2.0) -> dict[
                 "area_m2": area,
                 "incident_photon_flux_density_umol_m2_s": density,
                 "incident_photon_flux_umol_s": density * area,
+                "target_classification_ppfd_umol_m2_s": classification_density,
+                "target_classification_incident_flux_umol_s": (
+                    classification_density * area
+                ),
+                "lighting_region": "target_range",
             }
         ],
     }
@@ -135,14 +157,28 @@ def _fake_profile() -> LeafOpticalProfile:
     )
 
 
+def _fake_distribution(profile: LeafOpticalProfile):
+    return wavelength_photon_distribution_from_samples(
+        [(400, 1), (500, 1), (600, 1), (700, 1), (738, 1)],
+        profile.wavelength_nm,
+        distribution_id="fake_spd",
+        source="unit_test_spd",
+    )
+
+
 def _banded_surface_flux_payload_for_cap(*, upper: float = 80.0) -> dict[str, object]:
     payload = _surface_flux_payload(density=100.0, area=2.0)
+    target = upper - 20.0
+    over_fraction = 1.0 if 100.0 > upper else 0.0
     payload.update(
         {
-            "target_ppfd_umol_m2_s": 100.0,
+            "target_ppfd_umol_m2_s": target,
             "target_tolerance_umol_m2_s": 20.0,
-            "target_lower_threshold_umol_m2_s": 60.0,
+            "target_lower_threshold_umol_m2_s": max(0.0, target - 20.0),
             "target_upper_threshold_umol_m2_s": upper,
+            "under_lit_leaf_fraction": 0.0,
+            "target_range_leaf_fraction": 1.0 - over_fraction,
+            "over_lit_leaf_fraction": over_fraction,
             "fspm_spectral_transport_mode": "banded_5",
             "leaf_radiance_material_mode": "rex_source_weighted_trans",
             "leaf_material_weighting_basis": "band_source_weighted",
@@ -329,6 +365,88 @@ def test_wavelength_spectral_absorption_uses_expected_flux_formula() -> None:
         + surface["total_reflected_photon_flux_umol_s"]
         + surface["total_transmitted_photon_flux_umol_s"]
     ) == pytest.approx(surface["total_incident_photon_flux_umol_s"])
+
+
+def test_target_fractions_reuse_surface_flux_classification_when_raw_receiver_is_low() -> None:
+    profile = _fake_profile()
+    payload = build_plant_spectral_absorption_payload(
+        _surface_flux_payload(
+            density=163.2,
+            area=2.0,
+            target_classification_density=273.6,
+        ),
+        profile,
+        _fake_distribution(profile),
+    )
+    crop = payload["crop_summary"]
+
+    assert payload["target_capped_absorption_basis"] == (
+        "target_classification_ppfd_from_plant_surface_flux"
+    )
+    assert payload["target_classification_basis"] == "canopy_plane_equivalent_incident_ppfd"
+    assert payload["target_classification_source"] == "interpolated_runtime_ppfd_map"
+    assert payload["target_range_lower_ppfd_umol_m2_s"] == pytest.approx(255.0)
+    assert payload["target_range_upper_ppfd_umol_m2_s"] == pytest.approx(295.0)
+    assert payload["target_cap_scale_basis"] == "target_classification_ppfd_umol_m2_s"
+    assert payload["surface_summaries"][0]["target_cap_scale"] == pytest.approx(1.0)
+    assert crop["under_target_leaf_fraction"] == pytest.approx(0.0)
+    assert crop["in_target_leaf_fraction"] == pytest.approx(1.0)
+    assert crop["over_target_leaf_fraction"] == pytest.approx(0.0)
+    assert crop["target_capped_absorbed_par_ppfd"] == pytest.approx(
+        crop["absorbed_par_ppfd_umol_m2_s"]
+    )
+
+
+def test_target_cap_uses_classification_ppfd_when_raw_receiver_is_below_cap() -> None:
+    profile = _fake_profile()
+    surface_flux_payload = _surface_flux_payload(
+        density=163.2,
+        area=2.0,
+        target_classification_density=320.0,
+    )
+    surface_flux_payload.update(
+        {
+            "under_lit_leaf_fraction": 0.0,
+            "target_range_leaf_fraction": 0.0,
+            "over_lit_leaf_fraction": 1.0,
+        }
+    )
+
+    payload = build_plant_spectral_absorption_payload(
+        surface_flux_payload,
+        profile,
+        _fake_distribution(profile),
+    )
+    crop = payload["crop_summary"]
+    cap_scale = 295.0 / 320.0
+
+    assert payload["surface_summaries"][0]["target_cap_scale"] == pytest.approx(
+        cap_scale
+    )
+    assert crop["target_capped_absorbed_par_ppfd"] == pytest.approx(
+        crop["absorbed_par_ppfd_umol_m2_s"] * cap_scale
+    )
+    assert crop["target_capped_absorbed_par_fraction_of_raw"] == pytest.approx(
+        cap_scale
+    )
+    assert crop["over_target_leaf_fraction"] == pytest.approx(1.0)
+
+
+def test_target_cap_range_uses_target_plus_tolerance_not_precise_target() -> None:
+    profile = _fake_profile()
+    payload = build_plant_spectral_absorption_payload(
+        _surface_flux_payload(
+            density=163.2,
+            area=2.0,
+            target_classification_density=290.0,
+        ),
+        profile,
+        _fake_distribution(profile),
+    )
+
+    assert payload["target_range_lower_ppfd_umol_m2_s"] == pytest.approx(255.0)
+    assert payload["target_range_upper_ppfd_umol_m2_s"] == pytest.approx(295.0)
+    assert payload["surface_summaries"][0]["target_cap_scale"] == pytest.approx(1.0)
 
 
 def test_spectral_absorption_payload_contains_profile_metadata_and_basis_audit() -> None:

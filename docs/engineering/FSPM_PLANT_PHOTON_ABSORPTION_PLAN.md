@@ -1594,6 +1594,11 @@ Completed in this pass:
 * Reordered the FSPM panels so target fit, target-capped modeled absorbed
   PAR/ePAR, capped fraction of raw, leaf fractions, receiver metadata, and raw
   modeled optical accounting are clearly separated for workshop reporting.
+* Corrected the target-capped spectral absorption basis so cap scale uses
+  `target_classification_ppfd_umol_m2_s` from `plant_surface_flux.json`, not raw
+  receiver incident PAR PPFD. The target range now follows target PPFD plus or
+  minus tolerance, and spectral under/in/over leaf fractions reuse the
+  surface-flux target-classification fractions.
 
 Validation for this pass:
 
@@ -1608,6 +1613,12 @@ Validation results for this pass:
 * JavaScript lint and typecheck: passed.
 * Browser smoke: passed, 54 tests, after rerunning with local-server escalation
   because the sandbox blocked the Flask socket.
+* Corrected target-classification basis validation:
+  `PYTHONPATH=src ./.venv/bin/python -m pytest -q tests/radiance/test_plant_spectral_absorption.py tests/radiance/test_plant_surface_flux_artifact.py tests/radiance/test_assembly_scene.py tests/radiance/test_phase07_metrics_scaffold.py tests/radiance/test_route_query_contracts.py`
+  passed, 82 tests.
+* `npm run typecheck:js`, `npm run lint:js`, and
+  `PYTHONPATH=src ./.venv/bin/python -m ruff check src/rad_rebuild/radiance tests/radiance`
+  passed after the target-classification basis correction.
 
 Remaining presentation-output tasks:
 
