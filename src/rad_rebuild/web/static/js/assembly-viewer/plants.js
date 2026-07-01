@@ -6,6 +6,7 @@ import * as THREE from "/static/vendor/three/three.module.js";
 const PLANT_VIEWER_SCHEMA = "rad_rebuild.fspm.plants.viewer.v1";
 const DEFAULT_LEAF_COLOR = 0x3fa66f;
 const DEFAULT_ABSORPTION_INTENSITY = 0.5;
+const DEFAULT_LEAF_THREE_COLOR = new THREE.Color(DEFAULT_LEAF_COLOR);
 
 function finiteNumber(value) {
   const number = Number(value);
@@ -78,9 +79,10 @@ function absorptionColorForIntensity(value) {
   return color;
 }
 
-function createLeafMaterial({ plantPayload, color }) {
+function createLeafMaterial({ plantPayload, color, vertexColors = false }) {
   return new THREE.MeshStandardMaterial({
     color,
+    vertexColors,
     roughness: 0.78,
     metalness: 0.0,
     side: THREE.DoubleSide,
@@ -151,6 +153,13 @@ export function createPlantVisibilityController(plantGroup) {
       if (!(child instanceof THREE.Mesh)) {
         return;
       }
+      const defaultColorAttribute = child.userData?.defaultColorAttribute;
+      const absorptionColorAttribute = child.userData?.absorptionColorAttribute;
+      if (defaultColorAttribute && absorptionColorAttribute && child.geometry instanceof THREE.BufferGeometry) {
+        child.geometry.setAttribute("color", absorptionColor ? absorptionColorAttribute : defaultColorAttribute);
+        child.geometry.attributes.color.needsUpdate = true;
+        return;
+      }
       const defaultMaterial = child.userData?.defaultMaterial;
       const absorptionMaterial = child.userData?.absorptionMaterial;
       if (!defaultMaterial || !absorptionMaterial) {
@@ -208,6 +217,32 @@ export function createLeafGeometry(leaf) {
   return geometry;
 }
 
+function appendLeafGeometryBuffers({ leaf, visualIntensity, positions, indices, defaultColors, absorptionColors }) {
+  const sourceVertices = Array.isArray(leaf?.mesh?.vertices) ? leaf.mesh.vertices : [];
+  const vertices = sourceVertices.map(finiteCoordinateTriple);
+  if (vertices.some((vertex) => vertex === null)) {
+    return false;
+  }
+  const triangles = triangulateFaces(leaf?.mesh?.faces, vertices.length);
+  if (!vertices.length || triangles.length < 3) {
+    return false;
+  }
+
+  const vertexOffset = positions.length / 3;
+  const absorptionColor = visualIntensity === null
+    ? DEFAULT_LEAF_THREE_COLOR
+    : absorptionColorForIntensity(visualIntensity);
+  for (const vertex of vertices) {
+    positions.push(...radianceVertexToWorld(vertex));
+    defaultColors.push(DEFAULT_LEAF_THREE_COLOR.r, DEFAULT_LEAF_THREE_COLOR.g, DEFAULT_LEAF_THREE_COLOR.b);
+    absorptionColors.push(absorptionColor.r, absorptionColor.g, absorptionColor.b);
+  }
+  for (const index of triangles) {
+    indices.push(vertexOffset + index);
+  }
+  return true;
+}
+
 export function createPlantGroup(scenePayload) {
   const group = new THREE.Group();
   group.name = "plant-geometry";
@@ -222,55 +257,63 @@ export function createPlantGroup(scenePayload) {
   const warnings = [];
   const defaultMaterial = createLeafMaterial({
     plantPayload,
-    color: DEFAULT_LEAF_COLOR,
+    color: 0xffffff,
+    vertexColors: true,
   });
   const fluxByLeafId = leafFluxById(plantPayload);
   const colorMetric = plantPayload?.surface_flux?.visualization?.color_metric || "";
   let renderedLeafCount = 0;
   let absorptionColoredLeafCount = 0;
+  const positions = [];
+  const indices = [];
+  const defaultColors = [];
+  const absorptionColors = [];
 
   for (const plant of plantPayload.plants) {
-    const plantGroup = new THREE.Group();
-    plantGroup.name = `plant-${plant?.plant_id || "unknown"}`;
-    plantGroup.userData = {
-      plantId: plant?.plant_id || null,
-      row: plant?.row ?? null,
-      column: plant?.column ?? null,
-      centerM: Array.isArray(plant?.center_m) ? plant.center_m.slice(0, 3) : null,
-    };
     const leaves = Array.isArray(plant?.leaves) ? plant.leaves : [];
     for (const leaf of leaves) {
-      const geometry = createLeafGeometry(leaf);
-      if (!geometry) {
+      const visualIntensity = leafVisualIntensity(leaf, fluxByLeafId);
+      const rendered = appendLeafGeometryBuffers({
+        leaf,
+        visualIntensity,
+        positions,
+        indices,
+        defaultColors,
+        absorptionColors,
+      });
+      if (!rendered) {
         warnings.push(`${leaf?.leaf_id || "unknown leaf"} has invalid plant mesh data.`);
         continue;
       }
-      const visualIntensity = leafVisualIntensity(leaf, fluxByLeafId);
-      const absorptionMaterial = visualIntensity === null
-        ? null
-        : createLeafMaterial({
-          plantPayload,
-          color: absorptionColorForIntensity(visualIntensity),
-        });
-      if (absorptionMaterial) {
+      if (visualIntensity !== null) {
         absorptionColoredLeafCount += 1;
       }
-      const mesh = new THREE.Mesh(geometry, absorptionMaterial || defaultMaterial);
-      mesh.name = `plant-leaf-${leaf?.leaf_id || renderedLeafCount}`;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      mesh.userData = {
-        plantId: leaf?.plant_id || plant?.plant_id || null,
-        leafId: leaf?.leaf_id || null,
-        radianceMaterialId: leaf?.radiance_material_id || null,
-        visualIntensity,
-        defaultMaterial,
-        absorptionMaterial,
-      };
-      plantGroup.add(mesh);
       renderedLeafCount += 1;
     }
-    group.add(plantGroup);
+  }
+
+  if (renderedLeafCount > 0) {
+    const geometry = new THREE.BufferGeometry();
+    const defaultColorAttribute = new THREE.Float32BufferAttribute(defaultColors, 3);
+    const absorptionColorAttribute = new THREE.Float32BufferAttribute(absorptionColors, 3);
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute("color", defaultColorAttribute);
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    geometry.computeBoundingBox();
+
+    const mesh = new THREE.Mesh(geometry, defaultMaterial);
+    mesh.name = "plant-leaves-batched";
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.userData = {
+      batched: true,
+      renderedLeafCount,
+      defaultMaterial,
+      defaultColorAttribute,
+      absorptionColorAttribute,
+    };
+    group.add(mesh);
   }
 
   group.userData = {

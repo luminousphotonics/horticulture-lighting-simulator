@@ -56,6 +56,12 @@ const scenePayload = {{
             incident_photon_flux_density_umol_m2_s: 250,
             visual_intensity_0_1: 0.75,
           }},
+          {{
+            leaf_id: "plant_r000_c000_leaf_003",
+            plant_id: "plant_r000_c000",
+            incident_photon_flux_density_umol_m2_s: 125,
+            visual_intensity_0_1: 0.25,
+          }},
         ],
       }},
     }},
@@ -79,6 +85,71 @@ const scenePayload = {{
               faces: [[0, 1, 2]],
             }},
           }},
+          {{
+            plant_id: "plant_r000_c000",
+            leaf_id: "plant_r000_c000_leaf_001",
+            radiance_material_id: "plant_leaf_material",
+            mesh: {{
+              vertices: [
+                [0.2, 0, 0.02],
+                [0.3, 0, 0.03],
+                [0.2, 0.2, 0.04],
+              ],
+              faces: [[0, 1, 2]],
+            }},
+          }},
+          {{
+            plant_id: "plant_r000_c000",
+            leaf_id: "plant_r000_c000_leaf_002",
+            radiance_material_id: "plant_leaf_material",
+            mesh: {{
+              vertices: [
+                [0.4, 0, 0.02],
+                [0.5, 0, 0.03],
+                [0.4, 0.2, 0.04],
+              ],
+              faces: [[0, 1, 2]],
+            }},
+          }},
+          {{
+            plant_id: "plant_r000_c000",
+            leaf_id: "plant_r000_c000_leaf_003",
+            radiance_material_id: "plant_leaf_material",
+            mesh: {{
+              vertices: [
+                [0.6, 0, 0.02],
+                [0.7, 0, 0.03],
+                [0.6, 0.2, 0.04],
+              ],
+              faces: [[0, 1, 2]],
+            }},
+          }},
+          {{
+            plant_id: "plant_r000_c000",
+            leaf_id: "plant_r000_c000_leaf_004",
+            radiance_material_id: "plant_leaf_material",
+            mesh: {{
+              vertices: [
+                [0.8, 0, 0.02],
+                [0.9, 0, 0.03],
+                [0.8, 0.2, 0.04],
+              ],
+              faces: [[0, 1, 2]],
+            }},
+          }},
+          {{
+            plant_id: "plant_r000_c000",
+            leaf_id: "plant_r000_c000_leaf_005",
+            radiance_material_id: "plant_leaf_material",
+            mesh: {{
+              vertices: [
+                [1.0, 0, 0.02],
+                [1.1, 0, 0.03],
+                [1.0, 0.2, 0.04],
+              ],
+              faces: [[0, 1, 2]],
+            }},
+          }},
         ],
       }},
     ],
@@ -86,7 +157,7 @@ const scenePayload = {{
 }};
 
 assert.equal(hasPlantPayload(scenePayload), true);
-assert.deepEqual(summarizePlantPayload(scenePayload), {{ plantCount: 1, leafCount: 1 }});
+assert.deepEqual(summarizePlantPayload(scenePayload), {{ plantCount: 1, leafCount: 6 }});
 
 const geometry = createLeafGeometry(scenePayload.plants.plants[0].leaves[0]);
 assert.ok(geometry);
@@ -96,14 +167,28 @@ assert.deepEqual(positions, [0, 0.02, 0, 0.1, 0.03, 0, 0, 0.04, 0.2]);
 const group = createPlantGroup(scenePayload);
 assert.equal(group.name, "plant-geometry");
 assert.equal(group.userData.plantCount, 1);
-assert.equal(group.userData.leafCount, 1);
-assert.equal(group.userData.renderedLeafCount, 1);
+assert.equal(group.userData.leafCount, 6);
+assert.equal(group.userData.renderedLeafCount, 6);
+assert.equal(group.userData.absorptionColoredLeafCount, 2);
 assert.equal(group.userData.hasAbsorptionColor, true);
 assert.equal(group.userData.colorMetric, "incident_photon_flux_density_umol_m2_s");
 assert.equal(group.children.length, 1);
-assert.equal(group.children[0].children.length, 1);
-assert.equal(group.children[0].children[0].userData.leafId, "plant_r000_c000_leaf_000");
-assert.equal(group.children[0].children[0].userData.visualIntensity, 0.75);
+const meshChildren = [];
+group.traverse((child) => {{
+  if (child.isMesh) {{
+    meshChildren.push(child);
+  }}
+}});
+assert.equal(meshChildren.length, 1);
+assert.ok(meshChildren.length < group.userData.leafCount / 2);
+const plantMesh = meshChildren[0];
+assert.equal(plantMesh.name, "plant-leaves-batched");
+assert.equal(plantMesh.userData.batched, true);
+assert.equal(plantMesh.userData.renderedLeafCount, 6);
+assert.equal(plantMesh.material.vertexColors, true);
+assert.equal(plantMesh.geometry.getAttribute("position").count, 18);
+assert.equal(plantMesh.geometry.index.count, 18);
+assert.equal(plantMesh.geometry.getAttribute("color"), plantMesh.userData.defaultColorAttribute);
 
 const controller = createPlantVisibilityController(group);
 assert.deepEqual(controller.getState(), {{
@@ -111,9 +196,16 @@ assert.deepEqual(controller.getState(), {{
   absorptionColor: true,
   hasAbsorptionColor: true,
   plantCount: 1,
-  leafCount: 1,
+  leafCount: 6,
   colorMetric: "incident_photon_flux_density_umol_m2_s",
 }});
+assert.equal(plantMesh.geometry.getAttribute("color"), plantMesh.userData.absorptionColorAttribute);
+controller.setAbsorptionColor(false);
+assert.equal(plantMesh.geometry.getAttribute("color"), plantMesh.userData.defaultColorAttribute);
+assert.equal(controller.getState().absorptionColor, false);
+controller.setAbsorptionColor(true);
+assert.equal(plantMesh.geometry.getAttribute("color"), plantMesh.userData.absorptionColorAttribute);
+assert.equal(controller.getState().absorptionColor, true);
 controller.setVisible(false);
 assert.equal(group.visible, false);
 controller.setVisible(true);
