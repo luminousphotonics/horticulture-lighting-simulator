@@ -34,6 +34,9 @@ const OPTIONAL_PLANT_QUERY_FIELDS = [
   ["plantLeafCount", "plant_leaf_count"],
   ["plantGrowthStage", "plant_growth_stage"],
   ["fspmReceiverGranularity", "fspm_receiver_granularity"],
+  ["fspmLeafOpticalProfileId", "fspm_leaf_optical_profile_id"],
+  ["fspmLeafRadianceMaterialMode", "fspm_leaf_radiance_material_mode"],
+  ["fspmSpectralTransportMode", "fspm_spectral_transport_mode"],
   ["fspmTargetPpfdUmolM2S", "fspm_target_ppfd_umol_m2_s"],
   ["fspmTargetToleranceUmolM2S", "fspm_target_tolerance_umol_m2_s"],
 ];

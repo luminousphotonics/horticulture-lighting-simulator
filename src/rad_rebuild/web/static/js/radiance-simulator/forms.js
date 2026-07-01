@@ -11,6 +11,10 @@ import {
   els,
 } from "./state.js";
 
+export const DEFAULT_FSPM_LEAF_OPTICAL_PROFILE_ID = "rex_green_butterhead_mature_leaf_optics_v1";
+export const DEFAULT_FSPM_LEAF_RADIANCE_MATERIAL_MODE = "rex_source_weighted_trans";
+export const DEFAULT_FSPM_SPECTRAL_TRANSPORT_MODE = "banded_5";
+
 export function parsePositive(el, fallback) {
   const value = Number.parseFloat(el?.value || "");
   if (Number.isFinite(value) && value > 0) {
@@ -144,6 +148,9 @@ function parsePlantPayload(_mode, executionMode) {
     plantLeafCount: parseInteger(els.radPlantLeafCount, 12),
     plantGrowthStage: parseFinite(els.radPlantGrowthStage, 1.0),
     fspmReceiverGranularity: (els.radFspmReceiverGranularity?.value || "leaf_quadrature_4").trim(),
+    fspmLeafOpticalProfileId: DEFAULT_FSPM_LEAF_OPTICAL_PROFILE_ID,
+    fspmLeafRadianceMaterialMode: DEFAULT_FSPM_LEAF_RADIANCE_MATERIAL_MODE,
+    fspmSpectralTransportMode: DEFAULT_FSPM_SPECTRAL_TRANSPORT_MODE,
     fspmTargetPpfdUmolM2S: parsePositive(els.radFspmTargetPpfd, parsePositive(els.radTarget, 275)),
     fspmTargetToleranceUmolM2S: parsePositive(els.radFspmTargetTolerance, 20),
   };
@@ -226,9 +233,9 @@ export function radiancePayload(action) {
       plant_leaf_count: values.plantLeafCount,
       plant_growth_stage: values.plantGrowthStage,
       fspm_receiver_granularity: values.fspmReceiverGranularity,
-      fspm_leaf_optical_profile_id: "rex_green_butterhead_mature_leaf_optics_v1",
-      fspm_leaf_radiance_material_mode: "rex_source_weighted_trans",
-      fspm_spectral_transport_mode: "banded_5",
+      fspm_leaf_optical_profile_id: values.fspmLeafOpticalProfileId,
+      fspm_leaf_radiance_material_mode: values.fspmLeafRadianceMaterialMode,
+      fspm_spectral_transport_mode: values.fspmSpectralTransportMode,
       fspm_target_ppfd_umol_m2_s: values.fspmTargetPpfdUmolM2S,
       fspm_target_tolerance_umol_m2_s: values.fspmTargetToleranceUmolM2S,
     });
@@ -261,6 +268,9 @@ export function runKeyForPayload(payload) {
     plantLeafCount: payload.plantLeafCount,
     plantGrowthStage: payload.plantGrowthStage,
     fspmReceiverGranularity: payload.fspmReceiverGranularity,
+    fspmLeafOpticalProfileId: payload.fspmLeafOpticalProfileId,
+    fspmLeafRadianceMaterialMode: payload.fspmLeafRadianceMaterialMode,
+    fspmSpectralTransportMode: payload.fspmSpectralTransportMode,
     fspmTargetPpfdUmolM2S: payload.fspmTargetPpfdUmolM2S,
     fspmTargetToleranceUmolM2S: payload.fspmTargetToleranceUmolM2S,
   });

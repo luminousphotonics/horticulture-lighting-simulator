@@ -433,6 +433,9 @@ test("live-supported FSPM controls feed plant fields through payload and artifac
   expect(result.parsed.plantLeafCount).toBe(5);
   expect(result.parsed.plantSpacingM).toBe(0.34);
   expect(result.parsed.fspmReceiverGranularity).toBe("mesh_patch");
+  expect(result.parsed.fspmLeafOpticalProfileId).toBe("rex_green_butterhead_mature_leaf_optics_v1");
+  expect(result.parsed.fspmLeafRadianceMaterialMode).toBe("rex_source_weighted_trans");
+  expect(result.parsed.fspmSpectralTransportMode).toBe("banded_5");
   expect(result.parsed.fspmTargetPpfdUmolM2S).toBe(275);
   expect(result.parsed.fspmTargetToleranceUmolM2S).toBe(20);
 
@@ -458,8 +461,43 @@ test("live-supported FSPM controls feed plant fields through payload and artifac
   expect(result.artifactParams).toContain("plant_leaf_count=5");
   expect(result.artifactParams).toContain("plant_spacing_m=0.34");
   expect(result.artifactParams).toContain("fspm_receiver_granularity=mesh_patch");
+  expect(result.artifactParams).toContain("fspm_leaf_optical_profile_id=rex_green_butterhead_mature_leaf_optics_v1");
+  expect(result.artifactParams).toContain("fspm_leaf_radiance_material_mode=rex_source_weighted_trans");
+  expect(result.artifactParams).toContain("fspm_spectral_transport_mode=banded_5");
   expect(result.artifactParams).toContain("fspm_target_ppfd_umol_m2_s=275");
   expect(result.artifactParams).toContain("fspm_target_tolerance_umol_m2_s=20");
+
+  const crossModeResults = await page.evaluate(async () => {
+    const forms = await import("/static/js/radiance-simulator/forms.js");
+    const artifacts = await import("/static/js/radiance-simulator/artifacts.js");
+    const mode = document.querySelector("#rad-mode");
+    const simMode = document.querySelector("#rad-sim-mode");
+    if (!(mode instanceof HTMLSelectElement) || !(simMode instanceof HTMLSelectElement)) {
+      throw new Error("Expected simulator controls were not found.");
+    }
+    const results = {};
+    for (const modeName of ["Competitor", "1000W HPS", "SMD"]) {
+      mode.value = modeName;
+      simMode.value = "live_local";
+      forms.syncFspmControls();
+      const parsed = forms.parsePayload();
+      results[modeName] = {
+        runPayload: forms.radiancePayload("all"),
+        artifactParams: artifacts.artifactQueryParams(parsed).toString(),
+      };
+    }
+    return results;
+  });
+
+  for (const modeName of ["Competitor", "1000W HPS", "SMD"]) {
+    const modeResult = crossModeResults[modeName];
+    expect(modeResult.runPayload.fspm_leaf_optical_profile_id).toBe("rex_green_butterhead_mature_leaf_optics_v1");
+    expect(modeResult.runPayload.fspm_leaf_radiance_material_mode).toBe("rex_source_weighted_trans");
+    expect(modeResult.runPayload.fspm_spectral_transport_mode).toBe("banded_5");
+    expect(modeResult.artifactParams).toContain("fspm_leaf_optical_profile_id=rex_green_butterhead_mature_leaf_optics_v1");
+    expect(modeResult.artifactParams).toContain("fspm_leaf_radiance_material_mode=rex_source_weighted_trans");
+    expect(modeResult.artifactParams).toContain("fspm_spectral_transport_mode=banded_5");
+  }
 });
 
 test("metrics panel formats plant absorption scaffold without object dumps", async ({ page }) => {
