@@ -147,7 +147,7 @@ function parsePlantPayload(_mode, executionMode) {
     plantCanopyRadiusM: parseFinite(els.radPlantCanopyRadiusM, 0.18),
     plantLeafCount: parseInteger(els.radPlantLeafCount, 12),
     plantGrowthStage: parseFinite(els.radPlantGrowthStage, 1.0),
-    fspmReceiverGranularity: (els.radFspmReceiverGranularity?.value || "leaf_quadrature_4").trim(),
+    fspmReceiverGranularity: (els.radFspmReceiverGranularity?.value || "leaf_centroid").trim(),
     fspmLeafOpticalProfileId: DEFAULT_FSPM_LEAF_OPTICAL_PROFILE_ID,
     fspmLeafRadianceMaterialMode: DEFAULT_FSPM_LEAF_RADIANCE_MATERIAL_MODE,
     fspmSpectralTransportMode: DEFAULT_FSPM_SPECTRAL_TRANSPORT_MODE,
