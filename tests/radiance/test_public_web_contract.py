@@ -96,6 +96,8 @@ class PublicRadianceWebContractTests(unittest.TestCase):
         self.assertIn('<option value="leaf_centroid" selected>Centroid</option>', html)
         self.assertIn('<option value="leaf_quadrature_4">Quadrature 4</option>', html)
         self.assertIn('<option value="mesh_patch">Mesh Patch</option>', html)
+        self.assertIn('id="rad-fspm-multispectral-mode"', html)
+        self.assertIn("<span>Multispectral Mode</span>", html)
         self.assertIn('value="precomputed" selected>Precomputed', html)
         self.assertIn('value="live_docker"', html)
         self.assertIn("Live - Docker", html)

@@ -779,6 +779,8 @@ def test_spectral_absorption_artifact_write_is_deterministic(tmp_path) -> None:
 
     assert first == second
     assert first.name == PLANT_SPECTRAL_ABSORPTION_FILENAME
-    assert json.loads(first.read_text(encoding="utf-8")) == json.loads(
-        second.read_text(encoding="utf-8")
-    )
+    payload = json.loads(first.read_text(encoding="utf-8"))
+    assert payload == json.loads(second.read_text(encoding="utf-8"))
+    assert "surface_summaries" not in payload
+    assert "leaf_summaries" not in payload
+    assert "plant_summaries" not in payload

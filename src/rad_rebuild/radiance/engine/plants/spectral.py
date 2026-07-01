@@ -926,7 +926,9 @@ def write_plant_spectral_response_artifact(
     surface_flux_payload: Mapping[str, Any],
     optical_bands: list[LeafSpectralOpticalBand],
     photon_distribution: SpectralPhotonDistribution,
-) -> Path:
+    *,
+    return_payload: bool = False,
+) -> Path | tuple[Path, dict[str, Any]]:
     output_dir = Path(target_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     payload = build_plant_spectral_response_payload(
@@ -935,5 +937,21 @@ def write_plant_spectral_response_artifact(
         photon_distribution,
     )
     path = output_dir / PLANT_SPECTRAL_RESPONSE_FILENAME
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return path
+    path.write_text(
+        json.dumps(compact_plant_spectral_response_payload(payload), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return (path, payload) if return_payload else path
+
+
+def compact_plant_spectral_response_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in dict(payload).items()
+        if key not in {
+            "plant_summaries",
+            "leaf_summaries",
+            "surface_summaries",
+            "visualization",
+        }
+    }

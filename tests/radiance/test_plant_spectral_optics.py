@@ -227,6 +227,10 @@ def test_plant_spectral_response_artifact_export_is_deterministic(tmp_path) -> N
     assert first == second
     payload = json.loads(first)
     assert payload["source_artifact"] == "runtime_state/plant_surface_flux.json"
+    assert "surface_summaries" not in payload
+    assert "leaf_summaries" not in payload
+    assert "plant_summaries" not in payload
+    assert "visualization" not in payload
     assert payload["outputs_do_not_predict"] == ["yield", "biomass", "growth", "crop_output"]
 
 

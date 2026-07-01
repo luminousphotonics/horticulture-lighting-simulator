@@ -946,7 +946,8 @@ def write_radiance_receiver_plant_surface_flux_artifact(
     target_tolerance_umol_m2_s: float | None = None,
     target_classification_ppfd_map_path: str | Path | None = None,
     leaf_material_metadata: Mapping[str, Any] | None = None,
-) -> Path:
+    return_payload: bool = False,
+) -> Path | tuple[Path, dict[str, Any]]:
     samples = list(receiver_samples)
     detected_granularity = _receiver_granularity_from_samples(samples)
     granularity = normalize_receiver_granularity(receiver_granularity or detected_granularity)
@@ -1042,7 +1043,8 @@ def write_radiance_receiver_plant_surface_flux_artifact(
             **material_metadata,
         }
     )
-    return write_plant_surface_flux_artifact(target_dir, payload)
+    path = write_plant_surface_flux_artifact(target_dir, payload)
+    return (path, payload) if return_payload else path
 
 def _surface_rows_by_id(
     scene: PlantScene,
@@ -1438,12 +1440,38 @@ def build_plant_surface_flux_payload(
 def write_plant_surface_flux_artifact(
     target_dir: str | Path,
     payload: Mapping[str, Any],
+    *,
+    compact: bool = True,
 ) -> Path:
     output_dir = Path(target_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / PLANT_SURFACE_FLUX_FILENAME
-    path.write_text(json.dumps(dict(payload), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    output_payload = compact_plant_surface_flux_payload(payload) if compact else dict(payload)
+    path.write_text(json.dumps(output_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path
+
+
+def compact_plant_surface_flux_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    compact = {
+        key: value
+        for key, value in dict(payload).items()
+        if key not in {"plant_summaries", "leaf_summaries", "surface_summaries"}
+    }
+    visualization = compact.get("visualization")
+    if isinstance(visualization, Mapping):
+        compact["visualization"] = {
+            key: visualization.get(key)
+            for key in (
+                "color_metric",
+                "color_quantity",
+                "normalization",
+                "leaf_scale",
+                "plant_values",
+                "leaf_values",
+            )
+            if key in visualization
+        }
+    return compact
 
 
 def write_baseline_proxy_plant_surface_flux_artifact(

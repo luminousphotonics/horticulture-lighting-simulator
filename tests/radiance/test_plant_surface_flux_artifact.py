@@ -247,6 +247,12 @@ def test_surface_flux_artifact_export_is_deterministic(tmp_path) -> None:
 
     assert first_path == second_path
     assert first == second
+    payload = json.loads(first)
+    assert "surface_summaries" not in payload
+    assert "leaf_summaries" not in payload
+    assert "plant_summaries" not in payload
+    assert "surface_values" not in payload["visualization"]
+    assert payload["visualization"]["leaf_values"]
 
 
 def test_surface_flux_rejects_missing_surface_ids() -> None:

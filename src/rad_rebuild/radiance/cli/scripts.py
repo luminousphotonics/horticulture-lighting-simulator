@@ -21,6 +21,7 @@ from typing import Any
 
 import numpy as np
 
+from rad_rebuild.radiance.assembly.fspm_panel import write_fspm_panel_metrics_artifact
 from rad_rebuild.radiance.engine.emitters.generate_emitters_smd import _compute_positions_from_env
 from rad_rebuild.radiance.engine.emitters.smd_generation.solution_metadata import (
     build_smd_runtime_fingerprint_from_basis_manifest,
@@ -1656,7 +1657,8 @@ def _write_optional_spectral_absorption_artifact(
     spectral_distribution,
     *,
     spectral_mode: str,
-) -> Path | None:
+    return_payload: bool = False,
+) -> Path | tuple[Path, dict[str, Any]] | None:
     profile = leaf_optical_profile_from_env(config.env, data_root=config.repo_root)
     path = config.runtime_state_root / PLANT_SPECTRAL_ABSORPTION_FILENAME
     if profile is None:
@@ -1681,6 +1683,7 @@ def _write_optional_spectral_absorption_artifact(
         surface_flux_payload,
         profile,
         photon_distribution,
+        return_payload=return_payload,
     )
 
 
@@ -1963,7 +1966,7 @@ def _write_banded_plant_surface_flux_artifact(
         }
         if configured_nproc is not None:
             banded_metadata["fspm_rtrace_nproc"] = configured_nproc
-        path = write_radiance_receiver_plant_surface_flux_artifact(
+        path, surface_flux_payload = write_radiance_receiver_plant_surface_flux_artifact(
             config.runtime_state_root,
             scene,
             samples,
@@ -1976,40 +1979,53 @@ def _write_banded_plant_surface_flux_artifact(
             target_tolerance_umol_m2_s=target_tolerance,
             target_classification_ppfd_map_path=ppfd_map,
             leaf_material_metadata=banded_metadata,
+            return_payload=True,
         )
-        surface_flux_payload = json.loads(path.read_text(encoding="utf-8"))
-        spectral_absorption_path = write_banded_plant_spectral_absorption_artifact(
+        spectral_absorption_path, spectral_absorption_payload = write_banded_plant_spectral_absorption_artifact(
             config.runtime_state_root,
             surface_flux_payload,
             band_surface_rows,
             banded_metadata,
+            return_payload=True,
         )
         spectral_distribution = _spectral_distribution_from_env(
             config.env,
             mode=spectral_mode,
             curve_data_root=config.curve_data_root,
         )
-        spectral_path = write_plant_spectral_response_artifact(
+        spectral_path, spectral_payload = write_plant_spectral_response_artifact(
             config.runtime_state_root,
             surface_flux_payload,
             default_leafy_green_spectral_bands(),
             spectral_distribution,
+            return_payload=True,
         )
-        spectral_payload = json.loads(spectral_path.read_text(encoding="utf-8"))
-        photosynthesis_path = write_plant_photosynthesis_response_artifact(
+        photosynthesis_path, photosynthesis_payload = write_plant_photosynthesis_response_artifact(
             config.runtime_state_root,
             spectral_payload,
             _photosynthesis_parameters_from_env(config.env),
+            return_payload=True,
         )
-        photoreceptor_path = write_plant_photoreceptor_exposure_artifact(
+        photoreceptor_path, photoreceptor_payload = write_plant_photoreceptor_exposure_artifact(
             config.runtime_state_root,
             spectral_payload,
+            return_payload=True,
         )
-        photomorphogenesis_path = write_plant_photomorphogenesis_response_artifact(
+        photomorphogenesis_path, photomorphogenesis_payload = write_plant_photomorphogenesis_response_artifact(
             config.runtime_state_root,
             spectral_payload,
-            json.loads(photosynthesis_path.read_text(encoding="utf-8")),
+            photosynthesis_payload,
             _photomorphogenesis_parameters_from_env(config.env),
+            return_payload=True,
+        )
+        write_fspm_panel_metrics_artifact(
+            config.runtime_state_root.parent,
+            surface=surface_flux_payload,
+            spectral=spectral_payload,
+            spectral_absorption=spectral_absorption_payload,
+            photosynthesis=photosynthesis_payload,
+            photoreceptor=photoreceptor_payload,
+            morphology=photomorphogenesis_payload,
         )
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"ERROR: failed to write banded FSPM plant receiver artifacts: {exc}", file=sys.stderr)
@@ -2121,7 +2137,7 @@ def _write_optional_plant_surface_flux_artifact(
 
     try:
         receiver_densities = parse_rtrace_receiver_output(receiver_rgb.read_text(encoding="utf-8"))
-        path = write_radiance_receiver_plant_surface_flux_artifact(
+        path, surface_flux_payload = write_radiance_receiver_plant_surface_flux_artifact(
             config.runtime_state_root,
             scene,
             samples,
@@ -2133,41 +2149,59 @@ def _write_optional_plant_surface_flux_artifact(
             target_tolerance_umol_m2_s=target_tolerance,
             target_classification_ppfd_map_path=ppfd_map,
             leaf_material_metadata=leaf_material_metadata,
+            return_payload=True,
         )
-        surface_flux_payload = json.loads(path.read_text(encoding="utf-8"))
         spectral_mode = _infer_fixture_spectral_mode(config.env, octree=octree, mode=mode)
         spectral_distribution = _spectral_distribution_from_env(
             config.env,
             mode=spectral_mode,
             curve_data_root=config.curve_data_root,
         )
-        spectral_absorption_path = _write_optional_spectral_absorption_artifact(
+        spectral_absorption_result = _write_optional_spectral_absorption_artifact(
             config,
             surface_flux_payload,
             spectral_distribution,
             spectral_mode=spectral_mode,
+            return_payload=True,
         )
-        spectral_path = write_plant_spectral_response_artifact(
+        if spectral_absorption_result is None:
+            spectral_absorption_path = None
+            spectral_absorption_payload = None
+        else:
+            spectral_absorption_path, spectral_absorption_payload = spectral_absorption_result
+        spectral_path, spectral_payload = write_plant_spectral_response_artifact(
             config.runtime_state_root,
             surface_flux_payload,
             default_leafy_green_spectral_bands(),
             spectral_distribution,
+            return_payload=True,
         )
-        spectral_payload = json.loads(spectral_path.read_text(encoding="utf-8"))
-        photosynthesis_path = write_plant_photosynthesis_response_artifact(
+        photosynthesis_path, photosynthesis_payload = write_plant_photosynthesis_response_artifact(
             config.runtime_state_root,
             spectral_payload,
             _photosynthesis_parameters_from_env(config.env),
+            return_payload=True,
         )
-        photoreceptor_path = write_plant_photoreceptor_exposure_artifact(
+        photoreceptor_path, photoreceptor_payload = write_plant_photoreceptor_exposure_artifact(
             config.runtime_state_root,
             spectral_payload,
+            return_payload=True,
         )
-        photomorphogenesis_path = write_plant_photomorphogenesis_response_artifact(
+        photomorphogenesis_path, photomorphogenesis_payload = write_plant_photomorphogenesis_response_artifact(
             config.runtime_state_root,
             spectral_payload,
-            json.loads(photosynthesis_path.read_text(encoding="utf-8")),
+            photosynthesis_payload,
             _photomorphogenesis_parameters_from_env(config.env),
+            return_payload=True,
+        )
+        write_fspm_panel_metrics_artifact(
+            config.runtime_state_root.parent,
+            surface=surface_flux_payload,
+            spectral=spectral_payload,
+            spectral_absorption=spectral_absorption_payload,
+            photosynthesis=photosynthesis_payload,
+            photoreceptor=photoreceptor_payload,
+            morphology=photomorphogenesis_payload,
         )
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"ERROR: failed to write FSPM plant receiver surface flux: {exc}", file=sys.stderr)

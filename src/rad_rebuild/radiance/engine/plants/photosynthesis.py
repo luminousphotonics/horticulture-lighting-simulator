@@ -756,7 +756,9 @@ def write_plant_photosynthesis_response_artifact(
     target_dir: str | Path,
     spectral_response_payload: Mapping[str, Any],
     parameters: PhotosynthesisResponseParameters | None = None,
-) -> Path:
+    *,
+    return_payload: bool = False,
+) -> Path | tuple[Path, dict[str, Any]]:
     output_dir = Path(target_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     payload = build_plant_photosynthesis_response_payload(
@@ -764,5 +766,21 @@ def write_plant_photosynthesis_response_artifact(
         parameters,
     )
     path = output_dir / PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return path
+    path.write_text(
+        json.dumps(compact_plant_photosynthesis_response_payload(payload), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return (path, payload) if return_payload else path
+
+
+def compact_plant_photosynthesis_response_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in dict(payload).items()
+        if key not in {
+            "plant_summaries",
+            "leaf_summaries",
+            "surface_summaries",
+            "visualization",
+        }
+    }

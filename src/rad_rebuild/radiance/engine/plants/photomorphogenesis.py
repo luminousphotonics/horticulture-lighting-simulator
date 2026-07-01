@@ -435,7 +435,9 @@ def write_plant_photomorphogenesis_response_artifact(
     spectral_response_payload: Mapping[str, Any],
     photosynthesis_response_payload: Mapping[str, Any],
     parameters: PhotomorphogenesisResponseParameters | None = None,
-) -> Path:
+    *,
+    return_payload: bool = False,
+) -> Path | tuple[Path, dict[str, Any]]:
     output_dir = Path(target_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     payload = build_plant_photomorphogenesis_response_payload(
@@ -444,5 +446,16 @@ def write_plant_photomorphogenesis_response_artifact(
         parameters,
     )
     path = output_dir / PLANT_PHOTOMORPHOGENESIS_RESPONSE_FILENAME
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return path
+    path.write_text(
+        json.dumps(compact_plant_photomorphogenesis_response_payload(payload), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return (path, payload) if return_payload else path
+
+
+def compact_plant_photomorphogenesis_response_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in dict(payload).items()
+        if key not in {"plant_summaries", "leaf_summaries", "visualization"}
+    }

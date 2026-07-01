@@ -172,6 +172,34 @@ class Phase05DomainContractTests(unittest.TestCase):
         self.assertEqual(env["FSPM_LEAF_RADIANCE_MATERIAL_MODE"], "rex_source_weighted_trans")
         self.assertEqual(env["FSPM_SPECTRAL_TRANSPORT_MODE"], "banded_5")
 
+    def test_multispectral_checkbox_modes_map_to_runtime_env(self) -> None:
+        checked_req = RadianceRunRequest(
+            action="all",
+            execution_mode=config.EXECUTION_MODE_LIVE_LOCAL,
+            plants_enabled=True,
+            fspm_receiver_granularity="mesh_patch",
+            fspm_leaf_radiance_material_mode="rex_source_weighted_trans",
+            fspm_spectral_transport_mode="banded_5",
+        )
+        unchecked_req = RadianceRunRequest(
+            action="all",
+            execution_mode=config.EXECUTION_MODE_LIVE_LOCAL,
+            plants_enabled=True,
+            fspm_receiver_granularity="leaf_centroid",
+            fspm_leaf_radiance_material_mode="opaque_occluder",
+            fspm_spectral_transport_mode="scalar_source_weighted",
+        )
+
+        checked_env = backend_env._make_env_base(checked_req)
+        unchecked_env = backend_env._make_env_base(unchecked_req)
+
+        self.assertEqual(checked_env["FSPM_RECEIVER_GRANULARITY"], "mesh_patch")
+        self.assertEqual(checked_env["FSPM_LEAF_RADIANCE_MATERIAL_MODE"], "rex_source_weighted_trans")
+        self.assertEqual(checked_env["FSPM_SPECTRAL_TRANSPORT_MODE"], "banded_5")
+        self.assertEqual(unchecked_env["FSPM_RECEIVER_GRANULARITY"], "leaf_centroid")
+        self.assertEqual(unchecked_env["FSPM_LEAF_RADIANCE_MATERIAL_MODE"], "opaque_occluder")
+        self.assertEqual(unchecked_env["FSPM_SPECTRAL_TRANSPORT_MODE"], "scalar_source_weighted")
+
     def test_plant_enabled_request_does_not_bypass_precomputed_mode(self) -> None:
         req = RadianceRunRequest(
             action="all",

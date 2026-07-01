@@ -32,6 +32,7 @@ from rad_rebuild.radiance.engine.plants.surface_flux import (
 )
 
 FSPM_PANEL_SCHEMA = "rad_rebuild.fspm.viewer_panel.v1"
+FSPM_PANEL_METRICS_FILENAME = "fspm_panel_metrics.json"
 FSPM_TRANSPORT_METADATA_KEYS: tuple[str, ...] = (
     "fspm_spectral_transport_mode",
     "leaf_radiance_material_mode",
@@ -107,6 +108,10 @@ def _load_json(path: Path) -> dict[str, Any] | None:
 
 def _runtime_artifact(workspace_root: Path, filename: str) -> Path:
     return workspace_root / "runtime_state" / filename
+
+
+def _compact_panel_artifact(workspace_root: Path) -> Path:
+    return _runtime_artifact(workspace_root, FSPM_PANEL_METRICS_FILENAME)
 
 
 def _finite(value: object) -> float | None:
@@ -532,18 +537,16 @@ def _legacy_morphology_scaffold(payload: Mapping[str, Any] | None) -> dict[str, 
     }
 
 
-def build_fspm_panel_metrics(workspace_root: Path) -> dict[str, object] | None:
-    runtime = workspace_root / "runtime_state"
-    plants = _load_json(runtime / PLANTS_VIEWER_FILENAME)
-    surface = _load_json(_runtime_artifact(workspace_root, PLANT_SURFACE_FLUX_FILENAME))
-    spectral = _load_json(_runtime_artifact(workspace_root, PLANT_SPECTRAL_RESPONSE_FILENAME))
-    spectral_absorption = _load_json(
-        _runtime_artifact(workspace_root, PLANT_SPECTRAL_ABSORPTION_FILENAME)
-    )
-    photosynthesis = _load_json(_runtime_artifact(workspace_root, PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME))
-    photoreceptor = _load_json(_runtime_artifact(workspace_root, PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME))
-    morphology = _load_json(_runtime_artifact(workspace_root, PLANT_PHOTOMORPHOGENESIS_RESPONSE_FILENAME))
-
+def build_fspm_panel_metrics_from_payloads(
+    *,
+    plants: Mapping[str, Any] | None = None,
+    surface: Mapping[str, Any] | None = None,
+    spectral: Mapping[str, Any] | None = None,
+    spectral_absorption: Mapping[str, Any] | None = None,
+    photosynthesis: Mapping[str, Any] | None = None,
+    photoreceptor: Mapping[str, Any] | None = None,
+    morphology: Mapping[str, Any] | None = None,
+) -> dict[str, object] | None:
     viewer_counts = _count_viewer_plants(plants)
     surface_summary = _surface_absorption(surface)
     spectral_summary = _spectral_exposure(spectral)
@@ -685,3 +688,58 @@ def build_fspm_panel_metrics(workspace_root: Path) -> dict[str, object] | None:
     if morphology_summary is not None:
         payload["legacy_morphology_response_scaffold"] = morphology_summary
     return payload
+
+
+def write_fspm_panel_metrics_artifact(
+    workspace_root: Path,
+    *,
+    plants: Mapping[str, Any] | None = None,
+    surface: Mapping[str, Any] | None = None,
+    spectral: Mapping[str, Any] | None = None,
+    spectral_absorption: Mapping[str, Any] | None = None,
+    photosynthesis: Mapping[str, Any] | None = None,
+    photoreceptor: Mapping[str, Any] | None = None,
+    morphology: Mapping[str, Any] | None = None,
+) -> Path | None:
+    payload = build_fspm_panel_metrics_from_payloads(
+        plants=plants,
+        surface=surface,
+        spectral=spectral,
+        spectral_absorption=spectral_absorption,
+        photosynthesis=photosynthesis,
+        photoreceptor=photoreceptor,
+        morphology=morphology,
+    )
+    if payload is None:
+        return None
+    path = _compact_panel_artifact(workspace_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
+def build_fspm_panel_metrics(workspace_root: Path) -> dict[str, object] | None:
+    compact = _load_json(_compact_panel_artifact(workspace_root))
+    if compact is not None and compact.get("schema") == FSPM_PANEL_SCHEMA:
+        return dict(compact)
+
+    runtime = workspace_root / "runtime_state"
+    plants = _load_json(runtime / PLANTS_VIEWER_FILENAME)
+    surface = _load_json(_runtime_artifact(workspace_root, PLANT_SURFACE_FLUX_FILENAME))
+    spectral = _load_json(_runtime_artifact(workspace_root, PLANT_SPECTRAL_RESPONSE_FILENAME))
+    spectral_absorption = _load_json(
+        _runtime_artifact(workspace_root, PLANT_SPECTRAL_ABSORPTION_FILENAME)
+    )
+    photosynthesis = _load_json(_runtime_artifact(workspace_root, PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME))
+    photoreceptor = _load_json(_runtime_artifact(workspace_root, PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME))
+    morphology = _load_json(_runtime_artifact(workspace_root, PLANT_PHOTOMORPHOGENESIS_RESPONSE_FILENAME))
+
+    return build_fspm_panel_metrics_from_payloads(
+        plants=plants,
+        surface=surface,
+        spectral=spectral,
+        spectral_absorption=spectral_absorption,
+        photosynthesis=photosynthesis,
+        photoreceptor=photoreceptor,
+        morphology=morphology,
+    )

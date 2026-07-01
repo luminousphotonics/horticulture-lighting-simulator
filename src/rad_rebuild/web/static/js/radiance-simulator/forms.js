@@ -14,6 +14,8 @@ import {
 export const DEFAULT_FSPM_LEAF_OPTICAL_PROFILE_ID = "rex_green_butterhead_mature_leaf_optics_v1";
 export const DEFAULT_FSPM_LEAF_RADIANCE_MATERIAL_MODE = "rex_source_weighted_trans";
 export const DEFAULT_FSPM_SPECTRAL_TRANSPORT_MODE = "banded_5";
+export const SCALAR_FSPM_LEAF_RADIANCE_MATERIAL_MODE = "opaque_occluder";
+export const SCALAR_FSPM_SPECTRAL_TRANSPORT_MODE = "scalar_source_weighted";
 
 export function parsePositive(el, fallback) {
   const value = Number.parseFloat(el?.value || "");
@@ -92,6 +94,7 @@ export function syncFspmControls() {
     els.radPlantLeafCount,
     els.radPlantGrowthStage,
     els.radFspmReceiverGranularity,
+    els.radFspmMultispectralMode,
     els.radFspmTargetPpfd,
     els.radFspmTargetTolerance,
   ].filter(Boolean);
@@ -110,8 +113,32 @@ export function syncFspmControls() {
   if (!fspmAvailable && els.radPlantsEnabled) {
     els.radPlantsEnabled.checked = false;
   }
+  if (els.radFspmMultispectralMode?.dataset.fspmMultispectralEdited !== "true") {
+    syncFspmMultispectralDefault();
+  }
 
   return fspmAvailable;
+}
+
+export function syncFspmMultispectralDefault() {
+  if (!els.radFspmMultispectralMode) {
+    return;
+  }
+  const granularity = (els.radFspmReceiverGranularity?.value || "leaf_centroid").trim();
+  els.radFspmMultispectralMode.checked = granularity !== "leaf_centroid";
+}
+
+export function resetFspmMultispectralDefault() {
+  if (els.radFspmMultispectralMode) {
+    delete els.radFspmMultispectralMode.dataset.fspmMultispectralEdited;
+  }
+  syncFspmMultispectralDefault();
+}
+
+export function markFspmMultispectralEdited() {
+  if (els.radFspmMultispectralMode) {
+    els.radFspmMultispectralMode.dataset.fspmMultispectralEdited = "true";
+  }
 }
 
 export function markFspmTargetEdited() {
@@ -137,6 +164,7 @@ function parsePlantPayload(_mode, executionMode) {
   if (!enabled) {
     return { plantsEnabled: false };
   }
+  const multispectralMode = Boolean(els.radFspmMultispectralMode?.checked);
   return {
     plantsEnabled: true,
     plantSeed: parseInteger(els.radPlantSeed, 42),
@@ -149,8 +177,12 @@ function parsePlantPayload(_mode, executionMode) {
     plantGrowthStage: parseFinite(els.radPlantGrowthStage, 1.0),
     fspmReceiverGranularity: (els.radFspmReceiverGranularity?.value || "leaf_centroid").trim(),
     fspmLeafOpticalProfileId: DEFAULT_FSPM_LEAF_OPTICAL_PROFILE_ID,
-    fspmLeafRadianceMaterialMode: DEFAULT_FSPM_LEAF_RADIANCE_MATERIAL_MODE,
-    fspmSpectralTransportMode: DEFAULT_FSPM_SPECTRAL_TRANSPORT_MODE,
+    fspmLeafRadianceMaterialMode: multispectralMode
+      ? DEFAULT_FSPM_LEAF_RADIANCE_MATERIAL_MODE
+      : SCALAR_FSPM_LEAF_RADIANCE_MATERIAL_MODE,
+    fspmSpectralTransportMode: multispectralMode
+      ? DEFAULT_FSPM_SPECTRAL_TRANSPORT_MODE
+      : SCALAR_FSPM_SPECTRAL_TRANSPORT_MODE,
     fspmTargetPpfdUmolM2S: parsePositive(els.radFspmTargetPpfd, parsePositive(els.radTarget, 275)),
     fspmTargetToleranceUmolM2S: parsePositive(els.radFspmTargetTolerance, 20),
   };

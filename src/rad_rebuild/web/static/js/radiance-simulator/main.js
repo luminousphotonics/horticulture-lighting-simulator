@@ -12,9 +12,12 @@ import {
 import { openAssemblyViewer } from "./assembly.js";
 import {
   invalidateRenderedRunState,
+  markFspmMultispectralEdited,
   markFspmTargetEdited,
+  resetFspmMultispectralDefault,
   syncDimensionWarnings,
   syncFspmControls,
+  syncFspmMultispectralDefault,
   syncFspmTargetDefault,
   syncModeControls,
 } from "./forms.js";
@@ -65,6 +68,7 @@ async function boot() {
     els.radMatchSystemPpe.checked = true;
   }
   syncModeControls();
+  syncFspmMultispectralDefault();
   syncFspmTargetDefault();
   syncFspmControls();
   await ensureBackend();
@@ -140,6 +144,15 @@ export function initRadianceSimulator() {
   if (els.radFspmTargetPpfd) {
     els.radFspmTargetPpfd.addEventListener("input", markFspmTargetEdited);
     els.radFspmTargetPpfd.addEventListener("change", markFspmTargetEdited);
+  }
+  if (els.radFspmReceiverGranularity) {
+    els.radFspmReceiverGranularity.addEventListener("change", () => {
+      resetFspmMultispectralDefault();
+    });
+  }
+  if (els.radFspmMultispectralMode) {
+    els.radFspmMultispectralMode.addEventListener("input", markFspmMultispectralEdited);
+    els.radFspmMultispectralMode.addEventListener("change", markFspmMultispectralEdited);
   }
   if (els.radMatchSystemPpe) {
     els.radMatchSystemPpe.addEventListener("change", () => {

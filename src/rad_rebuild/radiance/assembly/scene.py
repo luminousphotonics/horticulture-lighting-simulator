@@ -559,15 +559,65 @@ def _optional_plant_surface_flux_payload(workspace_root: Path) -> dict[str, Any]
         raise AssemblySceneError("Plant surface-flux payload is malformed.")
     if payload.get("schema") != PLANT_SURFACE_FLUX_SCHEMA:
         raise AssemblySceneError("Plant surface-flux payload has an unsupported schema.")
-    return {
+    visualization = payload.get("visualization")
+    compact_visualization: dict[str, Any] = {}
+    if isinstance(visualization, dict):
+        compact_visualization = {
+            key: visualization.get(key)
+            for key in (
+                "color_metric",
+                "color_quantity",
+                "normalization",
+                "leaf_scale",
+                "leaf_values",
+                "plant_values",
+            )
+            if key in visualization
+        }
+
+    metadata_keys = (
+        "artifact_role",
+        "baseline_transport_scene",
+        "fspm_receiver_transport_scene",
+        "receiver_trace_count",
+        "receiver_sample_count",
+        "receiver_granularity",
+        "receiver_samples_per_leaf",
+        "receiver_generation_basis",
+        "receiver_represented_area_m2",
+        "receiver_sample_area_sum_m2",
+        "receiver_area_basis",
+        "receiver_side_policy",
+        "receiver_rows_per_mesh_surface_row",
+        "normal_generation_basis",
+        "receiver_granularity_role",
+        "plant_count",
+        "leaf_count",
+        "surface_count",
+        "one_sided_leaf_area_m2",
+        "target",
+        "target_ppfd_umol_m2_s",
+        "target_tolerance_umol_m2_s",
+        "target_classification_basis",
+        "target_classification_basis_label",
+        "target_classification_source",
+        "target_classification_note",
+        "target_basis",
+        "target_basis_label",
+        "target_lower_threshold_umol_m2_s",
+        "target_upper_threshold_umol_m2_s",
+        "target_capping_enabled",
+    )
+    compact = {
         "schema": payload.get("schema"),
         "schema_version": payload.get("schema_version"),
         "status": payload.get("status"),
         "method": payload.get("method"),
-        "visualization": payload.get("visualization"),
-        "plant_summaries": payload.get("plant_summaries", []),
-        "leaf_summaries": payload.get("leaf_summaries", []),
+        **{key: payload.get(key) for key in metadata_keys if key in payload},
     }
+    if compact_visualization:
+        compact["visualization"] = compact_visualization
+    return compact
 
 
 def _attach_optional_plants(scene: dict[str, Any], workspace_root: Path) -> dict[str, Any]:

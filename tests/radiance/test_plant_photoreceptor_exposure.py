@@ -112,6 +112,8 @@ def test_photoreceptor_exposure_artifact_export_is_deterministic(tmp_path) -> No
     assert first == second
     payload = json.loads(first)
     assert payload["source_artifact"] == "runtime_state/plant_spectral_response.json"
+    assert "leaf_summaries" not in payload
+    assert "plant_summaries" not in payload
 
 
 def test_photoreceptor_exposure_artifact_avoids_prohibited_language() -> None:

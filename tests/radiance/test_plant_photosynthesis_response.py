@@ -298,6 +298,10 @@ def test_photosynthesis_artifact_export_is_deterministic(tmp_path) -> None:
     assert first == second
     data = json.loads(first)
     assert data["source_artifact"] == "runtime_state/plant_spectral_response.json"
+    assert "surface_summaries" not in data
+    assert "leaf_summaries" not in data
+    assert "plant_summaries" not in data
+    assert "visualization" not in data
     assert data["outputs_do_not_predict"] == ["yield", "biomass", "growth", "crop_output"]
 
 

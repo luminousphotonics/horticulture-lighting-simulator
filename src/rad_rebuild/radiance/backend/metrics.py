@@ -6,6 +6,10 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
+from rad_rebuild.radiance.assembly.fspm_panel import (
+    FSPM_PANEL_METRICS_FILENAME,
+    FSPM_PANEL_SCHEMA,
+)
 from rad_rebuild.radiance.config import MODE_COMPETITOR, MODE_SMD
 from rad_rebuild.radiance.engine.plants.absorption import PHOTON_ABSORPTION_SCAFFOLD_SCHEMA
 from rad_rebuild.radiance.engine.plants.artifacts import PLANT_ABSORPTION_SURFACES_FILENAME
@@ -142,6 +146,7 @@ def _metrics_dependencies(workspace_root: Path | None = None) -> list[Path | Non
         work_root / "runtime_state" / "hps_power.txt",
         work_root / "runtime_state" / "smd_summary.txt",
         work_root / "runtime_state" / "last_run.json",
+        work_root / "runtime_state" / FSPM_PANEL_METRICS_FILENAME,
         work_root / "runtime_state" / PLANT_ABSORPTION_SURFACES_FILENAME,
         work_root / "runtime_state" / PLANT_SURFACE_FLUX_FILENAME,
         work_root / "runtime_state" / PLANT_SPECTRAL_ABSORPTION_FILENAME,
@@ -164,6 +169,45 @@ def _plant_absorption_unavailable(reason: str) -> dict[str, object]:
             "crop_output",
         ],
     }
+
+
+def _load_compact_fspm_panel_metrics(workspace_root: Path) -> dict[str, object] | None:
+    path = workspace_root / "runtime_state" / FSPM_PANEL_METRICS_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict) or payload.get("schema") != FSPM_PANEL_SCHEMA:
+        return None
+    return payload
+
+
+def _attach_compact_fspm_metrics(
+    metrics: dict[str, object],
+    panel: dict[str, object],
+) -> bool:
+    absorption = panel.get("incident_leaf_surface_flux") or panel.get("plant_surface_absorption")
+    if isinstance(absorption, dict):
+        metrics["plant_incident_surface_flux"] = absorption
+        metrics["plant_photon_absorption"] = absorption
+    spectral_absorption = panel.get("modeled_spectral_absorption")
+    if isinstance(spectral_absorption, dict):
+        metrics["plant_spectral_absorption"] = spectral_absorption
+    spectral_response = panel.get("spectral_exposure")
+    if isinstance(spectral_response, dict):
+        metrics["plant_spectral_response"] = spectral_response
+    photosynthesis = panel.get("photosynthetic_light_response_potential")
+    if isinstance(photosynthesis, dict):
+        metrics["plant_photosynthesis_response"] = photosynthesis
+    photoreceptor = panel.get("photoreceptor_exposure")
+    if isinstance(photoreceptor, dict):
+        metrics["plant_photoreceptor_exposure"] = photoreceptor
+    photomorphogenesis = panel.get("legacy_morphology_response_scaffold")
+    if isinstance(photomorphogenesis, dict):
+        metrics["plant_photomorphogenesis_response"] = photomorphogenesis
+    return any(key.startswith("plant_") for key in metrics)
 
 
 def _load_plant_surface_flux_summary(workspace_root: Path) -> dict[str, object] | None:
@@ -761,34 +805,38 @@ def _metrics_payload_for_request(req: RadianceRunRequest, workspace_root: Path) 
     elif not req.peak_capping_enabled:
         metrics["mode_note"] = "Peak-capping is disabled. Dimmable LED systems are evaluated against the requested target PPFD without hotspot-cap post-processing."
 
-    plant_photon_absorption = (
-        _load_plant_surface_flux_summary(workspace_root)
-        or _load_plant_photon_absorption_scaffold(workspace_root)
-    )
-    if plant_photon_absorption is not None:
-        if plant_photon_absorption.get("artifact_role") == "incident_leaf_surface_flux":
-            metrics["plant_incident_surface_flux"] = plant_photon_absorption
-        metrics["plant_photon_absorption"] = plant_photon_absorption
+    compact_panel = _load_compact_fspm_panel_metrics(workspace_root)
+    if compact_panel is not None:
+        _attach_compact_fspm_metrics(metrics, compact_panel)
+    else:
+        plant_photon_absorption = (
+            _load_plant_surface_flux_summary(workspace_root)
+            or _load_plant_photon_absorption_scaffold(workspace_root)
+        )
+        if plant_photon_absorption is not None:
+            if plant_photon_absorption.get("artifact_role") == "incident_leaf_surface_flux":
+                metrics["plant_incident_surface_flux"] = plant_photon_absorption
+            metrics["plant_photon_absorption"] = plant_photon_absorption
 
-    plant_spectral_absorption = _load_plant_spectral_absorption_summary(workspace_root)
-    if plant_spectral_absorption is not None:
-        metrics["plant_spectral_absorption"] = plant_spectral_absorption
+        plant_spectral_absorption = _load_plant_spectral_absorption_summary(workspace_root)
+        if plant_spectral_absorption is not None:
+            metrics["plant_spectral_absorption"] = plant_spectral_absorption
 
-    plant_spectral_response = _load_plant_spectral_response_summary(workspace_root)
-    if plant_spectral_response is not None:
-        metrics["plant_spectral_response"] = plant_spectral_response
+        plant_spectral_response = _load_plant_spectral_response_summary(workspace_root)
+        if plant_spectral_response is not None:
+            metrics["plant_spectral_response"] = plant_spectral_response
 
-    plant_photosynthesis_response = _load_plant_photosynthesis_response_summary(workspace_root)
-    if plant_photosynthesis_response is not None:
-        metrics["plant_photosynthesis_response"] = plant_photosynthesis_response
+        plant_photosynthesis_response = _load_plant_photosynthesis_response_summary(workspace_root)
+        if plant_photosynthesis_response is not None:
+            metrics["plant_photosynthesis_response"] = plant_photosynthesis_response
 
-    plant_photoreceptor_exposure = _load_plant_photoreceptor_exposure_summary(workspace_root)
-    if plant_photoreceptor_exposure is not None:
-        metrics["plant_photoreceptor_exposure"] = plant_photoreceptor_exposure
+        plant_photoreceptor_exposure = _load_plant_photoreceptor_exposure_summary(workspace_root)
+        if plant_photoreceptor_exposure is not None:
+            metrics["plant_photoreceptor_exposure"] = plant_photoreceptor_exposure
 
-    plant_photomorphogenesis_response = _load_plant_photomorphogenesis_response_summary(workspace_root)
-    if plant_photomorphogenesis_response is not None:
-        metrics["plant_photomorphogenesis_response"] = plant_photomorphogenesis_response
+        plant_photomorphogenesis_response = _load_plant_photomorphogenesis_response_summary(workspace_root)
+        if plant_photomorphogenesis_response is not None:
+            metrics["plant_photomorphogenesis_response"] = plant_photomorphogenesis_response
 
     cost_estimate = None
     try:

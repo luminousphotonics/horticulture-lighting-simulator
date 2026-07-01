@@ -15,7 +15,12 @@ from tests.radiance.runtime_env import configure_test_runtime
 configure_test_runtime()
 
 from rad_rebuild.radiance.assembly.scene import AssemblySceneError, build_assembly_scene  # noqa: E402
-from rad_rebuild.radiance.assembly.fspm_panel import _spectral_absorption  # noqa: E402
+from rad_rebuild.radiance.assembly.fspm_csv import build_fspm_metrics_csv  # noqa: E402
+from rad_rebuild.radiance.assembly.fspm_panel import (  # noqa: E402
+    FSPM_PANEL_METRICS_FILENAME,
+    _spectral_absorption,
+    build_fspm_panel_metrics,
+)
 from rad_rebuild.radiance.backend.models import AssemblySceneResponse, RadianceRunRequest  # noqa: E402
 from rad_rebuild.radiance.backend.routes import assembly as assembly_route  # noqa: E402
 from rad_rebuild.radiance.backend.workspace import (  # noqa: E402
@@ -29,6 +34,8 @@ from rad_rebuild.radiance.engine.plants.photosynthesis import PLANT_PHOTOSYNTHES
 from rad_rebuild.radiance.engine.plants.spectral import PLANT_SPECTRAL_RESPONSE_SCHEMA  # noqa: E402
 from rad_rebuild.radiance.engine.plants.spectral_absorption import PLANT_SPECTRAL_ABSORPTION_SCHEMA  # noqa: E402
 from rad_rebuild.radiance.engine.plants.surface_flux import PLANT_SURFACE_FLUX_SCHEMA  # noqa: E402
+
+PROXY_RESPONSE_LIMIT_BYTES = 16 * 1024 * 1024
 
 
 class _FakeRequest:
@@ -191,6 +198,117 @@ def _write_layout(workspace_root: Path, payload: dict[str, Any] | None = None) -
     )
 
 
+def _write_minimal_large_plant_payload(
+    runtime: Path,
+    *,
+    plant_count: int = 529,
+    leaves_per_plant: int = 12,
+) -> None:
+    plants: list[dict[str, Any]] = []
+    leaf_values: list[dict[str, Any]] = []
+    surface_values: list[dict[str, Any]] = []
+    for plant_index in range(plant_count):
+        row = plant_index // 23
+        column = plant_index % 23
+        plant_id = f"plant_r{row:03d}_c{column:03d}"
+        leaves: list[dict[str, Any]] = []
+        for leaf_index in range(leaves_per_plant):
+            leaf_id = f"{plant_id}_leaf_{leaf_index:03d}"
+            offset = plant_index * 0.001 + leaf_index * 0.00001
+            intensity = leaf_index / max(1, leaves_per_plant - 1)
+            leaves.append(
+                {
+                    "plant_id": plant_id,
+                    "leaf_id": leaf_id,
+                    "leaf_index": leaf_index,
+                    "material_id": "leaf_mat",
+                    "metadata": {},
+                    "mesh": {
+                        "vertices": [
+                            [offset, 0.0, 0.0],
+                            [offset + 0.01, 0.0, 0.0],
+                            [offset, 0.01, 0.0],
+                        ],
+                        "faces": [[0, 1, 2]],
+                    },
+                }
+            )
+            leaf_values.append(
+                {
+                    "leaf_id": leaf_id,
+                    "plant_id": plant_id,
+                    "lighting_region": "target_range",
+                    "incident_photon_flux_density_umol_m2_s": 250.0 + leaf_index,
+                    "visual_intensity_0_1": intensity,
+                }
+            )
+            surface_values.append(
+                {
+                    "surface_id": f"{leaf_id}_surface_000",
+                    "leaf_id": leaf_id,
+                    "plant_id": plant_id,
+                    "lighting_region": "target_range",
+                    "incident_photon_flux_density_umol_m2_s": 250.0 + leaf_index,
+                    "visual_intensity_0_1": intensity,
+                }
+            )
+        plants.append(
+            {
+                "plant_id": plant_id,
+                "row": row,
+                "column": column,
+                "center_m": [float(column), float(row), 0.0],
+                "leaves": leaves,
+            }
+        )
+
+    (runtime / "plants_viewer.json").write_text(
+        json.dumps(
+            {
+                "schema": "rad_rebuild.fspm.plants.viewer.v1",
+                "schema_version": 1,
+                "units": "meters",
+                "config": {"seed": 42},
+                "material": {"transmittance": 0.08},
+                "plants": plants,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (runtime / "plant_surface_flux.json").write_text(
+        json.dumps(
+            {
+                "schema": PLANT_SURFACE_FLUX_SCHEMA,
+                "schema_version": 1,
+                "status": "computed",
+                "method": "radiance_leaf_surface_receiver_sampling_v1",
+                "plant_count": plant_count,
+                "leaf_count": plant_count * leaves_per_plant,
+                "surface_count": plant_count * leaves_per_plant,
+                "receiver_sample_count": plant_count * leaves_per_plant,
+                "receiver_granularity": "leaf_centroid",
+                "one_sided_leaf_area_m2": 12.34,
+                "target_ppfd_umol_m2_s": 1000.0,
+                "target_tolerance_umol_m2_s": 20.0,
+                "plant_summaries": [{"plant_id": plant["plant_id"]} for plant in plants],
+                "leaf_summaries": [{"leaf_id": row["leaf_id"]} for row in leaf_values],
+                "surface_summaries": [{"surface_id": row["surface_id"]} for row in surface_values],
+                "visualization": {
+                    "color_metric": "incident_photon_flux_density_umol_m2_s",
+                    "color_quantity": "incident_leaf_surface_ppfd",
+                    "normalization": "linear_0_1",
+                    "leaf_scale": {"min": 250.0, "max": 261.0},
+                    "surface_scale": {"min": 250.0, "max": 261.0},
+                    "leaf_values": leaf_values,
+                    "plant_values": [{"plant_id": plant["plant_id"]} for plant in plants],
+                    "surface_values": surface_values,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def _write_competitor_layout(workspace_root: Path, payload: dict[str, Any] | None = None) -> None:
     runtime = workspace_root / "runtime_state"
     runtime.mkdir(parents=True, exist_ok=True)
@@ -298,6 +416,27 @@ def test_builder_attaches_optional_plant_viewer_payload(tmp_path: Path) -> None:
     assert scene["fspm_metrics"]["counts"]["plant_count"] == 1
     assert scene["fspm_metrics"]["counts"]["leaf_count"] == 4
     assert str(tmp_path) not in json.dumps(scene)
+
+
+def test_large_fspm_scene_embeds_compact_leaf_visualization_under_proxy_limit(tmp_path: Path) -> None:
+    _write_layout(tmp_path)
+    runtime = tmp_path / "runtime_state"
+    runtime.mkdir(parents=True, exist_ok=True)
+    _write_minimal_large_plant_payload(runtime)
+
+    scene = build_assembly_scene(tmp_path, _smd_req(plants_enabled=True))
+
+    surface_flux = scene["plants"]["surface_flux"]
+    visualization = surface_flux["visualization"]
+    assert len(scene["plants"]["plants"]) == 529
+    assert sum(len(plant["leaves"]) for plant in scene["plants"]["plants"]) == 6348
+    assert len(visualization["leaf_values"]) == 6348
+    assert "surface_values" not in visualization
+    assert "surface_summaries" not in surface_flux
+    assert "leaf_summaries" not in surface_flux
+    assert "plant_summaries" not in surface_flux
+    assert "visual_intensity_0_1" in visualization["leaf_values"][0]
+    assert len(json.dumps(scene, separators=(",", ":")).encode("utf-8")) < PROXY_RESPONSE_LIMIT_BYTES
 
 
 def test_builder_attaches_sanitized_fspm_panel_metrics(tmp_path: Path) -> None:
@@ -502,6 +641,82 @@ def test_builder_attaches_sanitized_fspm_panel_metrics(tmp_path: Path) -> None:
     assert panel["photoreceptor_exposure"]["mean_absorbed_blue_pfd_umol_m2_s"] == 83.3
     assert "plants" in scene
     assert str(tmp_path) not in json.dumps(scene)
+
+
+def test_fspm_panel_and_csv_prefer_compact_metrics_artifact(tmp_path: Path) -> None:
+    runtime = tmp_path / "runtime_state"
+    runtime.mkdir(parents=True)
+    compact_panel = {
+        "schema": "rad_rebuild.fspm.viewer_panel.v1",
+        "status": "available",
+        "counts": {
+            "plant_count": 2,
+            "leaf_count": 8,
+            "surface_count": 16,
+            "receiver_sample_count": 8,
+            "receiver_granularity": "leaf_centroid",
+            "one_sided_leaf_area_m2": 0.124,
+        },
+        "incident_leaf_surface_flux": {
+            "schema": PLANT_SURFACE_FLUX_SCHEMA,
+            "status": "computed",
+            "method": "radiance_leaf_surface_receiver_sampling_v1",
+            "artifact_role": "incident_leaf_surface_flux",
+            "fspm_spectral_transport_mode": "scalar_source_weighted",
+            "leaf_radiance_material_mode": "opaque_occluder",
+            "target_ppfd_umol_m2_s": 275.0,
+            "target_tolerance_umol_m2_s": 20.0,
+            "plant_count": 2,
+            "leaf_count": 8,
+            "surface_count": 16,
+            "receiver_sample_count": 8,
+            "receiver_granularity": "leaf_centroid",
+            "one_sided_leaf_area_m2": 0.124,
+            "target_range_leaf_count": 5,
+            "under_lit_leaf_count": 2,
+            "over_lit_leaf_count": 1,
+            "target_capped_incident_flux_total_umol_s": 34.0,
+            "total_incident_photon_flux_umol_s": 60.0,
+        },
+        "plant_surface_absorption": {
+            "schema": PLANT_SURFACE_FLUX_SCHEMA,
+            "status": "computed",
+            "method": "radiance_leaf_surface_receiver_sampling_v1",
+            "artifact_role": "incident_leaf_surface_flux",
+            "fspm_spectral_transport_mode": "scalar_source_weighted",
+            "leaf_radiance_material_mode": "opaque_occluder",
+            "target_ppfd_umol_m2_s": 275.0,
+            "target_tolerance_umol_m2_s": 20.0,
+            "plant_count": 2,
+            "leaf_count": 8,
+            "surface_count": 16,
+            "receiver_sample_count": 8,
+            "receiver_granularity": "leaf_centroid",
+            "one_sided_leaf_area_m2": 0.124,
+            "target_range_leaf_count": 5,
+            "under_lit_leaf_count": 2,
+            "over_lit_leaf_count": 1,
+            "target_capped_incident_flux_total_umol_s": 34.0,
+            "total_incident_photon_flux_umol_s": 60.0,
+        },
+    }
+    (runtime / FSPM_PANEL_METRICS_FILENAME).write_text(json.dumps(compact_panel), encoding="utf-8")
+    for filename in (
+        "plant_surface_flux.json",
+        "plant_spectral_absorption.json",
+        "plant_spectral_response.json",
+        "plant_photosynthesis_response.json",
+        "plant_photoreceptor_exposure.json",
+    ):
+        (runtime / filename).write_text("{not json", encoding="utf-8")
+
+    panel = build_fspm_panel_metrics(tmp_path)
+    csv_text = build_fspm_metrics_csv(tmp_path, run_id="compact", mode=MODE_SMD)
+
+    assert panel == compact_panel
+    assert "scalar_source_weighted" in csv_text
+    assert "opaque_occluder" in csv_text
+    assert "leaf_centroid" in csv_text
 
 
 def test_fspm_panel_reads_banded_spectral_absorption_aliases() -> None:
