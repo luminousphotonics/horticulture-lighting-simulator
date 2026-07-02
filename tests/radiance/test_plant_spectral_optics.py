@@ -15,10 +15,13 @@ from rad_rebuild.radiance.engine.plants.spectral import (  # noqa: E402
     SpectralPhotonFraction,
     build_leaf_spectral_absorption_summary,
     PLANT_SPECTRAL_RESPONSE_SCHEMA,
+    PLANT_SPECTRAL_RESPONSE_METHOD_BANDED,
+    build_banded_plant_spectral_response_payload,
     build_plant_spectral_response_payload,
     default_fixture_spectral_distribution,
     fixture_spectral_distribution_from_curve_data,
     parse_spectral_photon_fraction_overrides,
+    write_banded_plant_spectral_response_artifact,
     write_plant_spectral_response_artifact,
     default_leafy_green_spectral_bands,
 )
@@ -150,6 +153,140 @@ def _surface_flux_payload() -> dict[str, object]:
     }
 
 
+def _band_totals(
+    *,
+    blue: float,
+    green: float,
+    orange: float,
+    red: float,
+    far_red: float,
+) -> dict[str, dict[str, float]]:
+    totals = {
+        "blue": {
+            "incident_photon_flux_umol_s": 100.0,
+            "absorbed_photon_flux_umol_s": blue,
+            "reflected_photon_flux_umol_s": 10.0,
+            "transmitted_photon_flux_umol_s": 5.0,
+        },
+        "green": {
+            "incident_photon_flux_umol_s": 90.0,
+            "absorbed_photon_flux_umol_s": green,
+            "reflected_photon_flux_umol_s": 9.0,
+            "transmitted_photon_flux_umol_s": 4.0,
+        },
+        "orange": {
+            "incident_photon_flux_umol_s": 80.0,
+            "absorbed_photon_flux_umol_s": orange,
+            "reflected_photon_flux_umol_s": 8.0,
+            "transmitted_photon_flux_umol_s": 3.0,
+        },
+        "red": {
+            "incident_photon_flux_umol_s": 70.0,
+            "absorbed_photon_flux_umol_s": red,
+            "reflected_photon_flux_umol_s": 7.0,
+            "transmitted_photon_flux_umol_s": 2.0,
+        },
+        "far_red": {
+            "incident_photon_flux_umol_s": 60.0,
+            "absorbed_photon_flux_umol_s": far_red,
+            "reflected_photon_flux_umol_s": 6.0,
+            "transmitted_photon_flux_umol_s": 20.0,
+        },
+    }
+    totals["par"] = {
+        key: sum(totals[band][key] for band in ("blue", "green", "orange", "red"))
+        for key in totals["blue"]
+    }
+    totals["epar"] = {
+        key: totals["par"][key] + totals["far_red"][key]
+        for key in totals["blue"]
+    }
+    return totals
+
+
+def _banded_spectral_absorption_payload() -> dict[str, object]:
+    band_totals = _band_totals(
+        blue=60.0,
+        green=50.0,
+        orange=30.0,
+        red=40.0,
+        far_red=25.0,
+    )
+    base = {
+        "area_m2": 2.0,
+        "scalar_incident_par_photon_flux_umol_s": 340.0,
+        "total_incident_photon_flux_umol_s": 400.0,
+        "total_absorbed_photon_flux_umol_s": 205.0,
+        "total_reflected_photon_flux_umol_s": 40.0,
+        "total_transmitted_photon_flux_umol_s": 34.0,
+        "band_totals": band_totals,
+    }
+    return {
+        "schema": "rad_rebuild.fspm.plant_spectral_absorption.v1",
+        "schema_version": 1,
+        "status": "computed",
+        "method": "wavelength_binned_leaf_optical_profile_absorption_v1",
+        "fspm_spectral_transport_mode": "banded_5",
+        "source_surface_flux_schema": "rad_rebuild.fspm.plant_surface_flux.v1",
+        "source_surface_flux_method": "radiance_leaf_surface_receiver_sampling_v1",
+        "source_surface_flux_status": "computed",
+        "plant_count": 1,
+        "leaf_count": 1,
+        "surface_count": 1,
+        "par_band_ids": ["blue", "green", "orange", "red"],
+        "epar_band_ids": ["blue", "green", "orange", "red", "far_red"],
+        "source_spectrum": {
+            "distribution_id": "test_banded_source",
+            "source": "test",
+            "normalization_basis": "par_integral",
+        },
+        "band_summaries": [
+            {
+                "band_id": band_id,
+                "wavelength_min_nm": wavelength_min,
+                "wavelength_max_nm": wavelength_max,
+                "source_photon_fraction_relative_to_par": 0.2,
+                "effective_reflectance": 0.1,
+                "effective_transmittance": 0.05,
+                "effective_absorptance": 0.85,
+            }
+            for band_id, wavelength_min, wavelength_max in (
+                ("blue", 400, 499),
+                ("green", 500, 599),
+                ("orange", 600, 624),
+                ("red", 625, 699),
+                ("far_red", 700, 750),
+            )
+        ],
+        "surface_summaries": [
+            {
+                "surface_id": "plant_000_leaf_000_face_0000",
+                "plant_id": "plant_000",
+                "leaf_id": "plant_000_leaf_000",
+                "leaf_index": 0,
+                "face_index": 0,
+                "lighting_region": "nominal",
+                **base,
+            }
+        ],
+        "leaf_summaries": [
+            {
+                "leaf_id": "plant_000_leaf_000",
+                "plant_id": "plant_000",
+                "surface_count": 1,
+                **base,
+            }
+        ],
+        "plant_summaries": [
+            {
+                "plant_id": "plant_000",
+                "surface_count": 1,
+                **base,
+            }
+        ],
+    }
+
+
 def test_default_fixture_spectral_distributions_are_mode_specific() -> None:
     proposed = default_fixture_spectral_distribution("smd").fraction_map()
     conventional = default_fixture_spectral_distribution("competitor").fraction_map()
@@ -204,6 +341,48 @@ def test_plant_spectral_response_payload_converts_surface_flux_to_band_fluxes() 
         expected_par / 2.0
     )
     assert payload["visualization"]["leaf_values"][0]["visual_intensity_0_1"] == pytest.approx(0.5)
+
+
+def test_banded_spectral_response_uses_absorption_band_totals() -> None:
+    payload = build_banded_plant_spectral_response_payload(
+        _banded_spectral_absorption_payload()
+    )
+    leaf = payload["leaf_summaries"][0]
+
+    assert payload["schema"] == PLANT_SPECTRAL_RESPONSE_SCHEMA
+    assert payload["method"] == PLANT_SPECTRAL_RESPONSE_METHOD_BANDED
+    assert payload["source_artifact"] == "runtime_state/plant_spectral_absorption.json"
+    assert payload["source_data_basis"] == "banded_5_receiver_absorption"
+    assert payload["total_absorbed_par_photon_flux_umol_s"] == pytest.approx(180.0)
+    assert leaf["absorbed_par_photon_flux_umol_s"] == pytest.approx(180.0)
+    assert leaf["absorbed_orange_photon_flux_umol_s"] == pytest.approx(30.0)
+    assert leaf["absorbed_far_red_photon_flux_umol_s"] == pytest.approx(25.0)
+    assert leaf["absorbed_par_photon_flux_density_umol_m2_s"] == pytest.approx(90.0)
+    assert payload["band_totals"]["par"]["absorbed_photon_flux_umol_s"] == pytest.approx(
+        180.0
+    )
+    assert payload["band_totals"]["far_red"]["absorbed_photon_flux_umol_s"] == pytest.approx(
+        25.0
+    )
+    assert payload["spectral_distribution"]["distribution_id"] == "test_banded_source"
+
+
+def test_banded_spectral_response_artifact_export_is_compact(tmp_path) -> None:
+    path, full_payload = write_banded_plant_spectral_response_artifact(
+        tmp_path,
+        _banded_spectral_absorption_payload(),
+        return_payload=True,
+    )
+    compact = json.loads(path.read_text(encoding="utf-8"))
+
+    assert full_payload["leaf_summaries"][0]["absorbed_orange_photon_flux_umol_s"] > 0.0
+    assert compact["method"] == PLANT_SPECTRAL_RESPONSE_METHOD_BANDED
+    assert compact["source_artifact"] == "runtime_state/plant_spectral_absorption.json"
+    assert compact["band_totals"]["orange"]["absorbed_photon_flux_umol_s"] > 0.0
+    assert "surface_summaries" not in compact
+    assert "leaf_summaries" not in compact
+    assert "plant_summaries" not in compact
+    assert "visualization" not in compact
 
 
 def test_plant_spectral_response_artifact_export_is_deterministic(tmp_path) -> None:

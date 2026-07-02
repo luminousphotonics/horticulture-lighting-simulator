@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from tests.radiance.runtime_env import configure_test_runtime
 
 configure_test_runtime()
@@ -92,6 +94,20 @@ def test_photoreceptor_exposure_payload_reports_core_spectral_inputs() -> None:
     assert payload["exposure_consistency"]["plant_to_plant_absorbed_blue_pfd_cv"] > 0.0
 
 
+def test_photoreceptor_exposure_counts_orange_as_par_when_present() -> None:
+    spectral = _spectral_payload()
+    first_leaf = spectral["leaf_summaries"][0]
+    first_leaf["band_totals"]["orange"] = _band(50.0, 20.0)
+
+    payload = build_plant_photoreceptor_exposure_payload(spectral)
+    leaf = payload["leaf_summaries"][0]
+
+    assert leaf["absorbed_orange_pfd_umol_m2_s"] == 10.0
+    assert leaf["absorbed_par_pfd_umol_m2_s"] == 90.0
+    assert leaf["absorbed_blue_fraction_of_par"] == pytest.approx(60.0 / 180.0)
+    assert leaf["absorbed_far_red_fraction_of_total"] == pytest.approx(10.0 / 170.0)
+
+
 def test_photoreceptor_exposure_pss_and_blue_dose_are_null_without_method_inputs() -> None:
     payload = build_plant_photoreceptor_exposure_payload(_spectral_payload())
 
@@ -112,6 +128,12 @@ def test_photoreceptor_exposure_artifact_export_is_deterministic(tmp_path) -> No
     assert first == second
     payload = json.loads(first)
     assert payload["source_artifact"] == "runtime_state/plant_spectral_response.json"
+    assert payload["mean_absorbed_blue_pfd_umol_m2_s"] == 25.0
+    assert payload["mean_absorbed_green_pfd_umol_m2_s"] == 22.5
+    assert payload["mean_absorbed_red_pfd_umol_m2_s"] == 32.5
+    assert payload["mean_absorbed_far_red_pfd_umol_m2_s"] == 15.0
+    assert payload["mean_absorbed_blue_fraction_of_par"] == 0.3125
+    assert payload["mean_absorbed_red_to_far_red_ratio_diagnostic"] == 3.7
     assert "leaf_summaries" not in payload
     assert "plant_summaries" not in payload
 
@@ -156,4 +178,10 @@ def test_metrics_payload_includes_photoreceptor_exposure_summary(tmp_path) -> No
     exposure = payload["metrics"]["plant_photoreceptor_exposure"]
     assert exposure["schema"] == PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA
     assert exposure["source_artifact"] == "runtime_state/plant_photoreceptor_exposure.json"
+    assert exposure["mean_absorbed_blue_pfd_umol_m2_s"] == 25.0
+    assert exposure["mean_absorbed_green_pfd_umol_m2_s"] == 22.5
+    assert exposure["mean_absorbed_red_pfd_umol_m2_s"] == 32.5
+    assert exposure["mean_absorbed_far_red_pfd_umol_m2_s"] == 15.0
+    assert exposure["mean_absorbed_blue_fraction_of_par"] == 0.3125
+    assert exposure["mean_absorbed_red_to_far_red_ratio_diagnostic"] == 3.7
     assert exposure["phytochrome_pss_proxy"]["value"] is None

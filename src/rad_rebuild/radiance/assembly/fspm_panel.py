@@ -495,29 +495,33 @@ def _photoreceptor_exposure(payload: Mapping[str, Any] | None) -> dict[str, obje
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),
         "surface_count": payload.get("surface_count"),
-        "mean_absorbed_blue_pfd_umol_m2_s": _mean_field(
-            plant_summaries,
-            "absorbed_blue_pfd_umol_m2_s",
+        "mean_absorbed_blue_pfd_umol_m2_s": _first_present(
+            payload.get("mean_absorbed_blue_pfd_umol_m2_s"),
+            _mean_field(plant_summaries, "absorbed_blue_pfd_umol_m2_s"),
         ),
-        "mean_absorbed_green_pfd_umol_m2_s": _mean_field(
-            plant_summaries,
-            "absorbed_green_pfd_umol_m2_s",
+        "mean_absorbed_green_pfd_umol_m2_s": _first_present(
+            payload.get("mean_absorbed_green_pfd_umol_m2_s"),
+            _mean_field(plant_summaries, "absorbed_green_pfd_umol_m2_s"),
         ),
-        "mean_absorbed_red_pfd_umol_m2_s": _mean_field(
-            plant_summaries,
-            "absorbed_red_pfd_umol_m2_s",
+        "mean_absorbed_orange_pfd_umol_m2_s": _first_present(
+            payload.get("mean_absorbed_orange_pfd_umol_m2_s"),
+            _mean_field(plant_summaries, "absorbed_orange_pfd_umol_m2_s"),
         ),
-        "mean_absorbed_far_red_pfd_umol_m2_s": _mean_field(
-            plant_summaries,
-            "absorbed_far_red_pfd_umol_m2_s",
+        "mean_absorbed_red_pfd_umol_m2_s": _first_present(
+            payload.get("mean_absorbed_red_pfd_umol_m2_s"),
+            _mean_field(plant_summaries, "absorbed_red_pfd_umol_m2_s"),
         ),
-        "mean_absorbed_blue_fraction_of_par": _mean_field(
-            plant_summaries,
-            "absorbed_blue_fraction_of_par",
+        "mean_absorbed_far_red_pfd_umol_m2_s": _first_present(
+            payload.get("mean_absorbed_far_red_pfd_umol_m2_s"),
+            _mean_field(plant_summaries, "absorbed_far_red_pfd_umol_m2_s"),
         ),
-        "mean_absorbed_red_to_far_red_ratio_diagnostic": _mean_field(
-            plant_summaries,
-            "absorbed_red_to_far_red_ratio_diagnostic",
+        "mean_absorbed_blue_fraction_of_par": _first_present(
+            payload.get("mean_absorbed_blue_fraction_of_par"),
+            _mean_field(plant_summaries, "absorbed_blue_fraction_of_par"),
+        ),
+        "mean_absorbed_red_to_far_red_ratio_diagnostic": _first_present(
+            payload.get("mean_absorbed_red_to_far_red_ratio_diagnostic"),
+            _mean_field(plant_summaries, "absorbed_red_to_far_red_ratio_diagnostic"),
         ),
         "phytochrome_pss_proxy": payload.get("phytochrome_pss_proxy"),
         "blue_photon_dose": payload.get("blue_photon_dose"),

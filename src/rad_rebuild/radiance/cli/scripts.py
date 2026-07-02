@@ -80,6 +80,7 @@ from rad_rebuild.radiance.engine.plants.spectral import (
     fixture_spectral_distribution_from_curve_data,
     default_leafy_green_spectral_bands,
     parse_spectral_photon_fraction_overrides,
+    write_banded_plant_spectral_response_artifact,
     write_plant_spectral_response_artifact,
 )
 from rad_rebuild.radiance.engine.plants.spectral_absorption import (
@@ -1988,16 +1989,9 @@ def _write_banded_plant_surface_flux_artifact(
             banded_metadata,
             return_payload=True,
         )
-        spectral_distribution = _spectral_distribution_from_env(
-            config.env,
-            mode=spectral_mode,
-            curve_data_root=config.curve_data_root,
-        )
-        spectral_path, spectral_payload = write_plant_spectral_response_artifact(
+        spectral_path, spectral_payload = write_banded_plant_spectral_response_artifact(
             config.runtime_state_root,
-            surface_flux_payload,
-            default_leafy_green_spectral_bands(),
-            spectral_distribution,
+            spectral_absorption_payload,
             return_payload=True,
         )
         photosynthesis_path, photosynthesis_payload = write_plant_photosynthesis_response_artifact(
@@ -2046,9 +2040,8 @@ def _write_banded_plant_surface_flux_artifact(
     print("  method: banded_5_radiance_leaf_receiver_transport_v1")
     print("FSPM plant spectral-response artifact:")
     print(f"  • {spectral_path}")
-    print("  method: surface_flux_band_weighted_leaf_absorptance_v1")
-    print(f"  distribution: {spectral_distribution.distribution_id}")
-    print(f"  source: {spectral_distribution.source}")
+    print(f"  method: {spectral_payload.get('method')}")
+    print(f"  source: {spectral_payload.get('source_artifact')}")
     print("FSPM plant photosynthesis-response artifact:")
     print(f"  • {photosynthesis_path}")
     print("FSPM plant photoreceptor-exposure artifact:")

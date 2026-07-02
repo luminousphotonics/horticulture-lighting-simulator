@@ -305,7 +305,10 @@ PLANT_SPECTRAL_RESPONSE_SCHEMA = "rad_rebuild.fspm.plant_spectral_response.v1"
 PLANT_SPECTRAL_RESPONSE_SCHEMA_VERSION = 1
 PLANT_SPECTRAL_RESPONSE_FILENAME = "plant_spectral_response.json"
 PLANT_SURFACE_FLUX_SCHEMA = "rad_rebuild.fspm.plant_surface_flux.v1"
+PLANT_SPECTRAL_ABSORPTION_SCHEMA = "rad_rebuild.fspm.plant_spectral_absorption.v1"
 PLANT_SPECTRAL_RESPONSE_METHOD = "surface_flux_band_weighted_leaf_absorptance_v1"
+PLANT_SPECTRAL_RESPONSE_METHOD_BANDED = "banded_5_receiver_absorption_response_v1"
+BANDED_RESPONSE_SOURCE_BASIS = "banded_5_receiver_absorption"
 
 
 def _finite_non_negative(name: str, value: object) -> float:
@@ -806,6 +809,261 @@ def _band_totals_from_surfaces(
     return totals
 
 
+def _banded_absorption_rows(
+    spectral_absorption_payload: Mapping[str, Any],
+    key: str,
+) -> list[Mapping[str, Any]]:
+    rows = spectral_absorption_payload.get(key)
+    if not isinstance(rows, list) or not rows:
+        raise ValueError(f"Banded spectral-absorption payload must include {key}.")
+    return rows
+
+
+def _copy_absorption_band_totals(
+    row: Mapping[str, Any],
+) -> dict[str, dict[str, float]]:
+    raw_totals = row.get("band_totals")
+    if not isinstance(raw_totals, Mapping):
+        raise ValueError("Banded spectral-absorption rows must include band_totals.")
+
+    copied: dict[str, dict[str, float]] = {}
+    for band_id, raw_band in raw_totals.items():
+        if not isinstance(raw_band, Mapping):
+            raise ValueError(f"band_totals[{band_id}] must be an object.")
+        copied[str(band_id)] = {
+            "incident_photon_flux_umol_s": _finite_non_negative(
+                f"{band_id}.incident_photon_flux_umol_s",
+                raw_band.get("incident_photon_flux_umol_s", 0.0),
+            ),
+            "absorbed_photon_flux_umol_s": _finite_non_negative(
+                f"{band_id}.absorbed_photon_flux_umol_s",
+                raw_band.get("absorbed_photon_flux_umol_s", 0.0),
+            ),
+            "reflected_photon_flux_umol_s": _finite_non_negative(
+                f"{band_id}.reflected_photon_flux_umol_s",
+                raw_band.get("reflected_photon_flux_umol_s", 0.0),
+            ),
+            "transmitted_photon_flux_umol_s": _finite_non_negative(
+                f"{band_id}.transmitted_photon_flux_umol_s",
+                raw_band.get("transmitted_photon_flux_umol_s", 0.0),
+            ),
+        }
+    return copied
+
+
+def _banded_band_flux(
+    band_totals: Mapping[str, Mapping[str, float]],
+    band_id: str,
+    key: str,
+) -> float:
+    band = band_totals.get(band_id)
+    if not isinstance(band, Mapping):
+        return 0.0
+    return float(band.get(key, 0.0) or 0.0)
+
+
+def _banded_absorbed_par_flux(
+    band_totals: Mapping[str, Mapping[str, float]],
+) -> float:
+    if "par" in band_totals:
+        return _banded_band_flux(band_totals, "par", "absorbed_photon_flux_umol_s")
+    return sum(
+        _banded_band_flux(band_totals, band_id, "absorbed_photon_flux_umol_s")
+        for band_id in ("blue", "green", "orange", "red")
+    )
+
+
+def _banded_response_band_rows(
+    band_totals: Mapping[str, Mapping[str, float]],
+    band_summaries_by_id: Mapping[str, Mapping[str, Any]],
+    *,
+    area_m2: float,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for band_id, totals in band_totals.items():
+        metadata = band_summaries_by_id.get(band_id, {})
+        absorbed = float(totals.get("absorbed_photon_flux_umol_s", 0.0) or 0.0)
+        rows.append(
+            {
+                "band_id": band_id,
+                "wavelength_min_nm": metadata.get("wavelength_min_nm"),
+                "wavelength_max_nm": metadata.get("wavelength_max_nm"),
+                "incident_photon_flux_umol_s": float(
+                    totals.get("incident_photon_flux_umol_s", 0.0) or 0.0
+                ),
+                "absorbed_photon_flux_umol_s": absorbed,
+                "reflected_photon_flux_umol_s": float(
+                    totals.get("reflected_photon_flux_umol_s", 0.0) or 0.0
+                ),
+                "transmitted_photon_flux_umol_s": float(
+                    totals.get("transmitted_photon_flux_umol_s", 0.0) or 0.0
+                ),
+                "absorbed_photon_flux_density_umol_m2_s": (
+                    absorbed / area_m2 if area_m2 > 0.0 else 0.0
+                ),
+            }
+        )
+    return sorted(rows, key=lambda item: str(item["band_id"]))
+
+
+def _banded_response_summary(
+    row: Mapping[str, Any],
+    *,
+    id_key: str,
+    band_summaries_by_id: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    row_id = row.get(id_key)
+    if not isinstance(row_id, str) or not row_id:
+        raise ValueError(f"Each banded spectral-absorption row must include {id_key}.")
+    area = _finite_non_negative(f"area_m2[{row_id}]", row.get("area_m2"))
+    if area <= 0.0:
+        raise ValueError(f"area_m2[{row_id}] must be positive.")
+
+    band_totals = _copy_absorption_band_totals(row)
+    total_incident = _finite_non_negative(
+        f"total_incident_photon_flux_umol_s[{row_id}]",
+        row.get("total_incident_photon_flux_umol_s"),
+    )
+    total_absorbed = _finite_non_negative(
+        f"total_absorbed_photon_flux_umol_s[{row_id}]",
+        row.get("total_absorbed_photon_flux_umol_s"),
+    )
+    absorbed_par = _banded_absorbed_par_flux(band_totals)
+    absorbed_blue = _banded_band_flux(
+        band_totals,
+        "blue",
+        "absorbed_photon_flux_umol_s",
+    )
+    absorbed_green = _banded_band_flux(
+        band_totals,
+        "green",
+        "absorbed_photon_flux_umol_s",
+    )
+    absorbed_orange = _banded_band_flux(
+        band_totals,
+        "orange",
+        "absorbed_photon_flux_umol_s",
+    )
+    absorbed_red = _banded_band_flux(
+        band_totals,
+        "red",
+        "absorbed_photon_flux_umol_s",
+    )
+    absorbed_far_red = _banded_band_flux(
+        band_totals,
+        "far_red",
+        "absorbed_photon_flux_umol_s",
+    )
+    transmitted_far_red = _banded_band_flux(
+        band_totals,
+        "far_red",
+        "transmitted_photon_flux_umol_s",
+    )
+
+    summary = {
+        id_key: row_id,
+        "plant_id": row.get("plant_id"),
+        "leaf_id": row.get("leaf_id"),
+        "leaf_index": row.get("leaf_index"),
+        "face_index": row.get("face_index"),
+        "surface_count": row.get("surface_count"),
+        "area_m2": area,
+        "lighting_region": row.get("lighting_region") or "nominal",
+        "incident_photon_flux_umol_s": total_incident,
+        "absorbed_photon_flux_umol_s": total_absorbed,
+        "absorbed_par_photon_flux_umol_s": absorbed_par,
+        "absorbed_blue_photon_flux_umol_s": absorbed_blue,
+        "absorbed_green_photon_flux_umol_s": absorbed_green,
+        "absorbed_orange_photon_flux_umol_s": absorbed_orange,
+        "absorbed_red_photon_flux_umol_s": absorbed_red,
+        "absorbed_far_red_photon_flux_umol_s": absorbed_far_red,
+        "transmitted_far_red_photon_flux_umol_s": transmitted_far_red,
+        "absorbed_photon_flux_density_umol_m2_s": total_absorbed / area,
+        "absorbed_par_photon_flux_density_umol_m2_s": absorbed_par / area,
+        "absorbed_red_to_far_red_ratio": _ratio(absorbed_red, absorbed_far_red),
+        "absorbed_blue_to_par_fraction": _ratio(absorbed_blue, absorbed_par),
+        "bands": _banded_response_band_rows(
+            band_totals,
+            band_summaries_by_id,
+            area_m2=area,
+        ),
+        "band_totals": band_totals,
+    }
+    return summary
+
+
+def _banded_band_totals_from_rows(
+    rows: list[dict[str, Any]],
+) -> dict[str, dict[str, float]]:
+    totals: dict[str, dict[str, float]] = {}
+    for row in rows:
+        for band_id, band_values in row["band_totals"].items():
+            band_total = totals.setdefault(
+                band_id,
+                {
+                    "incident_photon_flux_umol_s": 0.0,
+                    "absorbed_photon_flux_umol_s": 0.0,
+                    "reflected_photon_flux_umol_s": 0.0,
+                    "transmitted_photon_flux_umol_s": 0.0,
+                },
+            )
+            for key, value in band_values.items():
+                band_total[key] += float(value)
+    return totals
+
+
+def _banded_spectral_distribution_payload(
+    spectral_absorption_payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    source_spectrum = spectral_absorption_payload.get("source_spectrum")
+    source = source_spectrum if isinstance(source_spectrum, Mapping) else {}
+    band_summaries = spectral_absorption_payload.get("band_summaries")
+    band_rows = band_summaries if isinstance(band_summaries, list) else []
+    return {
+        "distribution_id": source.get(
+            "distribution_id",
+            spectral_absorption_payload.get("source_spectrum_id"),
+        ),
+        "source": source.get("source", spectral_absorption_payload.get("source_spectrum_source")),
+        "source_spectral_basis": spectral_absorption_payload.get("source_spectral_basis"),
+        "normalization_basis": source.get("normalization_basis"),
+        "photon_fractions_relative_to_par": [
+            {
+                "band_id": band.get("band_id"),
+                "photon_fraction_relative_to_par": band.get(
+                    "source_photon_fraction_relative_to_par"
+                ),
+            }
+            for band in band_rows
+            if isinstance(band, Mapping) and band.get("band_id") is not None
+        ],
+    }
+
+
+def _banded_leaf_optics_payload(
+    spectral_absorption_payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    band_summaries = spectral_absorption_payload.get("band_summaries")
+    band_rows = band_summaries if isinstance(band_summaries, list) else []
+    return {
+        "source": "runtime_state/plant_spectral_absorption.json",
+        "basis": BANDED_RESPONSE_SOURCE_BASIS,
+        "optical_profile": spectral_absorption_payload.get("optical_profile"),
+        "bands": [
+            {
+                "band_id": band.get("band_id"),
+                "wavelength_min_nm": band.get("wavelength_min_nm"),
+                "wavelength_max_nm": band.get("wavelength_max_nm"),
+                "reflectance": band.get("effective_reflectance"),
+                "transmittance": band.get("effective_transmittance"),
+                "absorptance": band.get("effective_absorptance"),
+            }
+            for band in band_rows
+            if isinstance(band, Mapping) and band.get("band_id") is not None
+        ],
+    }
+
+
 def _spectral_visualization_payload(
     leaf_summaries: list[dict[str, Any]],
 ) -> dict[str, Any]:
@@ -921,6 +1179,119 @@ def build_plant_spectral_response_payload(
     }
 
 
+def build_banded_plant_spectral_response_payload(
+    spectral_absorption_payload: Mapping[str, Any],
+    *,
+    method: str = PLANT_SPECTRAL_RESPONSE_METHOD_BANDED,
+) -> dict[str, Any]:
+    """Build spectral response from true banded receiver absorption rows."""
+
+    if spectral_absorption_payload.get("schema") != PLANT_SPECTRAL_ABSORPTION_SCHEMA:
+        raise ValueError("Unsupported plant spectral-absorption schema.")
+    if spectral_absorption_payload.get("fspm_spectral_transport_mode") != "banded_5":
+        raise ValueError(
+            "Banded spectral-response builder requires banded_5 spectral absorption."
+        )
+
+    band_summaries = spectral_absorption_payload.get("band_summaries")
+    band_rows = band_summaries if isinstance(band_summaries, list) else []
+    band_summaries_by_id = {
+        str(band["band_id"]): band
+        for band in band_rows
+        if isinstance(band, Mapping) and band.get("band_id") is not None
+    }
+    surface_summaries = [
+        _banded_response_summary(
+            row,
+            id_key="surface_id",
+            band_summaries_by_id=band_summaries_by_id,
+        )
+        for row in _banded_absorption_rows(spectral_absorption_payload, "surface_summaries")
+    ]
+    leaf_summaries = [
+        _banded_response_summary(
+            row,
+            id_key="leaf_id",
+            band_summaries_by_id=band_summaries_by_id,
+        )
+        for row in _banded_absorption_rows(spectral_absorption_payload, "leaf_summaries")
+    ]
+    plant_summaries = [
+        _banded_response_summary(
+            row,
+            id_key="plant_id",
+            band_summaries_by_id=band_summaries_by_id,
+        )
+        for row in _banded_absorption_rows(spectral_absorption_payload, "plant_summaries")
+    ]
+    band_totals = _banded_band_totals_from_rows(surface_summaries)
+
+    return {
+        "schema": PLANT_SPECTRAL_RESPONSE_SCHEMA,
+        "schema_version": PLANT_SPECTRAL_RESPONSE_SCHEMA_VERSION,
+        "status": "computed",
+        "method": method,
+        "source_data_basis": BANDED_RESPONSE_SOURCE_BASIS,
+        "source_artifact": "runtime_state/plant_spectral_absorption.json",
+        "source_spectral_absorption_schema": spectral_absorption_payload.get("schema"),
+        "source_spectral_absorption_method": spectral_absorption_payload.get("method"),
+        "source_spectral_absorption_status": spectral_absorption_payload.get("status"),
+        "source_surface_flux_schema": spectral_absorption_payload.get(
+            "source_surface_flux_schema"
+        ),
+        "source_surface_flux_method": spectral_absorption_payload.get(
+            "source_surface_flux_method"
+        ),
+        "source_surface_flux_status": spectral_absorption_payload.get(
+            "source_surface_flux_status"
+        ),
+        "fspm_spectral_transport_mode": spectral_absorption_payload.get(
+            "fspm_spectral_transport_mode"
+        ),
+        "par_band_ids": spectral_absorption_payload.get("par_band_ids"),
+        "epar_band_ids": spectral_absorption_payload.get("epar_band_ids"),
+        "spectral_distribution": _banded_spectral_distribution_payload(
+            spectral_absorption_payload
+        ),
+        "leaf_optics": _banded_leaf_optics_payload(spectral_absorption_payload),
+        "units": {
+            "wavelength": "nm",
+            "photon_flux": "umol/s",
+            "photon_flux_density": "umol/m2/s",
+            "area": "m2",
+        },
+        "plant_count": spectral_absorption_payload.get("plant_count"),
+        "leaf_count": spectral_absorption_payload.get("leaf_count"),
+        "surface_count": spectral_absorption_payload.get("surface_count"),
+        "total_incident_photon_flux_umol_s": sum(
+            float(row["incident_photon_flux_umol_s"])
+            for row in surface_summaries
+        ),
+        "total_absorbed_photon_flux_umol_s": sum(
+            float(row["absorbed_photon_flux_umol_s"])
+            for row in surface_summaries
+        ),
+        "total_absorbed_par_photon_flux_umol_s": sum(
+            float(row["absorbed_par_photon_flux_umol_s"])
+            for row in surface_summaries
+        ),
+        "band_totals": band_totals,
+        "plant_summaries": plant_summaries,
+        "leaf_summaries": leaf_summaries,
+        "surface_summaries": surface_summaries,
+        "visualization": _spectral_visualization_payload(leaf_summaries),
+        "outputs_do_not_predict": list(NO_CROP_OUTPUT_TERMS),
+        "warnings": [
+            "Spectral response uses band-resolved FSPM receiver absorption data.",
+            "Far-red contributes to ePAR summaries but is not included in PAR summaries.",
+        ],
+        "limitations": [
+            "This artifact computes band-level absorbed photon flux, not photosynthesis, morphology, biomass, or yield.",
+            "Broad transport bands are not wavelength-action models.",
+        ],
+    }
+
+
 def write_plant_spectral_response_artifact(
     target_dir: str | Path,
     surface_flux_payload: Mapping[str, Any],
@@ -936,6 +1307,23 @@ def write_plant_spectral_response_artifact(
         optical_bands,
         photon_distribution,
     )
+    path = output_dir / PLANT_SPECTRAL_RESPONSE_FILENAME
+    path.write_text(
+        json.dumps(compact_plant_spectral_response_payload(payload), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return (path, payload) if return_payload else path
+
+
+def write_banded_plant_spectral_response_artifact(
+    target_dir: str | Path,
+    spectral_absorption_payload: Mapping[str, Any],
+    *,
+    return_payload: bool = False,
+) -> Path | tuple[Path, dict[str, Any]]:
+    output_dir = Path(target_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    payload = build_banded_plant_spectral_response_payload(spectral_absorption_payload)
     path = output_dir / PLANT_SPECTRAL_RESPONSE_FILENAME
     path.write_text(
         json.dumps(compact_plant_spectral_response_payload(payload), indent=2, sort_keys=True) + "\n",

@@ -18,8 +18,8 @@ PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME = "plant_photoreceptor_exposure.json"
 PLANT_PHOTORECEPTOR_EXPOSURE_METHOD = "spectral_band_exposure_inputs_v1"
 PLANT_SPECTRAL_RESPONSE_SCHEMA = "rad_rebuild.fspm.plant_spectral_response.v1"
 
-PAR_BAND_IDS = frozenset({"blue", "green", "red"})
-EXPOSURE_BAND_IDS = ("blue", "green", "red", "far_red")
+PAR_BAND_IDS = frozenset({"blue", "green", "orange", "red"})
+EXPOSURE_BAND_IDS = ("blue", "green", "orange", "red", "far_red")
 
 
 def _finite_non_negative(name: str, value: object) -> float:
@@ -116,6 +116,7 @@ def _leaf_exposure_summary(row: Mapping[str, Any]) -> dict[str, Any]:
         "area_m2": area,
         "absorbed_blue_pfd_umol_m2_s": absorbed_flux["blue"] / area,
         "absorbed_green_pfd_umol_m2_s": absorbed_flux["green"] / area,
+        "absorbed_orange_pfd_umol_m2_s": absorbed_flux["orange"] / area,
         "absorbed_red_pfd_umol_m2_s": absorbed_flux["red"] / area,
         "absorbed_far_red_pfd_umol_m2_s": absorbed_flux["far_red"] / area,
         "absorbed_par_pfd_umol_m2_s": absorbed_par_flux / area,
@@ -143,6 +144,7 @@ def _aggregate_plant_rows(leaf_rows: list[dict[str, Any]]) -> list[dict[str, Any
     density_fields = (
         "absorbed_blue_pfd_umol_m2_s",
         "absorbed_green_pfd_umol_m2_s",
+        "absorbed_orange_pfd_umol_m2_s",
         "absorbed_red_pfd_umol_m2_s",
         "absorbed_far_red_pfd_umol_m2_s",
         "absorbed_par_pfd_umol_m2_s",
@@ -197,6 +199,49 @@ def _aggregate_plant_rows(leaf_rows: list[dict[str, Any]]) -> list[dict[str, Any
     return sorted(rows, key=lambda item: item["plant_id"])
 
 
+def _mean_field(rows: list[dict[str, Any]], field_name: str) -> float | None:
+    values = [
+        float(row[field_name])
+        for row in rows
+        if isinstance(row.get(field_name), int | float)
+        and math.isfinite(float(row[field_name]))
+    ]
+    return sum(values) / len(values) if values else None
+
+
+def _exposure_mean_fields(plant_rows: list[dict[str, Any]]) -> dict[str, float | None]:
+    return {
+        "mean_absorbed_blue_pfd_umol_m2_s": _mean_field(
+            plant_rows,
+            "absorbed_blue_pfd_umol_m2_s",
+        ),
+        "mean_absorbed_green_pfd_umol_m2_s": _mean_field(
+            plant_rows,
+            "absorbed_green_pfd_umol_m2_s",
+        ),
+        "mean_absorbed_orange_pfd_umol_m2_s": _mean_field(
+            plant_rows,
+            "absorbed_orange_pfd_umol_m2_s",
+        ),
+        "mean_absorbed_red_pfd_umol_m2_s": _mean_field(
+            plant_rows,
+            "absorbed_red_pfd_umol_m2_s",
+        ),
+        "mean_absorbed_far_red_pfd_umol_m2_s": _mean_field(
+            plant_rows,
+            "absorbed_far_red_pfd_umol_m2_s",
+        ),
+        "mean_absorbed_blue_fraction_of_par": _mean_field(
+            plant_rows,
+            "absorbed_blue_fraction_of_par",
+        ),
+        "mean_absorbed_red_to_far_red_ratio_diagnostic": _mean_field(
+            plant_rows,
+            "absorbed_red_to_far_red_ratio_diagnostic",
+        ),
+    }
+
+
 def _exposure_consistency(plant_rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "plant_to_plant_absorbed_blue_pfd_cv": _coefficient_of_variation(
@@ -204,6 +249,9 @@ def _exposure_consistency(plant_rows: list[dict[str, Any]]) -> dict[str, Any]:
         ),
         "plant_to_plant_absorbed_red_pfd_cv": _coefficient_of_variation(
             [float(row["absorbed_red_pfd_umol_m2_s"]) for row in plant_rows]
+        ),
+        "plant_to_plant_absorbed_orange_pfd_cv": _coefficient_of_variation(
+            [float(row["absorbed_orange_pfd_umol_m2_s"]) for row in plant_rows]
         ),
         "plant_to_plant_absorbed_far_red_pfd_cv": _coefficient_of_variation(
             [float(row["absorbed_far_red_pfd_umol_m2_s"]) for row in plant_rows]
@@ -233,6 +281,7 @@ def build_plant_photoreceptor_exposure_payload(
     spectral_rows = _spectral_leaf_rows(spectral_response_payload)
     leaf_rows = [_leaf_exposure_summary(row) for row in spectral_rows]
     plant_rows = _aggregate_plant_rows(leaf_rows)
+    exposure_means = _exposure_mean_fields(plant_rows)
 
     return {
         "schema": PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA,
@@ -241,6 +290,9 @@ def build_plant_photoreceptor_exposure_payload(
         "method": method,
         "source_spectral_response_schema": spectral_response_payload.get("schema"),
         "source_spectral_response_method": spectral_response_payload.get("method"),
+        "source_spectral_response_data_basis": spectral_response_payload.get(
+            "source_data_basis"
+        ),
         "source_spectral_distribution": spectral_response_payload.get("spectral_distribution"),
         "source_artifact": "runtime_state/plant_spectral_response.json",
         "units": {
@@ -252,6 +304,7 @@ def build_plant_photoreceptor_exposure_payload(
         "plant_count": spectral_response_payload.get("plant_count"),
         "leaf_count": spectral_response_payload.get("leaf_count"),
         "surface_count": spectral_response_payload.get("surface_count"),
+        **exposure_means,
         "blue_photon_dose": {
             "value_umol_m2": None,
             "status": "not_computed",

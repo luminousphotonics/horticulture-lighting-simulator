@@ -36,6 +36,9 @@ from rad_rebuild.radiance.engine.plants.leaf_materials import (  # noqa: E402
 from rad_rebuild.radiance.engine.plants.optical_profiles import (  # noqa: E402
     REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
 )
+from rad_rebuild.radiance.engine.plants.spectral import (  # noqa: E402
+    PLANT_SPECTRAL_RESPONSE_METHOD_BANDED,
+)
 from rad_rebuild.radiance.paths import REPO_ROOT  # noqa: E402
 
 
@@ -786,7 +789,7 @@ def test_smd_banded_transport_traces_active_bands_without_scalar_receiver(
             "FSPM_RTRACE_NPROC": "3",
             "FSPM_RTRACE_AMBIENT_MODE": "per_band_af",
             "FSPM_SPECTRAL_PHOTON_FRACTIONS": (
-                "blue=0.2,green=0.3,red=0.5,far_red=0.0"
+                "blue=0.2,green=0.3,orange=0.1,red=0.4,far_red=0.0"
             ),
             "RADIANCE_CURVE_DATA_ROOT": str(tmp_path / "empty_curve_data"),
             "MODE": "standard",
@@ -908,6 +911,15 @@ def test_smd_banded_transport_traces_active_bands_without_scalar_receiver(
     spectral_absorption = json.loads(
         (runtime / "plant_spectral_absorption.json").read_text(encoding="utf-8")
     )
+    spectral_response = json.loads(
+        (runtime / "plant_spectral_response.json").read_text(encoding="utf-8")
+    )
+    photosynthesis = json.loads(
+        (runtime / "plant_photosynthesis_response.json").read_text(encoding="utf-8")
+    )
+    photoreceptor = json.loads(
+        (runtime / "plant_photoreceptor_exposure.json").read_text(encoding="utf-8")
+    )
     active_bands = [
         band
         for band in surface_flux["banded_transport_bands"]
@@ -1009,6 +1021,29 @@ def test_smd_banded_transport_traces_active_bands_without_scalar_receiver(
     assert (
         spectral_absorption["crop_summary"]["incident_epar_ppfd_umol_m2_s"]
         >= spectral_absorption["crop_summary"]["incident_par_ppfd_umol_m2_s"]
+    )
+    assert spectral_response["method"] == PLANT_SPECTRAL_RESPONSE_METHOD_BANDED
+    assert spectral_response["source_artifact"] == (
+        "runtime_state/plant_spectral_absorption.json"
+    )
+    assert spectral_response["source_data_basis"] == "banded_5_receiver_absorption"
+    assert spectral_response["band_totals"]["orange"][
+        "absorbed_photon_flux_umol_s"
+    ] > 0.0
+    assert "surface_summaries" not in spectral_response
+    assert "leaf_summaries" not in spectral_response
+    assert "plant_summaries" not in spectral_response
+    assert photoreceptor["source_spectral_response_method"] == (
+        PLANT_SPECTRAL_RESPONSE_METHOD_BANDED
+    )
+    assert photoreceptor["source_spectral_response_data_basis"] == (
+        "banded_5_receiver_absorption"
+    )
+    assert photosynthesis["source_spectral_response_method"] == (
+        PLANT_SPECTRAL_RESPONSE_METHOD_BANDED
+    )
+    assert photosynthesis["source_spectral_response_data_basis"] == (
+        "banded_5_receiver_absorption"
     )
 
 

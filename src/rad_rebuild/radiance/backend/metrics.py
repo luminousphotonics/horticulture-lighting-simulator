@@ -568,10 +568,34 @@ def _load_plant_photoreceptor_exposure_summary(workspace_root: Path) -> dict[str
         "method": payload.get("method"),
         "source_artifact": f"runtime_state/{PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME}",
         "source_spectral_response_method": payload.get("source_spectral_response_method"),
+        "source_spectral_response_data_basis": payload.get(
+            "source_spectral_response_data_basis"
+        ),
         "source_spectral_distribution": payload.get("source_spectral_distribution"),
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),
         "surface_count": payload.get("surface_count"),
+        "mean_absorbed_blue_pfd_umol_m2_s": payload.get(
+            "mean_absorbed_blue_pfd_umol_m2_s"
+        ),
+        "mean_absorbed_green_pfd_umol_m2_s": payload.get(
+            "mean_absorbed_green_pfd_umol_m2_s"
+        ),
+        "mean_absorbed_orange_pfd_umol_m2_s": payload.get(
+            "mean_absorbed_orange_pfd_umol_m2_s"
+        ),
+        "mean_absorbed_red_pfd_umol_m2_s": payload.get(
+            "mean_absorbed_red_pfd_umol_m2_s"
+        ),
+        "mean_absorbed_far_red_pfd_umol_m2_s": payload.get(
+            "mean_absorbed_far_red_pfd_umol_m2_s"
+        ),
+        "mean_absorbed_blue_fraction_of_par": payload.get(
+            "mean_absorbed_blue_fraction_of_par"
+        ),
+        "mean_absorbed_red_to_far_red_ratio_diagnostic": payload.get(
+            "mean_absorbed_red_to_far_red_ratio_diagnostic"
+        ),
         "blue_photon_dose": payload.get("blue_photon_dose"),
         "phytochrome_pss_proxy": payload.get("phytochrome_pss_proxy"),
         "single_leaf_transmission_proxy_note": payload.get(

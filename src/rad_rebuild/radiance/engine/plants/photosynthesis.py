@@ -682,6 +682,9 @@ def build_plant_photosynthesis_response_payload(
         ),
         "source_spectral_response_schema": spectral_response_payload.get("schema"),
         "source_spectral_response_method": spectral_response_payload.get("method"),
+        "source_spectral_response_data_basis": spectral_response_payload.get(
+            "source_data_basis"
+        ),
         "source_spectral_distribution": spectral_response_payload.get("spectral_distribution"),
         "source_artifact": "runtime_state/plant_spectral_response.json",
         "parameters": params.to_payload(),

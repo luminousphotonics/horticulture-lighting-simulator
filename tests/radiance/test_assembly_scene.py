@@ -647,6 +647,55 @@ def test_builder_attaches_sanitized_fspm_panel_metrics(tmp_path: Path) -> None:
     assert str(tmp_path) not in json.dumps(scene)
 
 
+def test_fspm_panel_reads_compact_photoreceptor_means(tmp_path: Path) -> None:
+    runtime = tmp_path / "runtime_state"
+    runtime.mkdir(parents=True)
+    (runtime / "plant_photoreceptor_exposure.json").write_text(
+        json.dumps(
+            {
+                "schema": PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA,
+                "schema_version": 1,
+                "status": "computed",
+                "method": "spectral_band_exposure_inputs_v1",
+                "plant_count": 2,
+                "leaf_count": 8,
+                "surface_count": 16,
+                "source_spectral_response_method": (
+                    "banded_5_receiver_absorption_response_v1"
+                ),
+                "source_spectral_response_data_basis": (
+                    "banded_5_receiver_absorption"
+                ),
+                "mean_absorbed_blue_pfd_umol_m2_s": 24.9,
+                "mean_absorbed_green_pfd_umol_m2_s": 45.4,
+                "mean_absorbed_orange_pfd_umol_m2_s": 15.7,
+                "mean_absorbed_red_pfd_umol_m2_s": 32.9,
+                "mean_absorbed_far_red_pfd_umol_m2_s": 0.6,
+                "mean_absorbed_blue_fraction_of_par": 0.208,
+                "mean_absorbed_red_to_far_red_ratio_diagnostic": 53.4,
+                "phytochrome_pss_proxy": {"value": None, "status": "not_computed"},
+                "blue_photon_dose": {
+                    "value_umol_m2": None,
+                    "status": "not_computed",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    panel = build_fspm_panel_metrics(tmp_path)
+
+    assert panel is not None
+    exposure = panel["photoreceptor_exposure"]
+    assert exposure["mean_absorbed_blue_pfd_umol_m2_s"] == 24.9
+    assert exposure["mean_absorbed_green_pfd_umol_m2_s"] == 45.4
+    assert exposure["mean_absorbed_orange_pfd_umol_m2_s"] == 15.7
+    assert exposure["mean_absorbed_red_pfd_umol_m2_s"] == 32.9
+    assert exposure["mean_absorbed_far_red_pfd_umol_m2_s"] == 0.6
+    assert exposure["mean_absorbed_blue_fraction_of_par"] == 0.208
+    assert exposure["mean_absorbed_red_to_far_red_ratio_diagnostic"] == 53.4
+
+
 def test_fspm_panel_and_csv_prefer_compact_metrics_artifact(tmp_path: Path) -> None:
     runtime = tmp_path / "runtime_state"
     runtime.mkdir(parents=True)
