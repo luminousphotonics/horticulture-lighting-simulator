@@ -7,6 +7,33 @@ const PLANT_VIEWER_SCHEMA = "rad_rebuild.fspm.plants.viewer.v1";
 const DEFAULT_LEAF_COLOR = 0x3fa66f;
 const DEFAULT_ABSORPTION_INTENSITY = 0.5;
 const DEFAULT_LEAF_THREE_COLOR = new THREE.Color(DEFAULT_LEAF_COLOR);
+const SURFACE_FLUX_METRIC = "incident_photon_flux_density_umol_m2_s";
+const TARGET_CLASSIFICATION_METRIC = "target_classification_ppfd_umol_m2_s";
+const DISPLAY_DEVIATION_K = 0.45;
+const DISPLAY_DEVIATION_MAX_TAIL = 20;
+const TARGET_COLOR_ANCHORS = [
+  { deviation: -20, color: "#102A1B" },
+  { deviation: -8, color: "#173E29" },
+  { deviation: -4, color: "#1E5638" },
+  { deviation: -2, color: "#236F49" },
+  { deviation: -1.25, color: "#11704F" },
+  { deviation: -1, color: "#147A56" },
+  { deviation: -0.75, color: "#1F925B" },
+  { deviation: -0.5, color: "#2DAA60" },
+  { deviation: -0.25, color: "#3DBF65" },
+  { deviation: -0.1, color: "#47CA68" },
+  { deviation: 0, color: "#4BCF6A" },
+  { deviation: 0.1, color: "#59D16A" },
+  { deviation: 0.25, color: "#6ED866" },
+  { deviation: 0.5, color: "#90DD58" },
+  { deviation: 0.75, color: "#AAE14E" },
+  { deviation: 1, color: "#B7E455" },
+  { deviation: 1.5, color: "#C9DF4F" },
+  { deviation: 2, color: "#D8D747" },
+  { deviation: 4, color: "#E6C33F" },
+  { deviation: 8, color: "#F0A63A" },
+  { deviation: 20, color: "#E26E26" },
+];
 
 function finiteNumber(value) {
   const number = Number(value);
@@ -71,12 +98,165 @@ function clamp01(value, fallback = DEFAULT_ABSORPTION_INTENSITY) {
   return Math.min(1.0, Math.max(0.0, number));
 }
 
-function absorptionColorForIntensity(value) {
-  const intensity = clamp01(value);
-  const color = new THREE.Color();
-  // Low absorption: deeper green/teal. High absorption: brighter yellow-green.
-  color.setHSL(0.40 - 0.26 * intensity, 0.72, 0.32 + 0.22 * intensity);
-  return color;
+function clamp(value, minValue, maxValue) {
+  return Math.min(maxValue, Math.max(minValue, value));
+}
+
+function interpolatedColor(startColor, endColor, value) {
+  return new THREE.Color().lerpColors(startColor, endColor, clamp01(value, 0));
+}
+
+function colorInterpolationPosition(value) {
+  const number = finiteNumber(value);
+  if (number === null || number === 0) {
+    return 0;
+  }
+  const magnitude = Math.abs(number);
+  if (magnitude <= 1) {
+    return number;
+  }
+  const tailMagnitude = Math.asinh(DISPLAY_DEVIATION_K * (magnitude - 1))
+    / Math.asinh(DISPLAY_DEVIATION_K * (DISPLAY_DEVIATION_MAX_TAIL - 1));
+  return Math.sign(number) * (1 + (DISPLAY_DEVIATION_MAX_TAIL - 1) * clamp(tailMagnitude, 0, 1));
+}
+
+function anchorInterpolationPosition(anchor) {
+  const displayDeviation = finiteNumber(anchor?.displayDeviation);
+  if (displayDeviation !== null) {
+    return displayDeviation;
+  }
+  return colorInterpolationPosition(anchor?.deviation);
+}
+
+function hexToRgb(hex) {
+  const value = typeof hex === "string" ? hex.replace("#", "") : "";
+  if (!/^[0-9a-fA-F]{6}$/.test(value)) {
+    return { r: 0, g: 0, b: 0 };
+  }
+  return {
+    r: Number.parseInt(value.slice(0, 2), 16),
+    g: Number.parseInt(value.slice(2, 4), 16),
+    b: Number.parseInt(value.slice(4, 6), 16),
+  };
+}
+
+function rgbToHex({ r, g, b }) {
+  return `#${
+    [r, g, b]
+      .map((value) => clamp(Math.round(value), 0, 255).toString(16).padStart(2, "0"))
+      .join("")
+      .toUpperCase()
+  }`;
+}
+
+function interpolatedHexColor(startHex, endHex, value) {
+  const t = clamp01(value, 0);
+  const start = hexToRgb(startHex);
+  const end = hexToRgb(endHex);
+  return rgbToHex({
+    r: start.r + (end.r - start.r) * t,
+    g: start.g + (end.g - start.g) * t,
+    b: start.b + (end.b - start.b) * t,
+  });
+}
+
+export function surfaceFluxColorHexForTargetDeviation(value) {
+  const displayDeviation = colorInterpolationPosition(value);
+  const firstAnchor = TARGET_COLOR_ANCHORS[0];
+  const lastAnchor = TARGET_COLOR_ANCHORS[TARGET_COLOR_ANCHORS.length - 1];
+  if (displayDeviation <= anchorInterpolationPosition(firstAnchor)) {
+    return firstAnchor.color;
+  }
+  for (let index = 1; index < TARGET_COLOR_ANCHORS.length; index += 1) {
+    const previous = TARGET_COLOR_ANCHORS[index - 1];
+    const next = TARGET_COLOR_ANCHORS[index];
+    const previousPosition = anchorInterpolationPosition(previous);
+    const nextPosition = anchorInterpolationPosition(next);
+    if (displayDeviation <= nextPosition) {
+      return interpolatedHexColor(
+        previous.color,
+        next.color,
+        (displayDeviation - previousPosition) / (nextPosition - previousPosition),
+      );
+    }
+  }
+  return lastAnchor.color;
+}
+
+function targetDeviationColor(value) {
+  return new THREE.Color(surfaceFluxColorHexForTargetDeviation(value));
+}
+
+function surfaceFluxTarget(surfaceFlux) {
+  const target = finiteNumber(surfaceFlux?.target_ppfd_umol_m2_s);
+  const tolerance = finiteNumber(surfaceFlux?.target_tolerance_umol_m2_s);
+  if (target !== null && tolerance !== null && target > 0 && tolerance > 0) {
+    return { target, tolerance };
+  }
+
+  const lower = finiteNumber(surfaceFlux?.target_lower_threshold_umol_m2_s);
+  const upper = finiteNumber(surfaceFlux?.target_upper_threshold_umol_m2_s);
+  if (lower !== null && upper !== null && upper > lower) {
+    return {
+      target: (lower + upper) / 2,
+      tolerance: (upper - lower) / 2,
+    };
+  }
+  return null;
+}
+
+function surfaceFluxLeafMetric(row, colorMetric) {
+  const classificationValue = finiteNumber(row?.[TARGET_CLASSIFICATION_METRIC]);
+  if (classificationValue !== null) {
+    return classificationValue;
+  }
+  const incidentValue = finiteNumber(row?.[SURFACE_FLUX_METRIC]);
+  if (incidentValue !== null) {
+    return incidentValue;
+  }
+  const metricValue = typeof colorMetric === "string" && colorMetric
+    ? finiteNumber(row?.[colorMetric])
+    : null;
+  return metricValue;
+}
+
+export function surfaceFluxTargetDeviationForLeafValue(row, surfaceFlux = {}, colorMetric = "") {
+  const rowDeviation = finiteNumber(row?.target_deviation);
+  if (rowDeviation !== null) {
+    return rowDeviation;
+  }
+
+  const target = surfaceFluxTarget(surfaceFlux);
+  const value = surfaceFluxLeafMetric(row, colorMetric);
+  if (!target || value === null) {
+    return null;
+  }
+  return (value - target.target) / target.tolerance;
+}
+
+function colorForLightingRegion(row) {
+  const intensity = clamp01(row?.visual_intensity_0_1);
+  const region = typeof row?.lighting_region === "string" ? row.lighting_region : "";
+  if (region === "in_target" || region === "in_range" || region === "target_range") {
+    return targetDeviationColor(0);
+  }
+  if (region === "over_target" || region === "over_lit" || region === "above_target") {
+    return targetDeviationColor(1 + intensity * 7);
+  }
+  return interpolatedColor(DEFAULT_LEAF_THREE_COLOR, targetDeviationColor(-1), intensity);
+}
+
+function absorptionColorForLeaf(row, surfaceFlux, colorMetric) {
+  if (!row) {
+    return DEFAULT_LEAF_THREE_COLOR;
+  }
+
+  const targetDeviation = surfaceFluxTargetDeviationForLeafValue(row, surfaceFlux, colorMetric);
+  if (targetDeviation === null) {
+    return colorForLightingRegion(row);
+  }
+
+  return targetDeviationColor(targetDeviation);
 }
 
 function createLeafMaterial({ plantPayload, color, vertexColors = false }) {
@@ -89,6 +269,18 @@ function createLeafMaterial({ plantPayload, color, vertexColors = false }) {
     transparent: true,
     opacity: leafMaterialOpacity(plantPayload),
   });
+}
+
+function createAbsorptionLeafMaterial(plantPayload) {
+  const material = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    vertexColors: true,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: leafMaterialOpacity(plantPayload),
+  });
+  material.toneMapped = false;
+  return material;
 }
 
 function surfaceFluxLeafValues(plantPayload) {
@@ -108,15 +300,10 @@ function leafFluxById(plantPayload) {
   return map;
 }
 
-function leafVisualIntensity(leaf, fluxByLeafId) {
+function leafFluxRow(leaf, fluxByLeafId) {
   const leafId = typeof leaf?.leaf_id === "string" ? leaf.leaf_id : "";
-  const row = leafId ? fluxByLeafId.get(leafId) : null;
-  if (!row) {
-    return null;
-  }
-  return clamp01(row.visual_intensity_0_1);
+  return leafId ? fluxByLeafId.get(leafId) || null : null;
 }
-
 
 function plantCounts(plants) {
   const plantCount = plants.length;
@@ -158,6 +345,11 @@ export function createPlantVisibilityController(plantGroup) {
       if (defaultColorAttribute && absorptionColorAttribute && child.geometry instanceof THREE.BufferGeometry) {
         child.geometry.setAttribute("color", absorptionColor ? absorptionColorAttribute : defaultColorAttribute);
         child.geometry.attributes.color.needsUpdate = true;
+        const defaultMaterial = child.userData?.defaultMaterial;
+        const absorptionMaterial = child.userData?.absorptionMaterial;
+        if (defaultMaterial && absorptionMaterial) {
+          child.material = absorptionColor ? absorptionMaterial : defaultMaterial;
+        }
         return;
       }
       const defaultMaterial = child.userData?.defaultMaterial;
@@ -217,7 +409,7 @@ export function createLeafGeometry(leaf) {
   return geometry;
 }
 
-function appendLeafGeometryBuffers({ leaf, visualIntensity, positions, indices, defaultColors, absorptionColors }) {
+function appendLeafGeometryBuffers({ leaf, absorptionColor, positions, indices, defaultColors, absorptionColors }) {
   const sourceVertices = Array.isArray(leaf?.mesh?.vertices) ? leaf.mesh.vertices : [];
   const vertices = sourceVertices.map(finiteCoordinateTriple);
   if (vertices.some((vertex) => vertex === null)) {
@@ -229,9 +421,6 @@ function appendLeafGeometryBuffers({ leaf, visualIntensity, positions, indices, 
   }
 
   const vertexOffset = positions.length / 3;
-  const absorptionColor = visualIntensity === null
-    ? DEFAULT_LEAF_THREE_COLOR
-    : absorptionColorForIntensity(visualIntensity);
   for (const vertex of vertices) {
     positions.push(...radianceVertexToWorld(vertex));
     defaultColors.push(DEFAULT_LEAF_THREE_COLOR.r, DEFAULT_LEAF_THREE_COLOR.g, DEFAULT_LEAF_THREE_COLOR.b);
@@ -260,10 +449,17 @@ export function createPlantGroup(scenePayload) {
     color: 0xffffff,
     vertexColors: true,
   });
+  const absorptionMaterial = createAbsorptionLeafMaterial(plantPayload);
   const fluxByLeafId = leafFluxById(plantPayload);
   const colorMetric = plantPayload?.surface_flux?.visualization?.color_metric || "";
+  const surfaceFlux = plantPayload?.surface_flux || {};
   let renderedLeafCount = 0;
   let absorptionColoredLeafCount = 0;
+  let matchedLeafCount = 0;
+  let unmatchedLeafCount = 0;
+  let targetDeviationLeafCount = 0;
+  let legacyFallbackLeafCount = 0;
+  let defaultColorLeafCount = 0;
   const positions = [];
   const indices = [];
   const defaultColors = [];
@@ -272,10 +468,12 @@ export function createPlantGroup(scenePayload) {
   for (const plant of plantPayload.plants) {
     const leaves = Array.isArray(plant?.leaves) ? plant.leaves : [];
     for (const leaf of leaves) {
-      const visualIntensity = leafVisualIntensity(leaf, fluxByLeafId);
+      const fluxRow = leafFluxRow(leaf, fluxByLeafId);
+      const targetDeviation = surfaceFluxTargetDeviationForLeafValue(fluxRow, surfaceFlux, colorMetric);
+      const absorptionColor = absorptionColorForLeaf(fluxRow, surfaceFlux, colorMetric);
       const rendered = appendLeafGeometryBuffers({
         leaf,
-        visualIntensity,
+        absorptionColor,
         positions,
         indices,
         defaultColors,
@@ -285,8 +483,17 @@ export function createPlantGroup(scenePayload) {
         warnings.push(`${leaf?.leaf_id || "unknown leaf"} has invalid plant mesh data.`);
         continue;
       }
-      if (visualIntensity !== null) {
+      if (fluxRow !== null) {
+        matchedLeafCount += 1;
         absorptionColoredLeafCount += 1;
+        if (targetDeviation !== null) {
+          targetDeviationLeafCount += 1;
+        } else {
+          legacyFallbackLeafCount += 1;
+        }
+      } else {
+        unmatchedLeafCount += 1;
+        defaultColorLeafCount += 1;
       }
       renderedLeafCount += 1;
     }
@@ -310,6 +517,7 @@ export function createPlantGroup(scenePayload) {
       batched: true,
       renderedLeafCount,
       defaultMaterial,
+      absorptionMaterial,
       defaultColorAttribute,
       absorptionColorAttribute,
     };
@@ -321,6 +529,11 @@ export function createPlantGroup(scenePayload) {
     leafCount: counts.leafCount,
     renderedLeafCount,
     absorptionColoredLeafCount,
+    matchedLeafCount,
+    unmatchedLeafCount,
+    targetDeviationLeafCount,
+    legacyFallbackLeafCount,
+    defaultColorLeafCount,
     hasAbsorptionColor: absorptionColoredLeafCount > 0,
     colorMetric,
     warnings,

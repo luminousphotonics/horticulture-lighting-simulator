@@ -239,6 +239,8 @@ def _write_minimal_large_plant_payload(
                     "plant_id": plant_id,
                     "lighting_region": "target_range",
                     "incident_photon_flux_density_umol_m2_s": 250.0 + leaf_index,
+                    "target_classification_ppfd_umol_m2_s": 250.0 + leaf_index,
+                    "target_deviation": ((250.0 + leaf_index) - 1000.0) / 20.0,
                     "visual_intensity_0_1": intensity,
                 }
             )
@@ -436,6 +438,8 @@ def test_large_fspm_scene_embeds_compact_leaf_visualization_under_proxy_limit(tm
     assert "leaf_summaries" not in surface_flux
     assert "plant_summaries" not in surface_flux
     assert "visual_intensity_0_1" in visualization["leaf_values"][0]
+    assert "target_classification_ppfd_umol_m2_s" in visualization["leaf_values"][0]
+    assert "target_deviation" in visualization["leaf_values"][0]
     assert len(json.dumps(scene, separators=(",", ":")).encode("utf-8")) < PROXY_RESPONSE_LIMIT_BYTES
 
 

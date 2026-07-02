@@ -1157,12 +1157,36 @@ def _density_range(rows: list[dict[str, Any]], key: str) -> tuple[float, float]:
     return min(values), max(values)
 
 
+def _target_deviation(
+    row: Mapping[str, Any],
+    *,
+    target_ppfd_umol_m2_s: float | None,
+    target_tolerance_umol_m2_s: float | None,
+) -> float | None:
+    if (
+        target_ppfd_umol_m2_s is None
+        or target_tolerance_umol_m2_s is None
+        or target_tolerance_umol_m2_s <= 0.0
+    ):
+        return None
+    value = row.get("target_classification_ppfd_umol_m2_s")
+    if not isinstance(value, int | float):
+        value = row.get("incident_photon_flux_density_umol_m2_s")
+    if not isinstance(value, int | float):
+        return None
+    return (float(value) - target_ppfd_umol_m2_s) / target_tolerance_umol_m2_s
+
+
 def _visualization_payload(
     leaf_summaries: list[dict[str, Any]],
     plant_summaries: list[dict[str, Any]],
     surface_summaries: list[dict[str, Any]],
+    *,
+    target_ppfd_umol_m2_s: float | None,
+    target_tolerance_umol_m2_s: float | None,
 ) -> dict[str, Any]:
     key = "incident_photon_flux_density_umol_m2_s"
+    target_key = "target_classification_ppfd_umol_m2_s"
     leaf_min, leaf_max = _density_range(leaf_summaries, key)
     surface_min, surface_max = _density_range(surface_summaries, key)
     return {
@@ -1183,6 +1207,12 @@ def _visualization_payload(
                 "plant_id": row["plant_id"],
                 "lighting_region": row["lighting_region"],
                 key: row[key],
+                target_key: row.get(target_key),
+                "target_deviation": _target_deviation(
+                    row,
+                    target_ppfd_umol_m2_s=target_ppfd_umol_m2_s,
+                    target_tolerance_umol_m2_s=target_tolerance_umol_m2_s,
+                ),
                 "visual_intensity_0_1": _visual_value(row[key], min_value=leaf_min, max_value=leaf_max),
             }
             for row in leaf_summaries
@@ -1290,7 +1320,13 @@ def build_plant_surface_flux_payload(
 
     plant_summaries = list(absorption_metrics["plant_summaries"])
     leaf_summaries = list(absorption_metrics["leaf_summaries"])
-    visualization = _visualization_payload(leaf_summaries, plant_summaries, surface_summaries)
+    visualization = _visualization_payload(
+        leaf_summaries,
+        plant_summaries,
+        surface_summaries,
+        target_ppfd_umol_m2_s=absorption_metrics.get("target_ppfd_umol_m2_s"),
+        target_tolerance_umol_m2_s=absorption_metrics.get("target_tolerance_umol_m2_s"),
+    )
 
     target_keys = (
         "target",

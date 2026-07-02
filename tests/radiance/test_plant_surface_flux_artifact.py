@@ -105,6 +105,7 @@ def test_surface_flux_payload_aggregates_leaf_and_plant_absorption() -> None:
     assert payload["visualization"]["color_quantity"] == "incident_leaf_surface_ppfd"
     assert payload["visualization"]["leaf_values"]
     assert all("plant_id" in row for row in payload["visualization"]["leaf_values"])
+    assert all("target_deviation" in row for row in payload["visualization"]["leaf_values"])
 
 
 def test_surface_flux_target_threshold_boundaries() -> None:
@@ -253,6 +254,7 @@ def test_surface_flux_artifact_export_is_deterministic(tmp_path) -> None:
     assert "plant_summaries" not in payload
     assert "surface_values" not in payload["visualization"]
     assert payload["visualization"]["leaf_values"]
+    assert "target_deviation" in payload["visualization"]["leaf_values"][0]
 
 
 def test_surface_flux_rejects_missing_surface_ids() -> None:
@@ -409,6 +411,14 @@ def test_ppfd_map_target_classification_keeps_all_values_in_range(tmp_path) -> N
     assert all(
         row["target_classification_ppfd_umol_m2_s"] == pytest.approx(275.0)
         for row in payload["surface_summaries"]
+    )
+    assert all(
+        row["target_classification_ppfd_umol_m2_s"] == pytest.approx(275.0)
+        for row in payload["visualization"]["leaf_values"]
+    )
+    assert all(
+        row["target_deviation"] == pytest.approx(0.0)
+        for row in payload["visualization"]["leaf_values"]
     )
 
 
@@ -841,3 +851,7 @@ def test_radiance_receiver_target_classification_prefers_ppfd_map(tmp_path) -> N
     assert payload["target_range_leaf_count"] == payload["leaf_count"]
     assert payload["under_lit_leaf_count"] == 0
     assert payload["over_lit_leaf_count"] == 0
+    assert all(
+        row["target_deviation"] == pytest.approx(0.0)
+        for row in payload["visualization"]["leaf_values"]
+    )
