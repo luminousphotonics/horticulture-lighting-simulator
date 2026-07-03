@@ -9,19 +9,21 @@ const DEFAULT_ABSORPTION_INTENSITY = 0.5;
 const DEFAULT_LEAF_THREE_COLOR = new THREE.Color(DEFAULT_LEAF_COLOR);
 const SURFACE_FLUX_METRIC = "incident_photon_flux_density_umol_m2_s";
 const TARGET_CLASSIFICATION_METRIC = "target_classification_ppfd_umol_m2_s";
+const UNDER_TARGET_FLOOR_DEFICIT_UMOL_M2_S = 200;
+const FALLBACK_UNDER_TARGET_FLOOR_DEVIATION = -10;
 const DISPLAY_DEVIATION_K = 0.45;
 const DISPLAY_DEVIATION_MAX_TAIL = 20;
-const TARGET_COLOR_ANCHORS = [
-  { deviation: -20, color: "#102A1B" },
-  { deviation: -8, color: "#173E29" },
-  { deviation: -4, color: "#1E5638" },
-  { deviation: -2, color: "#236F49" },
-  { deviation: -1.25, color: "#11704F" },
-  { deviation: -1, color: "#147A56" },
-  { deviation: -0.75, color: "#1F925B" },
-  { deviation: -0.5, color: "#2DAA60" },
-  { deviation: -0.25, color: "#3DBF65" },
-  { deviation: -0.1, color: "#47CA68" },
+const UNDER_TARGET_RAMP_ANCHORS = [
+  { position: 0, color: "#3FA66F" },
+  { position: 0.1388888889, color: "#41AA70" },
+  { position: 0.2777777778, color: "#43AE71" },
+  { position: 0.4166666667, color: "#43B670" },
+  { position: 0.5555555556, color: "#43BE6E" },
+  { position: 0.6944444444, color: "#44C66C" },
+  { position: 0.8333333333, color: "#44C66C" },
+  { position: 1, color: "#46CB6A" },
+];
+const ABOVE_TARGET_COLOR_ANCHORS = [
   { deviation: 0, color: "#4BCF6A" },
   { deviation: 0.1, color: "#59D16A" },
   { deviation: 0.25, color: "#6ED866" },
@@ -120,6 +122,15 @@ function colorInterpolationPosition(value) {
   return Math.sign(number) * (1 + (DISPLAY_DEVIATION_MAX_TAIL - 1) * clamp(tailMagnitude, 0, 1));
 }
 
+function underTargetFloorDeviation(surfaceFlux = {}) {
+  const target = surfaceFluxTarget(surfaceFlux);
+  const tolerance = target?.tolerance;
+  if (tolerance && tolerance > 0) {
+    return -UNDER_TARGET_FLOOR_DEFICIT_UMOL_M2_S / tolerance;
+  }
+  return FALLBACK_UNDER_TARGET_FLOOR_DEVIATION;
+}
+
 function anchorInterpolationPosition(anchor) {
   const displayDeviation = finiteNumber(anchor?.displayDeviation);
   if (displayDeviation !== null) {
@@ -160,16 +171,49 @@ function interpolatedHexColor(startHex, endHex, value) {
   });
 }
 
-export function surfaceFluxColorHexForTargetDeviation(value) {
-  const displayDeviation = colorInterpolationPosition(value);
-  const firstAnchor = TARGET_COLOR_ANCHORS[0];
-  const lastAnchor = TARGET_COLOR_ANCHORS[TARGET_COLOR_ANCHORS.length - 1];
+function underTargetColorHex(value, surfaceFlux = {}) {
+  const deviation = finiteNumber(value);
+  const floorDeviation = underTargetFloorDeviation(surfaceFlux);
+  if (deviation === null || deviation <= floorDeviation) {
+    return UNDER_TARGET_RAMP_ANCHORS[0].color;
+  }
+  if (deviation >= -1) {
+    return interpolatedHexColor("#46CB6A", "#4BCF6A", deviation + 1);
+  }
+
+  const rampPosition = clamp((deviation - floorDeviation) / (-1 - floorDeviation), 0, 1);
+  for (let index = 1; index < UNDER_TARGET_RAMP_ANCHORS.length; index += 1) {
+    const previous = UNDER_TARGET_RAMP_ANCHORS[index - 1];
+    const next = UNDER_TARGET_RAMP_ANCHORS[index];
+    if (rampPosition <= next.position) {
+      return interpolatedHexColor(
+        previous.color,
+        next.color,
+        (rampPosition - previous.position) / (next.position - previous.position),
+      );
+    }
+  }
+  return UNDER_TARGET_RAMP_ANCHORS[UNDER_TARGET_RAMP_ANCHORS.length - 1].color;
+}
+
+export function surfaceFluxColorHexForTargetDeviation(value, surfaceFlux = {}) {
+  const deviation = finiteNumber(value);
+  if (deviation === null) {
+    return "#4BCF6A";
+  }
+  if (deviation < 0) {
+    return underTargetColorHex(deviation, surfaceFlux);
+  }
+
+  const displayDeviation = colorInterpolationPosition(deviation);
+  const firstAnchor = ABOVE_TARGET_COLOR_ANCHORS[0];
+  const lastAnchor = ABOVE_TARGET_COLOR_ANCHORS[ABOVE_TARGET_COLOR_ANCHORS.length - 1];
   if (displayDeviation <= anchorInterpolationPosition(firstAnchor)) {
     return firstAnchor.color;
   }
-  for (let index = 1; index < TARGET_COLOR_ANCHORS.length; index += 1) {
-    const previous = TARGET_COLOR_ANCHORS[index - 1];
-    const next = TARGET_COLOR_ANCHORS[index];
+  for (let index = 1; index < ABOVE_TARGET_COLOR_ANCHORS.length; index += 1) {
+    const previous = ABOVE_TARGET_COLOR_ANCHORS[index - 1];
+    const next = ABOVE_TARGET_COLOR_ANCHORS[index];
     const previousPosition = anchorInterpolationPosition(previous);
     const nextPosition = anchorInterpolationPosition(next);
     if (displayDeviation <= nextPosition) {
@@ -183,8 +227,8 @@ export function surfaceFluxColorHexForTargetDeviation(value) {
   return lastAnchor.color;
 }
 
-function targetDeviationColor(value) {
-  return new THREE.Color(surfaceFluxColorHexForTargetDeviation(value));
+function targetDeviationColor(value, surfaceFlux = {}) {
+  return new THREE.Color(surfaceFluxColorHexForTargetDeviation(value, surfaceFlux));
 }
 
 function surfaceFluxTarget(surfaceFlux) {
@@ -256,7 +300,7 @@ function absorptionColorForLeaf(row, surfaceFlux, colorMetric) {
     return colorForLightingRegion(row);
   }
 
-  return targetDeviationColor(targetDeviation);
+  return targetDeviationColor(targetDeviation, surfaceFlux);
 }
 
 function createLeafMaterial({ plantPayload, color, vertexColors = false }) {

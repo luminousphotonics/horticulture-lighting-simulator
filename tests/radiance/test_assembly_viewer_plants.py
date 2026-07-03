@@ -186,6 +186,16 @@ function hexDistance(first, second) {{
   return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]);
 }}
 
+function relativeLuminance(hex) {{
+  const [r, g, b] = hexRgb(hex).map((value) => {{
+    const channel = value / 255;
+    return channel <= 0.04045
+      ? channel / 12.92
+      : ((channel + 0.055) / 1.055) ** 2.4;
+  }});
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}}
+
 function normalizedHexColor(hex) {{
   return hexRgb(hex).map((value) => {{
     const component = value / 255;
@@ -233,34 +243,92 @@ assert.equal(
 assert.equal(surfaceFluxTargetDeviationForLeafValue({{}}, targetContext), null);
 
 const targetBandHexes = [-1, -0.5, 0, 0.5, 1].map(surfaceFluxColorHexForTargetDeviation);
-assert.equal(surfaceFluxColorHexForTargetDeviation(-8), "#173E29");
-assert.equal(surfaceFluxColorHexForTargetDeviation(-2), "#236F49");
-assert.equal(surfaceFluxColorHexForTargetDeviation(-1.25), "#11704F");
-assert.equal(surfaceFluxColorHexForTargetDeviation(-1), "#147A56");
-assert.equal(surfaceFluxColorHexForTargetDeviation(-0.9), "#188458");
-assert.equal(surfaceFluxColorHexForTargetDeviation(-0.5), "#2DAA60");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-40), "#3FA66F");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-32), "#3FA66F");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-28), "#3FA66F");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-20), "#3FA66F");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-12), "#3FA66F");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-10), "#3FA66F");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-8.75), "#41AA70");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-7.5), "#43AE71");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-6.25), "#43B670");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-5), "#43BE6E");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-3.75), "#44C66C");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-2.5), "#44C66C");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-1), "#46CB6A");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-0.9), "#47CB6A");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-0.75), "#47CC6A");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-0.5), "#49CD6A");
 assert.equal(surfaceFluxColorHexForTargetDeviation(0), "#4BCF6A");
 assert.equal(surfaceFluxColorHexForTargetDeviation(0.5), "#90DD58");
 assert.equal(surfaceFluxColorHexForTargetDeviation(0.72), "#A7E14F");
 assert.equal(surfaceFluxColorHexForTargetDeviation(1), "#B7E455");
 assert.equal(surfaceFluxColorHexForTargetDeviation(1.5), "#C9DF4F");
 assert.equal(surfaceFluxColorHexForTargetDeviation(2), "#D8D747");
+assert.equal(surfaceFluxColorHexForTargetDeviation(4), "#E6C33F");
 assert.equal(surfaceFluxColorHexForTargetDeviation(8), "#F0A63A");
-assert.equal(surfaceFluxColorHexForTargetDeviation(-0.85), "#1B8859");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-0.85), "#47CC6A");
 assert.equal(surfaceFluxColorHexForTargetDeviation(0.7), "#A5E050");
+function ppfdColor(ppfd, surfaceFlux = targetContext) {{
+  const deviation = surfaceFluxTargetDeviationForLeafValue(
+    {{ incident_photon_flux_density_umol_m2_s: ppfd }},
+    surfaceFlux,
+    "incident_photon_flux_density_umol_m2_s",
+  );
+  return surfaceFluxColorHexForTargetDeviation(deviation, surfaceFlux);
+}}
+assert.equal(ppfdColor(33), "#3FA66F");
+assert.equal(ppfdColor(47), "#3FA66F");
+assert.equal(ppfdColor(68), "#3FA66F");
+assert.equal(ppfdColor(75), "#3FA66F");
+assert.equal(ppfdColor(100), "#41AA70");
+assert.equal(ppfdColor(125), "#43AE71");
+assert.equal(ppfdColor(145), "#43B470");
+assert.equal(ppfdColor(175), "#43BE6E");
+assert.equal(ppfdColor(200), "#44C66C");
+assert.equal(ppfdColor(225), "#44C66C");
+assert.equal(ppfdColor(255), "#46CB6A");
+assert.equal(ppfdColor(258), "#47CC6A");
+assert.equal(ppfdColor(275), "#4BCF6A");
+assert.equal(ppfdColor(289), "#A5E050");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-5, {{
+  target_ppfd_umol_m2_s: 275,
+  target_tolerance_umol_m2_s: 40,
+}}), "#3FA66F");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-4, {{
+  target_ppfd_umol_m2_s: 275,
+  target_tolerance_umol_m2_s: 40,
+}}), "#43AD71");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-10, {{}}), "#3FA66F");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-8.75, {{}}), "#41AA70");
 assert.equal(new Set(targetBandHexes).size, targetBandHexes.length);
 assert.equal(new Set([-1, -0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75, 1].map(
   surfaceFluxColorHexForTargetDeviation,
 )).size, 9);
-assert.ok(hexDistance("#3FA66F", surfaceFluxColorHexForTargetDeviation(-0.85)) > 25);
+for (const hex of [-32, -28, -20, -12, -10, -8.75, -7.5, -6.25, -5, -3.75, -2.5, -1].map(
+  surfaceFluxColorHexForTargetDeviation,
+)) {{
+  assert.notEqual(hex, "#102A1B");
+  assert.ok(relativeLuminance(hex) + 0.001 >= relativeLuminance("#3FA66F"));
+  assert.ok(relativeLuminance(hex) < relativeLuminance("#4BCF6A"));
+  assert.ok(hexRgb(hex)[1] > hexRgb(hex)[0]);
+  assert.ok(hexRgb(hex)[1] > hexRgb(hex)[2]);
+}}
+assert.ok(hexDistance(ppfdColor(145), surfaceFluxColorHexForTargetDeviation(0)) > 40);
+assert.ok(hexDistance(ppfdColor(145), surfaceFluxColorHexForTargetDeviation(0.7)) > 120);
+assert.ok(hexDistance("#3FA66F", surfaceFluxColorHexForTargetDeviation(-0.85)) > 10);
 assert.ok(hexDistance("#3FA66F", surfaceFluxColorHexForTargetDeviation(0.7)) > 55);
-assert.ok(hexDistance("#3FA66F", surfaceFluxColorHexForTargetDeviation(-1)) > 30);
+assert.ok(relativeLuminance(surfaceFluxColorHexForTargetDeviation(-1)) >= relativeLuminance("#3FA66F"));
+assert.ok(relativeLuminance(surfaceFluxColorHexForTargetDeviation(-1)) < relativeLuminance("#4BCF6A"));
 assert.ok(hexDistance("#3FA66F", surfaceFluxColorHexForTargetDeviation(0)) > 55);
 assert.ok(hexRgb(surfaceFluxColorHexForTargetDeviation(0))[0] > hexRgb(surfaceFluxColorHexForTargetDeviation(-1))[0]);
 assert.ok(hexRgb(surfaceFluxColorHexForTargetDeviation(0))[1] > hexRgb(surfaceFluxColorHexForTargetDeviation(-1))[1]);
 assert.ok(hexRgb(surfaceFluxColorHexForTargetDeviation(-1))[1] < hexRgb(surfaceFluxColorHexForTargetDeviation(0))[1]);
-assert.ok(hexDistance(surfaceFluxColorHexForTargetDeviation(-0.5), surfaceFluxColorHexForTargetDeviation(-1)) > 70);
-assert.ok(hexDistance(surfaceFluxColorHexForTargetDeviation(-0.5), surfaceFluxColorHexForTargetDeviation(0)) > 70);
+assert.ok(hexDistance(surfaceFluxColorHexForTargetDeviation(-2.5), surfaceFluxColorHexForTargetDeviation(-1)) < 12);
+assert.ok(hexDistance(surfaceFluxColorHexForTargetDeviation(-1), surfaceFluxColorHexForTargetDeviation(-0.75)) < 8);
+assert.ok(hexDistance(surfaceFluxColorHexForTargetDeviation(-0.75), surfaceFluxColorHexForTargetDeviation(-0.5)) < 8);
+assert.ok(hexDistance(surfaceFluxColorHexForTargetDeviation(-0.5), surfaceFluxColorHexForTargetDeviation(0)) < 35);
+assert.ok(hexDistance(surfaceFluxColorHexForTargetDeviation(-0.5), surfaceFluxColorHexForTargetDeviation(0)) >= 4);
 assert.ok(hexDistance(surfaceFluxColorHexForTargetDeviation(0.5), surfaceFluxColorHexForTargetDeviation(0)) > 70);
 assert.ok(hexDistance(surfaceFluxColorHexForTargetDeviation(0.5), surfaceFluxColorHexForTargetDeviation(1)) > 45);
 assert.equal(new Set([-0.9, -0.5, 0, 0.5, 0.72].map(surfaceFluxColorHexForTargetDeviation)).size, 5);
@@ -270,8 +338,9 @@ assert.ok(hexRgb(surfaceFluxColorHexForTargetDeviation(2))[0] > hexRgb(surfaceFl
 assert.ok(hexRgb(surfaceFluxColorHexForTargetDeviation(2))[2] < hexRgb(surfaceFluxColorHexForTargetDeviation(1))[2]);
 assert.ok(hexRgb(surfaceFluxColorHexForTargetDeviation(8))[0] > hexRgb(surfaceFluxColorHexForTargetDeviation(8))[1]);
 assert.ok(hexRgb(surfaceFluxColorHexForTargetDeviation(8))[1] > hexRgb(surfaceFluxColorHexForTargetDeviation(8))[2]);
-assert.ok(hexRgb(surfaceFluxColorHexForTargetDeviation(-8))[1] < hexRgb(surfaceFluxColorHexForTargetDeviation(-2))[1]);
-assert.ok(hexRgb(surfaceFluxColorHexForTargetDeviation(-8))[0] < hexRgb(surfaceFluxColorHexForTargetDeviation(-2))[0]);
+assert.ok(hexRgb(surfaceFluxColorHexForTargetDeviation(-5))[1] > hexRgb(surfaceFluxColorHexForTargetDeviation(-10))[1]);
+assert.ok(hexRgb(surfaceFluxColorHexForTargetDeviation(-2.5))[1] >= hexRgb(surfaceFluxColorHexForTargetDeviation(-5))[1]);
+assert.ok(hexRgb(surfaceFluxColorHexForTargetDeviation(-2.5))[0] >= hexRgb(surfaceFluxColorHexForTargetDeviation(-5))[0]);
 
 const defaultLeafColor = leafColor(plantMesh.userData.defaultColorAttribute, 0);
 const strongUnderColor = leafColor(plantMesh.userData.absorptionColorAttribute, 0);
@@ -291,8 +360,8 @@ assert.ok(colorDistance(defaultLeafColor, exactTargetColor) > 0.15);
 
 assert.ok(strongUnderColor[1] > strongUnderColor[0]);
 assert.ok(moderateUnderColor[1] > moderateUnderColor[0]);
-assert.ok(moderateUnderColor[1] > strongUnderColor[1]);
-assert.ok(colorDistance(strongUnderColor, moderateUnderColor) > 0.08);
+assert.ok(colorDistance(strongUnderColor, moderateUnderColor) > 0.02);
+assert.ok(colorDistance(moderateUnderColor, lowEdgeColor) > 0.02);
 assert.ok(lowEdgeColor[1] < exactTargetColor[1]);
 assert.ok(nearLowColor[1] > lowEdgeColor[1]);
 
@@ -300,9 +369,9 @@ assert.ok(exactTargetColor[0] > lowEdgeColor[0]);
 assert.ok(exactTargetColor[0] > nearLowColor[0]);
 assert.ok(exactTargetColor[1] >= nearLowColor[1]);
 assert.ok(exactTargetColor[1] >= nearPeakLowColor[1]);
-assert.ok(colorDistance(exactTargetColor, nearPeakLowColor) > 0.02);
+assert.ok(colorDistance(exactTargetColor, nearPeakLowColor) > 0.005);
 assert.ok(colorDistance(exactTargetColor, nearPeakHighColor) > 0.02);
-assert.ok(colorDistance(lowEdgeColor, exactTargetColor) > 0.05);
+assert.ok(colorDistance(lowEdgeColor, exactTargetColor) > 0.01);
 assert.ok(colorDistance(highEdgeColor, exactTargetColor) > 0.05);
 assert.ok(highEdgeColor[1] > highEdgeColor[0]);
 assert.ok(highEdgeColor[0] > exactTargetColor[0]);
@@ -317,7 +386,7 @@ assert.ok(overExtremeColor[2] < overStrongColor[2]);
 assert.ok(colorDistance(overStrongColor, overExtremeColor) > 0.08);
 
 const targetSampleValues = [256.9, 261.3, 267.3, 272.4, 275, 279.7, 283.5, 289.4];
-const targetSampleExpectedHexes = ["#188358", "#23985C", "#34B462", "#45C867", "#4BCF6A", "#6CD766", "#86DC5C", "#A7E14F"];
+const targetSampleExpectedHexes = ["#46CB6A", "#48CC6A", "#49CD6A", "#4ACE6A", "#4BCF6A", "#6CD766", "#86DC5C", "#A7E14F"];
 const targetSampleRows = targetSampleValues.map((value, index) => {{
   const plantId = index < 4 ? "plant_r000_c000" : "plant_r000_c001";
   const leafId = `${{plantId}}_leaf_${{String(index % 4).padStart(3, "0")}}`;
@@ -376,7 +445,7 @@ const targetSampleMesh = targetSampleGroup.children[0];
 const targetSampleHexes = new Set();
 for (let index = 0; index < targetSampleValues.length; index += 1) {{
   const deviation = (targetSampleValues[index] - 275) / 20;
-  const hex = surfaceFluxColorHexForTargetDeviation(deviation);
+  const hex = surfaceFluxColorHexForTargetDeviation(deviation, targetSampleScene.plants.surface_flux);
   assert.equal(hex, targetSampleExpectedHexes[index]);
   targetSampleHexes.add(hex);
   const color = leafColor(targetSampleMesh.userData.absorptionColorAttribute, index);
@@ -390,16 +459,16 @@ for (let index = 0; index < targetSampleValues.length; index += 1) {{
   assert.ok(hexRgb(hex)[2] >= 70);
 }}
 assert.equal(targetSampleHexes.size, targetSampleValues.length);
-assert.ok(hexDistance(targetSampleExpectedHexes[0], targetSampleExpectedHexes[4]) >= 70);
-assert.ok(hexDistance(targetSampleExpectedHexes[1], targetSampleExpectedHexes[4]) >= 55);
-assert.ok(hexDistance(targetSampleExpectedHexes[2], targetSampleExpectedHexes[4]) >= 35);
-assert.ok(hexDistance(targetSampleExpectedHexes[3], targetSampleExpectedHexes[4]) >= 12);
+assert.ok(hexDistance(targetSampleExpectedHexes[0], targetSampleExpectedHexes[4]) >= 8);
+assert.ok(hexDistance(targetSampleExpectedHexes[1], targetSampleExpectedHexes[4]) >= 6);
+assert.ok(hexDistance(targetSampleExpectedHexes[2], targetSampleExpectedHexes[4]) >= 4);
+assert.ok(hexDistance(targetSampleExpectedHexes[3], targetSampleExpectedHexes[4]) >= 2);
 assert.ok(hexDistance(targetSampleExpectedHexes[5], targetSampleExpectedHexes[4]) >= 25);
 assert.ok(hexDistance(targetSampleExpectedHexes[6], targetSampleExpectedHexes[4]) >= 45);
 assert.ok(hexDistance(targetSampleExpectedHexes[7], targetSampleExpectedHexes[4]) >= 65);
 assert.ok(hexRgb(targetSampleExpectedHexes[0])[0] < hexRgb(targetSampleExpectedHexes[4])[0]);
 assert.ok(hexRgb(targetSampleExpectedHexes[0])[1] < hexRgb(targetSampleExpectedHexes[4])[1]);
-assert.ok(hexRgb(targetSampleExpectedHexes[0])[2] < hexRgb(targetSampleExpectedHexes[4])[2]);
+assert.ok(hexRgb(targetSampleExpectedHexes[0])[2] === hexRgb(targetSampleExpectedHexes[4])[2]);
 assert.ok(hexRgb(targetSampleExpectedHexes[1])[0] < hexRgb(targetSampleExpectedHexes[4])[0]);
 assert.ok(hexRgb(targetSampleExpectedHexes[2])[0] < hexRgb(targetSampleExpectedHexes[4])[0]);
 assert.ok(hexRgb(targetSampleExpectedHexes[7])[0] > hexRgb(targetSampleExpectedHexes[4])[0]);
