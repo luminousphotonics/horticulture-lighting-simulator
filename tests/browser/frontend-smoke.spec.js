@@ -583,6 +583,27 @@ test("metrics panel formats plant absorption scaffold without object dumps", asy
   await expect(metrics).not.toContainText("[object Object]");
 });
 
+test("metrics formatter exposes plane utilization beside photon capture", async ({ page }) => {
+  await routeLiveSimulatorPage(page);
+  await page.goto("/radiance-simulator");
+
+  const text = await page.evaluate(async () => {
+    const { formatMetrics } = await import("/static/js/radiance-simulator/renderers.js");
+    return formatMetrics({
+      mean: 1000,
+      min: 900,
+      max: 1100,
+      ppf_out: 1200,
+      ppf_emitted: 1500,
+      capture_frac: 0.8,
+      plane_utilization: 0.8,
+    });
+  });
+
+  expect(text).toContain("capture_frac: 80.0%");
+  expect(text).toContain("plane_utilization: 80.0%");
+});
+
 test("metrics formatter prioritizes target-aware plant absorption fields", async ({ page }) => {
   await routeLiveSimulatorPage(page);
   await page.goto("/radiance-simulator");

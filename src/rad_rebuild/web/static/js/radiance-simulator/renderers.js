@@ -1063,14 +1063,16 @@ export function formatMetrics(metrics) {
   push(formatMetricLine("mean/peak", metrics.mean_over_peak?.toFixed?.(3) ?? metrics.mean_over_peak));
   ["peak_over_mean", "min_over_mean", "min_over_max", "mean_over_peak"].forEach((key) => used.add(key));
 
-  if ("ppf_out" in metrics || "ppf_emitted" in metrics || "capture_frac" in metrics) {
+  if ("ppf_out" in metrics || "ppf_emitted" in metrics || "capture_frac" in metrics || "plane_utilization" in metrics) {
     lines.push("");
     lines.push("PHOTONS");
     push(formatMetricLine("ppf_out", metrics.ppf_out?.toFixed?.(1) ?? metrics.ppf_out, "umol/s"));
     push(formatMetricLine("ppf_emitted", metrics.ppf_emitted?.toFixed?.(1) ?? metrics.ppf_emitted, "umol/s"));
     const capture = formatPercent(metrics.capture_frac, 1);
     push(capture ? `capture_frac: ${capture}` : null);
-    ["ppf_out", "ppf_emitted", "capture_frac"].forEach((key) => used.add(key));
+    const planeUtilization = formatPercent(metrics.plane_utilization ?? metrics.capture_frac, 1);
+    push(planeUtilization ? `plane_utilization: ${planeUtilization}` : null);
+    ["ppf_out", "ppf_emitted", "capture_frac", "plane_utilization"].forEach((key) => used.add(key));
   }
 
   if (

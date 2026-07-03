@@ -15,7 +15,7 @@ from rad_rebuild.radiance.backend.models import RadianceRunRequest  # noqa: E402
 from rad_rebuild.radiance.backend.routes.metrics import (  # noqa: E402
     _apply_metrics_plant_query_overrides,
 )
-from rad_rebuild.radiance.config import EXECUTION_MODE_LIVE_LOCAL  # noqa: E402
+from rad_rebuild.radiance.config import EXECUTION_MODE_LIVE_LOCAL, MODE_SMD  # noqa: E402
 from rad_rebuild.radiance.engine.plants import PlantGeometryConfig, generate_plant_scene, write_plant_artifacts  # noqa: E402
 from rad_rebuild.radiance.engine.plants.spectral_absorption import PLANT_SPECTRAL_ABSORPTION_SCHEMA  # noqa: E402
 from rad_rebuild.radiance.engine.plants.surface_flux import write_spatial_proxy_plant_surface_flux_artifact  # noqa: E402
@@ -44,6 +44,44 @@ def test_metrics_payload_omits_plant_absorption_when_artifact_missing(tmp_path) 
     payload = _metrics_payload_for_request(req, tmp_path)
 
     assert "plant_photon_absorption" not in payload["metrics"]
+
+
+def test_smd_metrics_parse_emitted_photons_and_plane_utilization(tmp_path) -> None:
+    _write_ppfd_map(tmp_path)
+    runtime = tmp_path / "runtime_state"
+    runtime.mkdir(parents=True, exist_ok=True)
+    (runtime / "smd_summary.txt").write_text(
+        "\n".join(
+            [
+                "SMD macro emitter summary:",
+                "  total electrical input ≈ 100.0 W",
+                (
+                    "  run-average source PPE (pre-PMMA) ≈ 3.000 µmol/J "
+                    "→ total source photons ≈ 3000 µmol/s"
+                ),
+                (
+                    "  run-average wall-plug PPE (post-PMMA) ≈ 2.000 µmol/J "
+                    "→ total emitted photons ≈ 2000 µmol/s"
+                ),
+            ]
+        ),
+        encoding="utf-8",
+    )
+    req = RadianceRunRequest(
+        action="metrics",
+        execution_mode=EXECUTION_MODE_LIVE_LOCAL,
+        mode=MODE_SMD,
+        length_ft=10,
+        width_ft=10,
+    )
+
+    payload = _metrics_payload_for_request(req, tmp_path)
+    metrics = payload["metrics"]
+
+    assert metrics["watts_in"] == pytest.approx(100.0)
+    assert metrics["ppf_emitted"] == pytest.approx(2000.0)
+    assert metrics["capture_frac"] == pytest.approx(metrics["ppf_out"] / 2000.0)
+    assert metrics["plane_utilization"] == pytest.approx(metrics["capture_frac"])
 
 
 def test_metrics_payload_includes_scaffold_only_plant_absorption_summary(tmp_path) -> None:

@@ -99,7 +99,8 @@ def _parse_kv_file(path: Path) -> dict[str, str]:
 
 def _parse_smd_summary(path: Path) -> tuple[float | None, float | None]:
     watts = None
-    ppf = None
+    emitted_ppf = None
+    fallback_ppf = None
     try:
         text = path.read_text()
     except Exception:
@@ -114,16 +115,23 @@ def _parse_smd_summary(path: Path) -> tuple[float | None, float | None]:
                     watts = float(nums[-1])
                 except ValueError:
                     watts = None
-        if ppf is None and ("total photons" in s or "total ppf" in s) and ("mol/s" in s):
+        if ("total emitted photons" in s or "total emitted ppf" in s) and ("mol/s" in s):
             nums = num_re.findall(s)
             if nums:
                 try:
-                    ppf = float(nums[-1])
+                    emitted_ppf = float(nums[-1])
                 except ValueError:
-                    ppf = None
-        if watts is not None and ppf is not None:
+                    emitted_ppf = None
+        elif fallback_ppf is None and ("total photons" in s or "total ppf" in s) and ("mol/s" in s):
+            nums = num_re.findall(s)
+            if nums:
+                try:
+                    fallback_ppf = float(nums[-1])
+                except ValueError:
+                    fallback_ppf = None
+        if watts is not None and emitted_ppf is not None:
             break
-    return watts, ppf
+    return watts, emitted_ppf if emitted_ppf is not None else fallback_ppf
 
 
 def _metrics_path(mode: str, workspace_root: Path | None = None) -> Path:
