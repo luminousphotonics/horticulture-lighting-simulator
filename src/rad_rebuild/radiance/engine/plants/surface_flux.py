@@ -941,6 +941,7 @@ def _raw_surface_detail_payload(
     receiver_granularity: str,
     leaf_count: int,
     surface_count: int,
+    target_ppfd_umol_m2_s: float | None = None,
 ) -> dict[str, Any]:
     granularity = normalize_receiver_granularity(receiver_granularity)
     scale = _finite_non_negative("receiver_scale_multiplier", receiver_scale_multiplier)
@@ -981,6 +982,11 @@ def _raw_surface_detail_payload(
             leaf_order.append(leaf_id)
         by_leaf[leaf_id].append((sample, density * scale))
 
+    target_ppfd = (
+        float(target_ppfd_umol_m2_s)
+        if target_ppfd_umol_m2_s is not None and target_ppfd_umol_m2_s > 0.0
+        else None
+    )
     values_ppfd: Any
     detail_mapping: dict[str, Any] = {}
     if visual_granularity == "leaf_average":
@@ -1022,6 +1028,7 @@ def _raw_surface_detail_payload(
         values_by_side: dict[str, list[list[float | None]]] = {
             side: [] for side in allowed_sides
         }
+        flux_by_side: dict[str, float] = {side: 0.0 for side in allowed_sides}
         patch_face_indices: list[list[int]] = []
         for leaf_id in leaf_order:
             leaf_items = by_leaf[leaf_id]
@@ -1041,11 +1048,20 @@ def _raw_surface_detail_payload(
                 side = str(sample.get("side") or allowed_sides[0])
                 if not isinstance(face_index, int) or side not in values_by_side:
                     continue
+                flux_by_side[side] += density * _finite_non_negative(
+                    f"receiver_sample_area_m2[{sample.get('sample_id', '')}]",
+                    sample.get("area_m2", 0.0),
+                )
                 position = face_position.get(face_index)
                 if position is not None:
                     values_by_side[side][-1][position] = density
         values_ppfd = values_by_side
         detail_mapping["patch_face_indices"] = patch_face_indices
+        detail_mapping["side_summaries"] = _raw_mesh_patch_side_summaries(
+            values_by_side,
+            flux_by_side=flux_by_side,
+            target_ppfd_umol_m2_s=target_ppfd,
+        )
 
     return {
         "mode": "raw_leaf_surface_flux",
@@ -1133,6 +1149,7 @@ def write_radiance_receiver_plant_surface_flux_artifact(
         receiver_granularity=granularity,
         leaf_count=leaf_count,
         surface_count=surface_count,
+        target_ppfd_umol_m2_s=target_ppfd_umol_m2_s,
     )
     payload = build_plant_surface_flux_payload(
         scene,
@@ -1333,12 +1350,25 @@ RAW_LEAF_SURFACE_FLUX_RATIO_ANCHORS: tuple[tuple[float, str], ...] = (
     (1.50, "#DC2626"),
 )
 
+RAW_LEAF_SURFACE_FLUX_BACK_RATIO_ANCHORS: tuple[tuple[float, str], ...] = (
+    (0.00, "#2563EB"),
+    (0.02, "#06B6D4"),
+    (0.05, "#14B8A6"),
+    (0.10, "#22C55E"),
+    (0.20, "#22C55E"),
+    (0.35, "#A3E635"),
+    (0.50, "#F59E0B"),
+    (0.75, "#DC2626"),
+)
 
-def _raw_flux_bucket_template() -> list[dict[str, Any]]:
+
+def _raw_flux_bucket_template(
+    anchors: tuple[tuple[float, str], ...] = RAW_LEAF_SURFACE_FLUX_RATIO_ANCHORS,
+) -> list[dict[str, Any]]:
     buckets: list[dict[str, Any]] = []
-    for index, (ratio, color) in enumerate(RAW_LEAF_SURFACE_FLUX_RATIO_ANCHORS):
-        if index + 1 < len(RAW_LEAF_SURFACE_FLUX_RATIO_ANCHORS):
-            next_ratio = RAW_LEAF_SURFACE_FLUX_RATIO_ANCHORS[index + 1][0]
+    for index, (ratio, color) in enumerate(anchors):
+        if index + 1 < len(anchors):
+            next_ratio = anchors[index + 1][0]
             label = f"{ratio * 100:.0f}-{next_ratio * 100:.0f}%"
         else:
             next_ratio = None
@@ -1363,8 +1393,9 @@ def _raw_flux_bucket_counts(
     *,
     count_key: str = "leaf_count",
     percent_key: str = "leaf_percent",
+    anchors: tuple[tuple[float, str], ...] = RAW_LEAF_SURFACE_FLUX_RATIO_ANCHORS,
 ) -> list[dict[str, Any]]:
-    buckets = _raw_flux_bucket_template()
+    buckets = _raw_flux_bucket_template(anchors)
     for bucket in buckets:
         bucket[count_key] = bucket.pop("leaf_count")
         bucket[percent_key] = 0.0
@@ -1387,6 +1418,152 @@ def _raw_flux_bucket_counts(
     return buckets
 
 
+def _finite_raw_values(values: Iterable[object]) -> list[float]:
+    finite_values: list[float] = []
+    for value in values:
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            continue
+        number = float(value)
+        if math.isfinite(number):
+            finite_values.append(number)
+    return finite_values
+
+
+def _raw_flux_distribution_summary(
+    values: list[float],
+    *,
+    target_ppfd_umol_m2_s: float | None,
+    bucket_count_key: str,
+    bucket_percent_key: str,
+    bucket_anchors: tuple[tuple[float, str], ...],
+) -> dict[str, Any]:
+    if values:
+        p05 = _linear_percentile(values, 0.05)
+        p50 = _linear_percentile(values, 0.50)
+        p95 = _linear_percentile(values, 0.95)
+        mean = sum(values) / len(values)
+        min_value = min(values)
+        max_value = max(values)
+    else:
+        p05 = p50 = p95 = mean = min_value = max_value = 0.0
+    return {
+        "mean": mean,
+        "min": min_value,
+        "p05": p05,
+        "median": p50,
+        "p95": p95,
+        "max": max_value,
+        "mean_ratio_to_target": _raw_flux_ratio(mean, target_ppfd_umol_m2_s),
+        "min_ratio_to_target": _raw_flux_ratio(min_value, target_ppfd_umol_m2_s),
+        "p05_ratio_to_target": _raw_flux_ratio(p05, target_ppfd_umol_m2_s),
+        "median_ratio_to_target": _raw_flux_ratio(p50, target_ppfd_umol_m2_s),
+        "p95_ratio_to_target": _raw_flux_ratio(p95, target_ppfd_umol_m2_s),
+        "max_ratio_to_target": _raw_flux_ratio(max_value, target_ppfd_umol_m2_s),
+        "mean_percent_of_target": (
+            _raw_flux_ratio(mean, target_ppfd_umol_m2_s) * 100.0
+            if _raw_flux_ratio(mean, target_ppfd_umol_m2_s) is not None
+            else None
+        ),
+        "min_percent_of_target": (
+            _raw_flux_ratio(min_value, target_ppfd_umol_m2_s) * 100.0
+            if _raw_flux_ratio(min_value, target_ppfd_umol_m2_s) is not None
+            else None
+        ),
+        "p05_percent_of_target": (
+            _raw_flux_ratio(p05, target_ppfd_umol_m2_s) * 100.0
+            if _raw_flux_ratio(p05, target_ppfd_umol_m2_s) is not None
+            else None
+        ),
+        "median_percent_of_target": (
+            _raw_flux_ratio(p50, target_ppfd_umol_m2_s) * 100.0
+            if _raw_flux_ratio(p50, target_ppfd_umol_m2_s) is not None
+            else None
+        ),
+        "p95_percent_of_target": (
+            _raw_flux_ratio(p95, target_ppfd_umol_m2_s) * 100.0
+            if _raw_flux_ratio(p95, target_ppfd_umol_m2_s) is not None
+            else None
+        ),
+        "max_percent_of_target": (
+            _raw_flux_ratio(max_value, target_ppfd_umol_m2_s) * 100.0
+            if _raw_flux_ratio(max_value, target_ppfd_umol_m2_s) is not None
+            else None
+        ),
+        "target_ppfd_umol_m2_s": target_ppfd_umol_m2_s,
+        "bucket_counts": _raw_flux_bucket_counts(
+            values,
+            target_ppfd_umol_m2_s,
+            count_key=bucket_count_key,
+            percent_key=bucket_percent_key,
+            anchors=bucket_anchors,
+        ),
+        "units": "umol/m²/s",
+    }
+
+
+def _raw_mesh_patch_side_summaries(
+    values_by_side: Mapping[str, list[list[float | None]]],
+    *,
+    flux_by_side: Mapping[str, float],
+    target_ppfd_umol_m2_s: float | None,
+) -> dict[str, Any]:
+    summaries: dict[str, Any] = {}
+    for side, leaf_value_rows in values_by_side.items():
+        surface_values = _finite_raw_values(
+            value
+            for leaf_values in leaf_value_rows
+            for value in leaf_values
+        )
+        leaf_values = [
+            sum(values) / len(values)
+            for values in (
+                _finite_raw_values(leaf_values) for leaf_values in leaf_value_rows
+            )
+            if values
+        ]
+        anchors = (
+            RAW_LEAF_SURFACE_FLUX_BACK_RATIO_ANCHORS
+            if side == "back"
+            else RAW_LEAF_SURFACE_FLUX_RATIO_ANCHORS
+        )
+        summary = _raw_flux_distribution_summary(
+            surface_values,
+            target_ppfd_umol_m2_s=target_ppfd_umol_m2_s,
+            bucket_count_key="sample_count",
+            bucket_percent_key="sample_percent",
+            bucket_anchors=anchors,
+        )
+        summary.update(
+            {
+                "side": side,
+                "sample_count": len(surface_values),
+                "leaf_count": len(leaf_values),
+                "summary_granularity": "mesh_patch_surface_detail",
+                "visualization_granularity": "mesh_patch",
+                "raw_incident_flux_umol_s": flux_by_side.get(side),
+                "leaf_average_summary": _raw_flux_distribution_summary(
+                    leaf_values,
+                    target_ppfd_umol_m2_s=target_ppfd_umol_m2_s,
+                    bucket_count_key="leaf_count",
+                    bucket_percent_key="leaf_percent",
+                    bucket_anchors=anchors,
+                ),
+            }
+        )
+        summaries[side] = summary
+    front_flux = summaries.get("front", {}).get("raw_incident_flux_umol_s")
+    back_flux = summaries.get("back", {}).get("raw_incident_flux_umol_s")
+    if isinstance(front_flux, int | float) and isinstance(back_flux, int | float):
+        total_flux = float(front_flux) + float(back_flux)
+        summaries["two_sided"] = {
+            "total_raw_incident_flux_umol_s": total_flux,
+            "backside_contribution_percent": (
+                float(back_flux) / total_flux * 100.0 if total_flux > 0.0 else None
+            ),
+        }
+    return summaries
+
+
 def _raw_surface_detail_values(raw_surface_detail: Mapping[str, Any]) -> list[float]:
     def collect(value: object, values: list[float]) -> None:
         if isinstance(value, bool):
@@ -1403,6 +1580,13 @@ def _raw_surface_detail_values(raw_surface_detail: Mapping[str, Any]) -> list[fl
                 collect(nested, values)
 
     values_ppfd = raw_surface_detail.get("values_ppfd")
+    if (
+        raw_surface_detail.get("visual_granularity") == "mesh_patch"
+        and raw_surface_detail.get("top_bottom_support") is True
+        and isinstance(values_ppfd, Mapping)
+        and "front" in values_ppfd
+    ):
+        values_ppfd = values_ppfd.get("front")
     values: list[float] = []
     collect(values_ppfd, values)
     return values
@@ -1412,6 +1596,69 @@ def _raw_flux_ratio(value: float, target_ppfd_umol_m2_s: float | None) -> float 
     if target_ppfd_umol_m2_s is None or target_ppfd_umol_m2_s <= 0.0:
         return None
     return value / target_ppfd_umol_m2_s
+
+
+def _raw_scale_anchors(
+    target_ppfd_umol_m2_s: float | None,
+    anchors: tuple[tuple[float, str], ...],
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "ratio": ratio,
+            "percent": ratio * 100.0,
+            "ppfd_umol_m2_s": (
+                ratio * target_ppfd_umol_m2_s
+                if target_ppfd_umol_m2_s is not None
+                else None
+            ),
+            "color": color,
+        }
+        for ratio, color in anchors
+    ]
+
+
+def _raw_leaf_surface_flux_scale(
+    *,
+    target_ppfd_umol_m2_s: float | None,
+    anchors: tuple[tuple[float, str], ...],
+    side: str,
+    role: str,
+) -> dict[str, Any]:
+    ratio_max = anchors[-1][0] if anchors else 1.0
+    return {
+        "mode": "raw_leaf_surface_flux",
+        "side": side,
+        "role": role,
+        "scale_type": "target_normalized_ratio",
+        "target_ppfd_umol_m2_s": target_ppfd_umol_m2_s,
+        "target_source": "fspm_target_ppfd_umol_m2_s",
+        "ratio_min": 0.0,
+        "ratio_max": ratio_max,
+        "clamp_min_ratio": 0.0,
+        "clamp_max_ratio": ratio_max,
+        "anchors": _raw_scale_anchors(target_ppfd_umol_m2_s, anchors),
+        "units": "umol/m²/s",
+        "ratio_units": "fraction_of_target",
+    }
+
+
+def _raw_leaf_surface_flux_legend(
+    scale: Mapping[str, Any],
+    *,
+    title: str,
+    note: str,
+) -> dict[str, Any]:
+    return {
+        "title": title,
+        "units": "umol/m²/s",
+        "scale": "% of FSPM target",
+        "target_ppfd_umol_m2_s": scale.get("target_ppfd_umol_m2_s"),
+        "target_source": scale.get("target_source"),
+        "side": scale.get("side"),
+        "role": scale.get("role"),
+        "note": note,
+        "anchors": scale.get("anchors"),
+    }
 
 
 def _raw_flux_summary_stat(
@@ -1438,28 +1685,12 @@ def _raw_leaf_surface_flux_metadata(
         if target_ppfd_umol_m2_s is not None and target_ppfd_umol_m2_s > 0.0
         else None
     )
-    anchors = [
-        {
-            "ratio": ratio,
-            "percent": ratio * 100.0,
-            "ppfd_umol_m2_s": ratio * target_ppfd if target_ppfd is not None else None,
-            "color": color,
-        }
-        for ratio, color in RAW_LEAF_SURFACE_FLUX_RATIO_ANCHORS
-    ]
-    scale = {
-        "mode": "raw_leaf_surface_flux",
-        "scale_type": "target_normalized_ratio",
-        "target_ppfd_umol_m2_s": target_ppfd,
-        "target_source": "fspm_target_ppfd_umol_m2_s",
-        "ratio_min": 0.0,
-        "ratio_max": 1.5,
-        "clamp_min_ratio": 0.0,
-        "clamp_max_ratio": 1.5,
-        "anchors": anchors,
-        "units": "umol/m²/s",
-        "ratio_units": "fraction_of_target",
-    }
+    scale = _raw_leaf_surface_flux_scale(
+        target_ppfd_umol_m2_s=target_ppfd,
+        anchors=RAW_LEAF_SURFACE_FLUX_RATIO_ANCHORS,
+        side="front",
+        role="primary_exposure_comparison",
+    )
     if not values:
         return scale, {
             "mean": 0.0,
@@ -1621,6 +1852,37 @@ def _visualization_payload(
             "color_anchors": raw_scale["anchors"],
         }
     )
+    back_scale = _raw_leaf_surface_flux_scale(
+        target_ppfd_umol_m2_s=raw_scale["target_ppfd_umol_m2_s"],
+        anchors=RAW_LEAF_SURFACE_FLUX_BACK_RATIO_ANCHORS,
+        side="back",
+        role="underside_reflected_light_diagnostic",
+    )
+    side_scales = {
+        "front": raw_scale,
+        "back": back_scale,
+    }
+    side_legends = {
+        "front": _raw_leaf_surface_flux_legend(
+            raw_scale,
+            title="Top/front raw leaf-surface PPFD",
+            note="Top/front scale = primary exposure comparison",
+        ),
+        "back": _raw_leaf_surface_flux_legend(
+            back_scale,
+            title="Bottom/back raw leaf-surface PPFD",
+            note="Bottom/back scale = underside/reflected-light diagnostic",
+        ),
+    }
+    has_side_detail = (
+        detail.get("visual_granularity") == "mesh_patch"
+        and detail.get("top_bottom_support") is True
+        and isinstance(detail.get("side_summaries"), Mapping)
+    )
+    if has_side_detail:
+        detail["primary_raw_side"] = "front"
+        detail["side_scales"] = side_scales
+        detail["side_legends"] = side_legends
     raw_summary["summary_granularity"] = "leaf_average"
     raw_summary["visualization_granularity"] = str(
         detail.get("visual_granularity") or "leaf_average"
@@ -1654,6 +1916,7 @@ def _visualization_payload(
             },
         ],
         "raw_leaf_surface_flux_scale": raw_scale,
+        "raw_leaf_surface_flux_side_scales": side_scales if has_side_detail else {},
         "raw_leaf_surface_flux_summary": raw_summary,
         "raw_leaf_surface_flux_legend": {
             "title": "Raw leaf-surface incident PPFD",
@@ -1663,6 +1926,7 @@ def _visualization_payload(
             "target_source": raw_scale["target_source"],
             "anchors": raw_scale["anchors"],
         },
+        "raw_leaf_surface_flux_side_legends": side_legends if has_side_detail else {},
         "raw_leaf_surface_flux_detail": detail,
         "leaf_scale": {
             "min": leaf_min,
@@ -1941,8 +2205,20 @@ def build_plant_surface_flux_payload(
         ],
         **{key: absorption_metrics[key] for key in target_keys if key in absorption_metrics},
         "raw_leaf_surface_flux_scale": visualization["raw_leaf_surface_flux_scale"],
+        "raw_leaf_surface_flux_side_scales": visualization[
+            "raw_leaf_surface_flux_side_scales"
+        ],
         "raw_leaf_surface_flux_summary": visualization["raw_leaf_surface_flux_summary"],
         "raw_leaf_surface_flux_legend": visualization["raw_leaf_surface_flux_legend"],
+        "raw_leaf_surface_flux_side_legends": visualization[
+            "raw_leaf_surface_flux_side_legends"
+        ],
+        "raw_leaf_surface_flux_side_summaries": visualization[
+            "raw_leaf_surface_flux_detail"
+        ].get("side_summaries"),
+        "raw_primary_side": visualization["raw_leaf_surface_flux_detail"].get(
+            "primary_raw_side"
+        ),
         "plant_summaries": plant_summaries,
         "leaf_summaries": leaf_summaries,
         "surface_summaries": surface_summaries,
@@ -1984,8 +2260,10 @@ def compact_plant_surface_flux_payload(payload: Mapping[str, Any]) -> dict[str, 
                 "color_modes",
                 "leaf_scale",
                 "raw_leaf_surface_flux_scale",
+                "raw_leaf_surface_flux_side_scales",
                 "raw_leaf_surface_flux_summary",
                 "raw_leaf_surface_flux_legend",
+                "raw_leaf_surface_flux_side_legends",
                 "raw_leaf_surface_flux_detail",
                 "plant_values",
                 "leaf_values",

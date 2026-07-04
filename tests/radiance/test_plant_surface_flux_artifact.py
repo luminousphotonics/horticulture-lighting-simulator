@@ -940,7 +940,10 @@ def test_mesh_patch_receiver_payload_reports_two_sided_policy(tmp_path) -> None:
         scene,
         receiver_granularity=RECEIVER_GRANULARITY_MESH_PATCH,
     )
-    densities = [100.0 for _sample in samples]
+    densities = [
+        100.0 if sample["side"] == "front" else 20.0
+        for sample in samples
+    ]
 
     path = write_radiance_receiver_plant_surface_flux_artifact(
         tmp_path,
@@ -949,6 +952,7 @@ def test_mesh_patch_receiver_payload_reports_two_sided_policy(tmp_path) -> None:
         densities,
         source_octree="test.oct",
         receiver_granularity=RECEIVER_GRANULARITY_MESH_PATCH,
+        target_ppfd_umol_m2_s=100.0,
     )
     payload = json.loads(path.read_text(encoding="utf-8"))
 
@@ -974,11 +978,33 @@ def test_mesh_patch_receiver_payload_reports_two_sided_policy(tmp_path) -> None:
     assert detail["sides"] == ["back", "front"]
     assert set(detail["values_ppfd"]) == {"front", "back"}
     assert all(value == pytest.approx(100.0) for value in detail["values_ppfd"]["front"][0])
-    assert all(value == pytest.approx(100.0) for value in detail["values_ppfd"]["back"][0])
+    assert all(value == pytest.approx(20.0) for value in detail["values_ppfd"]["back"][0])
     assert len(detail["values_ppfd"]["front"][0]) == payload["surface_count"]
     assert len(detail["values_ppfd"]["back"][0]) == payload["surface_count"]
     assert len(detail["patch_face_indices"][0]) == payload["surface_count"]
     assert "samples" not in detail
+    side_summaries = payload["raw_leaf_surface_flux_side_summaries"]
+    assert payload["raw_primary_side"] == "front"
+    assert side_summaries["front"]["mean"] == pytest.approx(100.0)
+    assert side_summaries["back"]["mean"] == pytest.approx(20.0)
+    assert side_summaries["front"]["bucket_counts"][5]["sample_count"] == payload[
+        "surface_count"
+    ]
+    assert side_summaries["back"]["bucket_counts"][4]["sample_count"] == payload[
+        "surface_count"
+    ]
+    assert side_summaries["two_sided"]["backside_contribution_percent"] == pytest.approx(
+        20.0 / 120.0 * 100.0
+    )
+    assert payload["raw_leaf_surface_flux_summary"]["surface_detail_bucket_counts"][5][
+        "sample_count"
+    ] == payload["surface_count"]
+    assert sum(
+        bucket["sample_count"]
+        for bucket in payload["raw_leaf_surface_flux_summary"][
+            "surface_detail_bucket_counts"
+        ]
+    ) == payload["surface_count"]
 
 
 def test_leaf_quadrature_receiver_payload_exposes_four_raw_detail_zones(

@@ -128,6 +128,53 @@ function rawSurfaceDetailBucketCounts(absorption) {
   return Array.isArray(explicit) ? explicit : [];
 }
 
+function rawSideSummaries(absorption) {
+  const summaries = asObject(absorption?.raw_leaf_surface_flux_side_summaries);
+  if (!summaries) {
+    return null;
+  }
+  const front = asObject(summaries.front);
+  const back = asObject(summaries.back);
+  if (!front || !back) {
+    return null;
+  }
+  return {
+    front,
+    back,
+    twoSided: asObject(summaries.two_sided),
+  };
+}
+
+function rawSideBucketRows(summary, prefix) {
+  const buckets = Array.isArray(summary?.bucket_counts) ? summary.bucket_counts : [];
+  return buckets.map((bucket) => {
+    const count = finiteNumber(bucket.sample_count ?? bucket.leaf_count);
+    const percent = finiteNumber(bucket.sample_percent ?? bucket.leaf_percent);
+    const countText = count === null ? UNAVAILABLE : `${Math.round(count)} samples`;
+    const percentText = percent === null ? "" : ` (${percent.toFixed(1)}%)`;
+    return [
+      `${prefix} ${bucket.label || ""}`.trim(),
+      `${countText}${percentText}`,
+    ];
+  });
+}
+
+function rawSideRows(summary, label, bucketPrefix) {
+  return [
+    [`${label} mean`, formatRawFluxStat(summary, "mean", 1)],
+    [`${label} min`, formatRawFluxStat(summary, "min", 1)],
+    [`${label} p05`, formatRawFluxStat(summary, "p05", 1)],
+    [`${label} median`, formatRawFluxStat(summary, "median", 1)],
+    [`${label} p95`, formatRawFluxStat(summary, "p95", 1)],
+    [`${label} max`, formatRawFluxStat(summary, "max", 1)],
+    [
+      `${label} raw incident flux`,
+      formatMetric(summary?.raw_incident_flux_umol_s, "umol/s", 2),
+    ],
+    ...rawSideBucketRows(summary, bucketPrefix),
+  ];
+}
+
 function spectralModeActive(...payloads) {
   return payloads.some((payload) => {
     const data = asObject(payload);
@@ -236,18 +283,41 @@ export function buildFspmPanelSections(scene) {
   if (absorption) {
     const rawSummary = asObject(absorption.raw_leaf_surface_flux_summary);
     if (rawSummary) {
-      const bucketRows = rawBucketCounts(absorption).map((bucket) => [
-        `Leaf avg ${bucket.label || `${formatNumber(bucket.min_percent, 0)}%`}`,
-        formatCount(bucket.leaf_count, "leaf", "leaves"),
-      ]);
-      const surfaceDetailRows = rawSurfaceDetailBucketCounts(absorption).map((bucket) => [
-        `Surface detail ${bucket.label || `${formatNumber(bucket.min_percent, 0)}%`}`,
-        formatCount(bucket.sample_count, "sample", "samples"),
-      ]);
-      sections.push({
-        title: "Raw leaf-surface flux",
-        note: "Actual receiver-based incident PPFD at leaf surfaces.",
-        rows: [
+      const sideSummaries = rawSideSummaries(absorption);
+      const rawRows = [];
+      if (sideSummaries) {
+        rawRows.push(
+          ["Primary raw exposure side", "Top/front"],
+          [
+            "Visualization granularity",
+            rawGranularityLabel(
+              rawSummary.visualization_granularity ||
+                absorption.raw_visualization_granularity ||
+                "leaf_average",
+            ),
+          ],
+          ["Receiver side policy", labelStatus(absorption.receiver_side_policy)],
+          ...rawSideRows(sideSummaries.front, "Top/front", "Top/front bucket"),
+          ...rawSideRows(sideSummaries.back, "Bottom/back", "Bottom/back bucket"),
+          [
+            "Two-sided raw incident flux",
+            formatMetric(sideSummaries.twoSided?.total_raw_incident_flux_umol_s, "umol/s", 2),
+          ],
+          [
+            "Backside contribution",
+            formatMetric(sideSummaries.twoSided?.backside_contribution_percent, "%", 1),
+          ],
+        );
+      } else {
+        const bucketRows = rawBucketCounts(absorption).map((bucket) => [
+          `Leaf avg ${bucket.label || `${formatNumber(bucket.min_percent, 0)}%`}`,
+          formatCount(bucket.leaf_count, "leaf", "leaves"),
+        ]);
+        const surfaceDetailRows = rawSurfaceDetailBucketCounts(absorption).map((bucket) => [
+          `Surface detail ${bucket.label || `${formatNumber(bucket.min_percent, 0)}%`}`,
+          formatCount(bucket.sample_count, "sample", "samples"),
+        ]);
+        rawRows.push(
           [
             "Summary granularity",
             rawGranularityLabel(
@@ -274,7 +344,14 @@ export function buildFspmPanelSections(scene) {
           ],
           ...bucketRows,
           ...surfaceDetailRows,
-        ],
+        );
+      }
+      sections.push({
+        title: "Raw leaf-surface flux",
+        note: sideSummaries
+          ? "Actual receiver-based incident PPFD separated by top/front and bottom/back mesh-patch sides."
+          : "Actual receiver-based incident PPFD at leaf surfaces. Side-specific mesh-patch values are unavailable, so single-side/leaf-average reporting is shown.",
+        rows: rawRows,
       });
     }
     sections.push({

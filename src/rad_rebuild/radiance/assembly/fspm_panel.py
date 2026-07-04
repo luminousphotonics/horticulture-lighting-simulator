@@ -217,7 +217,14 @@ def _surface_absorption(payload: Mapping[str, Any] | None) -> dict[str, object] 
         "normal_generation_basis": payload.get("normal_generation_basis"),
         "receiver_granularity_role": payload.get("receiver_granularity_role"),
         "raw_leaf_surface_flux_scale": payload.get("raw_leaf_surface_flux_scale"),
+        "raw_leaf_surface_flux_side_scales": payload.get(
+            "raw_leaf_surface_flux_side_scales"
+        ),
         "raw_leaf_surface_flux_summary": raw_summary,
+        "raw_leaf_surface_flux_side_summaries": payload.get(
+            "raw_leaf_surface_flux_side_summaries"
+        ),
+        "raw_primary_side": payload.get("raw_primary_side"),
         "raw_leaf_surface_flux_bucket_counts": raw_summary_mapping.get("bucket_counts"),
         "raw_leaf_summary_granularity": raw_summary_mapping.get(
             "summary_granularity",
@@ -234,6 +241,9 @@ def _surface_absorption(payload: Mapping[str, Any] | None) -> dict[str, object] 
             "surface_detail_sample_count"
         ),
         "raw_leaf_surface_flux_legend": payload.get("raw_leaf_surface_flux_legend"),
+        "raw_leaf_surface_flux_side_legends": payload.get(
+            "raw_leaf_surface_flux_side_legends"
+        ),
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),
         "surface_count": payload.get("surface_count"),

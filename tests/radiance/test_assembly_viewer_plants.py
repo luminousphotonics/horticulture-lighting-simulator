@@ -790,19 +790,25 @@ meshPatchScene.plants.surface_flux.visualization.raw_leaf_surface_flux_detail = 
 }};
 const meshPatchGroup = createPlantGroup(meshPatchScene);
 const meshPatchDetailMesh = meshByName(meshPatchGroup, "plant-leaves-raw-surface-detail");
+const meshPatchBatchMesh = meshByName(meshPatchGroup, "plant-leaves-batched");
 assert.ok(meshPatchDetailMesh);
 assert.equal(meshPatchGroup.userData.surfaceDetailMode, "mesh_patch");
 assert.equal(meshPatchGroup.userData.rawSurfaceDetail.encoding, "leaf_major_dense");
 assert.equal("samples" in meshPatchGroup.userData.rawSurfaceDetail, false);
 assert.equal(meshPatchGroup.userData.rawSurfaceDetailSampleCount, 8);
+assert.equal(meshPatchGroup.userData.rawLeafSurfaceFluxSideScales.back.anchors[1].percent, 2);
 assert.ok(uniqueColors(meshPatchDetailMesh.geometry.getAttribute("color")).size >= 2);
+assertColorNearHex(
+  leafColor(meshPatchBatchMesh.userData.rawFluxColorAttribute, 0),
+  rawLeafSurfaceFluxColorHexForValue(100, rawModeScale),
+);
 assertColorNearHex(
   firstColor(meshPatchDetailMesh.geometry.getAttribute("color"), 0),
   rawLeafSurfaceFluxColorHexForValue(100, rawModeScale),
 );
 assertColorNearHex(
   firstColor(meshPatchDetailMesh.geometry.getAttribute("color"), 3),
-  rawLeafSurfaceFluxColorHexForValue(400, rawModeScale),
+  rawLeafSurfaceFluxColorHexForValue(400, meshPatchGroup.userData.rawLeafSurfaceFluxSideScales.back),
 );
 
 const detailTargetScene = structuredClone(meshPatchScene);
@@ -838,7 +844,7 @@ assertColorNearHex(
 );
 assertColorNearHex(
   firstColor(detailTargetMesh.geometry.getAttribute("color"), 3),
-  rawLeafSurfaceFluxColorHexForValue(10, detailTargetGroup.userData.rawLeafSurfaceFluxScale),
+  rawLeafSurfaceFluxColorHexForValue(10, detailTargetGroup.userData.rawLeafSurfaceFluxSideScales.back),
 );
 assertColorNearHex(
   firstColor(detailTargetMesh.geometry.getAttribute("color"), 6),

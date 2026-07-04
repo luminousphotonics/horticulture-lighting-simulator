@@ -264,6 +264,17 @@ const RAW_LEAF_SURFACE_FLUX_ANCHORS = [
   { ratio: 1.50, percent: 150, color: "#DC2626" },
 ];
 
+const RAW_LEAF_SURFACE_FLUX_BACK_ANCHORS = [
+  { ratio: 0.00, percent: 0, color: "#2563EB" },
+  { ratio: 0.02, percent: 2, color: "#06B6D4" },
+  { ratio: 0.05, percent: 5, color: "#14B8A6" },
+  { ratio: 0.10, percent: 10, color: "#22C55E" },
+  { ratio: 0.20, percent: 20, color: "#22C55E" },
+  { ratio: 0.35, percent: 35, color: "#A3E635" },
+  { ratio: 0.50, percent: 50, color: "#F59E0B" },
+  { ratio: 0.75, percent: 75, color: "#DC2626" },
+];
+
 function rawLeafSurfaceFluxTarget(surfaceFlux = {}) {
   const detail = surfaceFlux?.visualization?.raw_leaf_surface_flux_detail
     || surfaceFlux?.visualization?.raw_surface_detail;
@@ -301,11 +312,11 @@ function rawLeafSurfaceFluxTarget(surfaceFlux = {}) {
   return { target: null, source: "unavailable" };
 }
 
-function rawLeafSurfaceFluxAnchorEntries(targetPpfd) {
-  return RAW_LEAF_SURFACE_FLUX_ANCHORS.map((anchor, index) => ({
+function rawLeafSurfaceFluxAnchorEntries(targetPpfd, anchors = RAW_LEAF_SURFACE_FLUX_ANCHORS) {
+  return anchors.map((anchor, index) => ({
     ...anchor,
     ppfd_umol_m2_s: targetPpfd === null ? null : anchor.ratio * targetPpfd,
-    label: index === RAW_LEAF_SURFACE_FLUX_ANCHORS.length - 1
+    label: index === anchors.length - 1
       ? `${anchor.percent}%+`
       : `${anchor.percent}%`,
   }));
@@ -318,6 +329,13 @@ function rawLeafSurfaceFluxLegendFromScale(scale) {
     scale: "% of FSPM target",
     target_ppfd_umol_m2_s: scale.targetPpfd,
     target_source: scale.targetSource,
+    side: scale.side || "front",
+    role: scale.role || "primary_exposure_comparison",
+    note: scale.note || (
+      scale.side === "back"
+        ? "Bottom/back scale = underside/reflected-light diagnostic"
+        : "Top/front scale = primary exposure comparison"
+    ),
     anchors: scale.anchors,
   };
 }
@@ -330,6 +348,13 @@ function normalizeRawLeafSurfaceFluxLegend(legend, scale) {
       scale: legend.scale || "% of FSPM target",
       target_ppfd_umol_m2_s: finiteNumber(legend.target_ppfd_umol_m2_s) ?? scale.targetPpfd,
       target_source: legend.target_source || scale.targetSource,
+      side: legend.side || scale.side || "front",
+      role: legend.role || scale.role || "primary_exposure_comparison",
+      note: legend.note || scale.note || (
+        (legend.side || scale.side) === "back"
+          ? "Bottom/back scale = underside/reflected-light diagnostic"
+          : "Top/front scale = primary exposure comparison"
+      ),
       anchors: legend.anchors,
     };
   }
@@ -347,24 +372,35 @@ function rawSurfaceDetail(plantPayload) {
   return detail && typeof detail === "object" ? detail : null;
 }
 
-function rawLeafSurfaceFluxScale(surfaceFlux = {}) {
+function rawLeafSurfaceFluxScale(surfaceFlux = {}, side = "front") {
   const detail = surfaceFlux?.visualization?.raw_leaf_surface_flux_detail
     || surfaceFlux?.visualization?.raw_surface_detail;
-  const explicitScale = surfaceFlux?.visualization?.raw_leaf_surface_flux_scale
+  const sideScales = surfaceFlux?.visualization?.raw_leaf_surface_flux_side_scales
+    || surfaceFlux?.raw_leaf_surface_flux_side_scales
+    || detail?.side_scales;
+  const frontScale = surfaceFlux?.visualization?.raw_leaf_surface_flux_scale
     || surfaceFlux?.raw_leaf_surface_flux_scale;
+  const explicitScale = sideScales?.[side] || (side === "front" ? frontScale : null);
   const { target, source } = rawLeafSurfaceFluxTarget(surfaceFlux);
   const units = explicitScale?.units || "umol/m²/s";
+  const defaultAnchors = side === "back"
+    ? RAW_LEAF_SURFACE_FLUX_BACK_ANCHORS
+    : RAW_LEAF_SURFACE_FLUX_ANCHORS;
   const anchors = Array.isArray(detail?.color_anchors) && detail.color_anchors.length > 0
-    ? detail.color_anchors
+    ? (side === "front" ? detail.color_anchors : defaultAnchors)
     : (
       Array.isArray(explicitScale?.anchors) && explicitScale.anchors.length > 0
         ? explicitScale.anchors
-        : rawLeafSurfaceFluxAnchorEntries(target)
+        : rawLeafSurfaceFluxAnchorEntries(target, defaultAnchors)
     );
   const ratioMin = finiteNumber(explicitScale?.ratio_min) ?? 0;
-  const ratioMax = finiteNumber(explicitScale?.ratio_max) ?? 1.5;
+  const ratioMax = finiteNumber(explicitScale?.ratio_max) ?? (side === "back" ? 0.75 : 1.5);
   return {
     mode: PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX,
+    side,
+    role: explicitScale?.role || (side === "back"
+      ? "underside_reflected_light_diagnostic"
+      : "primary_exposure_comparison"),
     scaleType: "target_normalized_ratio",
     targetPpfd: target,
     targetSource: source,
@@ -655,6 +691,36 @@ function rawDetailRowsByLeaf(plantPayload) {
   return map;
 }
 
+function rawPrimaryLeafAverageRowsByLeaf(plantPayload) {
+  const detail = rawSurfaceDetail(plantPayload);
+  const map = new Map();
+  if (
+    String(detail?.visual_granularity || "") !== "mesh_patch"
+    || detail?.top_bottom_support !== true
+    || !detail?.values_ppfd
+    || typeof detail.values_ppfd !== "object"
+  ) {
+    return map;
+  }
+  const leafIds = Array.isArray(detail.leaf_ids) ? detail.leaf_ids : [];
+  const frontValues = Array.isArray(detail.values_ppfd.front) ? detail.values_ppfd.front : [];
+  for (let leafIndex = 0; leafIndex < leafIds.length; leafIndex += 1) {
+    const leafId = typeof leafIds[leafIndex] === "string" ? leafIds[leafIndex] : "";
+    const values = Array.isArray(frontValues[leafIndex])
+      ? frontValues[leafIndex].map(finiteNumber).filter((value) => value !== null)
+      : [];
+    if (!leafId || values.length === 0) {
+      continue;
+    }
+    map.set(leafId, {
+      leaf_id: leafId,
+      side: "front",
+      [SURFACE_FLUX_METRIC]: values.reduce((total, value) => total + value, 0) / values.length,
+    });
+  }
+  return map;
+}
+
 function rowHasFace(row, faceIndex) {
   if (Number(row?.face_index) === faceIndex) {
     return true;
@@ -826,7 +892,9 @@ export function createPlantVisibilityController(plantGroup) {
       colorMetric: plantGroup.userData?.colorMetric || "",
       colorMode,
       rawLeafSurfaceFluxScale: plantGroup.userData?.rawLeafSurfaceFluxScale || null,
+      rawLeafSurfaceFluxSideScales: plantGroup.userData?.rawLeafSurfaceFluxSideScales || null,
       rawLeafSurfaceFluxLegend: plantGroup.userData?.rawLeafSurfaceFluxLegend || null,
+      rawLeafSurfaceFluxSideLegends: plantGroup.userData?.rawLeafSurfaceFluxSideLegends || null,
       hasSurfaceDetail,
       surfaceDetail,
       surfaceDetailMode: surfaceDetail && hasSurfaceDetail
@@ -916,6 +984,7 @@ function appendRawDetailLeafGeometryBuffers({
   rawRows,
   aggregateRawRow,
   rawScale,
+  rawBackScale,
   topBottomSupport,
   positions,
   colors,
@@ -951,7 +1020,7 @@ function appendRawDetailLeafGeometryBuffers({
       continue;
     }
     const frontColor = rawLeafSurfaceFluxColor(frontRow, rawScale);
-    const backColor = rawLeafSurfaceFluxColor(backRow, rawScale);
+    const backColor = rawLeafSurfaceFluxColor(backRow, topBottomSupport ? rawBackScale : rawScale);
     sampleIds.add(String(frontRow.sample_id || frontRow.surface_id || `${leafId}:${faceIndex}:front`));
     if (backRow) {
       sampleIds.add(String(backRow.sample_id || backRow.surface_id || `${leafId}:${faceIndex}:back`));
@@ -1003,16 +1072,25 @@ export function createPlantGroup(scenePayload) {
   const fluxByLeafId = leafFluxById(plantPayload);
   const rawDetail = rawSurfaceDetail(plantPayload);
   const rawDetailByLeafId = rawDetailRowsByLeaf(plantPayload);
+  const rawPrimaryLeafAverageByLeafId = rawPrimaryLeafAverageRowsByLeaf(plantPayload);
   const rawDetailVisualGranularity = String(rawDetail?.visual_granularity || "leaf_average");
   const rawDetailTopBottomSupport = Boolean(rawDetail?.top_bottom_support);
   const colorMetric = plantPayload?.surface_flux?.visualization?.color_metric || "";
   const surfaceFlux = plantPayload?.surface_flux || {};
-  const rawScale = rawLeafSurfaceFluxScale(surfaceFlux);
+  const rawScale = rawLeafSurfaceFluxScale(surfaceFlux, "front");
+  const rawBackScale = rawLeafSurfaceFluxScale(surfaceFlux, "back");
+  const sideLegends = surfaceFlux?.visualization?.raw_leaf_surface_flux_side_legends
+    || surfaceFlux?.raw_leaf_surface_flux_side_legends
+    || rawDetail?.side_legends
+    || {};
   const rawLegend = normalizeRawLeafSurfaceFluxLegend(
-    surfaceFlux?.visualization?.raw_leaf_surface_flux_legend
+    sideLegends.front
+      || surfaceFlux?.visualization?.raw_leaf_surface_flux_legend
       || surfaceFlux?.raw_leaf_surface_flux_legend,
     rawScale,
   );
+  const rawBackLegend = normalizeRawLeafSurfaceFluxLegend(sideLegends.back, rawBackScale);
+  const hasRawSideLegends = rawDetailTopBottomSupport || Boolean(sideLegends.back);
   let renderedLeafCount = 0;
   let absorptionColoredLeafCount = 0;
   let matchedLeafCount = 0;
@@ -1036,7 +1114,8 @@ export function createPlantGroup(scenePayload) {
       const fluxRow = leafFluxRow(leaf, fluxByLeafId);
       const targetDeviation = surfaceFluxTargetDeviationForLeafValue(fluxRow, surfaceFlux, colorMetric);
       const targetColor = absorptionColorForLeaf(fluxRow, surfaceFlux, colorMetric);
-      const rawFluxColor = rawLeafSurfaceFluxColor(fluxRow, rawScale);
+      const primaryRawRow = rawPrimaryLeafAverageByLeafId.get(leaf?.leaf_id) || fluxRow;
+      const rawFluxColor = rawLeafSurfaceFluxColor(primaryRawRow, rawScale);
       const rendered = appendLeafGeometryBuffers({
         leaf,
         targetColor,
@@ -1058,6 +1137,7 @@ export function createPlantGroup(scenePayload) {
           rawRows,
           aggregateRawRow: fluxRow,
           rawScale,
+          rawBackScale,
           topBottomSupport: rawDetailTopBottomSupport,
           positions: rawDetailPositions,
           colors: rawDetailColors,
@@ -1160,7 +1240,13 @@ export function createPlantGroup(scenePayload) {
     colorMode: PLANT_COLOR_MODE_TARGET_RANGE,
     colorModes: [PLANT_COLOR_MODE_TARGET_RANGE, PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX],
     rawLeafSurfaceFluxScale: rawScale,
+    rawLeafSurfaceFluxSideScales: hasRawSideLegends
+      ? { front: rawScale, back: rawBackScale }
+      : { front: rawScale },
     rawLeafSurfaceFluxLegend: rawLegend,
+    rawLeafSurfaceFluxSideLegends: hasRawSideLegends
+      ? { front: rawLegend, back: rawBackLegend }
+      : { front: rawLegend },
     rawSurfaceDetail: rawDetail,
     hasSurfaceDetail: rawDetailPositions.length > 0,
     surfaceDetail: rawDetailPositions.length > 0,

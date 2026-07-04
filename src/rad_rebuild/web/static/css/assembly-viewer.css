@@ -208,6 +208,24 @@ select:disabled {
     color: var(--assembly-text);
 }
 
+.assembly-viewer__plant-legend-control {
+    align-items: center;
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-bottom: 0.35rem;
+}
+
+.assembly-viewer__plant-legend-control select {
+    max-width: 8rem;
+    min-height: 1.65rem;
+    border: 1px solid rgba(237, 244, 251, 0.22);
+    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.92);
+    color: var(--assembly-text);
+    font: inherit;
+}
+
 .assembly-viewer__plant-legend-gradient {
     height: 0.55rem;
     max-width: 30rem;

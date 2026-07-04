@@ -81,6 +81,69 @@ FSPM_CSV_SCALAR_HEADERS = (
     "raw_leaf_surface_flux_max_percent_of_target",
     "raw_leaf_summary_granularity",
     "raw_visualization_granularity",
+    "raw_primary_side",
+    "front_raw_mean_ppfd",
+    "front_raw_min_ppfd",
+    "front_raw_p05_ppfd",
+    "front_raw_median_ppfd",
+    "front_raw_p95_ppfd",
+    "front_raw_max_ppfd",
+    "front_raw_mean_percent_of_target",
+    "front_raw_min_percent_of_target",
+    "front_raw_p05_percent_of_target",
+    "front_raw_median_percent_of_target",
+    "front_raw_p95_percent_of_target",
+    "front_raw_max_percent_of_target",
+    "front_raw_bucket_0_20_count",
+    "front_raw_bucket_20_40_count",
+    "front_raw_bucket_40_55_count",
+    "front_raw_bucket_55_80_count",
+    "front_raw_bucket_80_100_count",
+    "front_raw_bucket_100_120_count",
+    "front_raw_bucket_120_150_count",
+    "front_raw_bucket_150_plus_count",
+    "front_raw_bucket_0_20_percent",
+    "front_raw_bucket_20_40_percent",
+    "front_raw_bucket_40_55_percent",
+    "front_raw_bucket_55_80_percent",
+    "front_raw_bucket_80_100_percent",
+    "front_raw_bucket_100_120_percent",
+    "front_raw_bucket_120_150_percent",
+    "front_raw_bucket_150_plus_percent",
+    "back_raw_mean_ppfd",
+    "back_raw_min_ppfd",
+    "back_raw_p05_ppfd",
+    "back_raw_median_ppfd",
+    "back_raw_p95_ppfd",
+    "back_raw_max_ppfd",
+    "back_raw_mean_percent_of_target",
+    "back_raw_min_percent_of_target",
+    "back_raw_p05_percent_of_target",
+    "back_raw_median_percent_of_target",
+    "back_raw_p95_percent_of_target",
+    "back_raw_max_percent_of_target",
+    "back_raw_bucket_0_2_count",
+    "back_raw_bucket_2_5_count",
+    "back_raw_bucket_5_10_count",
+    "back_raw_bucket_10_20_count",
+    "back_raw_bucket_20_35_count",
+    "back_raw_bucket_35_50_count",
+    "back_raw_bucket_50_75_count",
+    "back_raw_bucket_75_plus_count",
+    "back_raw_bucket_0_2_percent",
+    "back_raw_bucket_2_5_percent",
+    "back_raw_bucket_5_10_percent",
+    "back_raw_bucket_10_20_percent",
+    "back_raw_bucket_20_35_percent",
+    "back_raw_bucket_35_50_percent",
+    "back_raw_bucket_50_75_percent",
+    "back_raw_bucket_75_plus_percent",
+    "front_raw_incident_flux_umol_s",
+    "back_raw_incident_flux_umol_s",
+    "total_two_sided_raw_incident_flux_umol_s",
+    "backside_contribution_percent",
+    "front_color_scale_anchors_percent",
+    "back_color_scale_anchors_percent",
     "raw_bucket_0_20_leaf_count",
     "raw_bucket_20_40_leaf_count",
     "raw_bucket_40_55_leaf_count",
@@ -266,6 +329,11 @@ def _summary_row(
     pss = _object(exposure.get("phytochrome_pss_proxy"))
     dose = _object(exposure.get("blue_photon_dose"))
     raw_summary = _object(absorption.get("raw_leaf_surface_flux_summary"))
+    front_raw_summary = _raw_side_summary(absorption, "front")
+    back_raw_summary = _raw_side_summary(absorption, "back")
+    two_sided_raw_summary = _raw_two_sided_summary(absorption)
+    front_raw_buckets = _raw_side_bucket_counts(front_raw_summary)
+    back_raw_buckets = _raw_side_bucket_counts(back_raw_summary)
     raw_buckets = _raw_bucket_counts(absorption, raw_summary)
     raw_surface_detail_buckets = _raw_surface_detail_bucket_counts(
         absorption,
@@ -494,6 +562,169 @@ def _summary_row(
                 raw_summary.get("visualization_granularity"),
                 absorption.get("raw_visualization_granularity"),
                 "leaf_average",
+            ),
+            "raw_primary_side": absorption.get("raw_primary_side"),
+            "front_raw_mean_ppfd": front_raw_summary.get("mean"),
+            "front_raw_min_ppfd": front_raw_summary.get("min"),
+            "front_raw_p05_ppfd": front_raw_summary.get("p05"),
+            "front_raw_median_ppfd": front_raw_summary.get("median"),
+            "front_raw_p95_ppfd": front_raw_summary.get("p95"),
+            "front_raw_max_ppfd": front_raw_summary.get("max"),
+            "front_raw_mean_percent_of_target": front_raw_summary.get(
+                "mean_percent_of_target"
+            ),
+            "front_raw_min_percent_of_target": front_raw_summary.get(
+                "min_percent_of_target"
+            ),
+            "front_raw_p05_percent_of_target": front_raw_summary.get(
+                "p05_percent_of_target"
+            ),
+            "front_raw_median_percent_of_target": front_raw_summary.get(
+                "median_percent_of_target"
+            ),
+            "front_raw_p95_percent_of_target": front_raw_summary.get(
+                "p95_percent_of_target"
+            ),
+            "front_raw_max_percent_of_target": front_raw_summary.get(
+                "max_percent_of_target"
+            ),
+            "front_raw_bucket_0_20_count": _raw_side_bucket_value(
+                front_raw_buckets, "0-20%", "sample_count"
+            ),
+            "front_raw_bucket_20_40_count": _raw_side_bucket_value(
+                front_raw_buckets, "20-40%", "sample_count"
+            ),
+            "front_raw_bucket_40_55_count": _raw_side_bucket_value(
+                front_raw_buckets, "40-55%", "sample_count"
+            ),
+            "front_raw_bucket_55_80_count": _raw_side_bucket_value(
+                front_raw_buckets, "55-80%", "sample_count"
+            ),
+            "front_raw_bucket_80_100_count": _raw_side_bucket_value(
+                front_raw_buckets, "80-100%", "sample_count"
+            ),
+            "front_raw_bucket_100_120_count": _raw_side_bucket_value(
+                front_raw_buckets, "100-120%", "sample_count"
+            ),
+            "front_raw_bucket_120_150_count": _raw_side_bucket_value(
+                front_raw_buckets, "120-150%", "sample_count"
+            ),
+            "front_raw_bucket_150_plus_count": _raw_side_bucket_value(
+                front_raw_buckets, "150%+", "sample_count"
+            ),
+            "front_raw_bucket_0_20_percent": _raw_side_bucket_value(
+                front_raw_buckets, "0-20%", "sample_percent"
+            ),
+            "front_raw_bucket_20_40_percent": _raw_side_bucket_value(
+                front_raw_buckets, "20-40%", "sample_percent"
+            ),
+            "front_raw_bucket_40_55_percent": _raw_side_bucket_value(
+                front_raw_buckets, "40-55%", "sample_percent"
+            ),
+            "front_raw_bucket_55_80_percent": _raw_side_bucket_value(
+                front_raw_buckets, "55-80%", "sample_percent"
+            ),
+            "front_raw_bucket_80_100_percent": _raw_side_bucket_value(
+                front_raw_buckets, "80-100%", "sample_percent"
+            ),
+            "front_raw_bucket_100_120_percent": _raw_side_bucket_value(
+                front_raw_buckets, "100-120%", "sample_percent"
+            ),
+            "front_raw_bucket_120_150_percent": _raw_side_bucket_value(
+                front_raw_buckets, "120-150%", "sample_percent"
+            ),
+            "front_raw_bucket_150_plus_percent": _raw_side_bucket_value(
+                front_raw_buckets, "150%+", "sample_percent"
+            ),
+            "back_raw_mean_ppfd": back_raw_summary.get("mean"),
+            "back_raw_min_ppfd": back_raw_summary.get("min"),
+            "back_raw_p05_ppfd": back_raw_summary.get("p05"),
+            "back_raw_median_ppfd": back_raw_summary.get("median"),
+            "back_raw_p95_ppfd": back_raw_summary.get("p95"),
+            "back_raw_max_ppfd": back_raw_summary.get("max"),
+            "back_raw_mean_percent_of_target": back_raw_summary.get(
+                "mean_percent_of_target"
+            ),
+            "back_raw_min_percent_of_target": back_raw_summary.get(
+                "min_percent_of_target"
+            ),
+            "back_raw_p05_percent_of_target": back_raw_summary.get(
+                "p05_percent_of_target"
+            ),
+            "back_raw_median_percent_of_target": back_raw_summary.get(
+                "median_percent_of_target"
+            ),
+            "back_raw_p95_percent_of_target": back_raw_summary.get(
+                "p95_percent_of_target"
+            ),
+            "back_raw_max_percent_of_target": back_raw_summary.get(
+                "max_percent_of_target"
+            ),
+            "back_raw_bucket_0_2_count": _raw_side_bucket_value(
+                back_raw_buckets, "0-2%", "sample_count"
+            ),
+            "back_raw_bucket_2_5_count": _raw_side_bucket_value(
+                back_raw_buckets, "2-5%", "sample_count"
+            ),
+            "back_raw_bucket_5_10_count": _raw_side_bucket_value(
+                back_raw_buckets, "5-10%", "sample_count"
+            ),
+            "back_raw_bucket_10_20_count": _raw_side_bucket_value(
+                back_raw_buckets, "10-20%", "sample_count"
+            ),
+            "back_raw_bucket_20_35_count": _raw_side_bucket_value(
+                back_raw_buckets, "20-35%", "sample_count"
+            ),
+            "back_raw_bucket_35_50_count": _raw_side_bucket_value(
+                back_raw_buckets, "35-50%", "sample_count"
+            ),
+            "back_raw_bucket_50_75_count": _raw_side_bucket_value(
+                back_raw_buckets, "50-75%", "sample_count"
+            ),
+            "back_raw_bucket_75_plus_count": _raw_side_bucket_value(
+                back_raw_buckets, "75%+", "sample_count"
+            ),
+            "back_raw_bucket_0_2_percent": _raw_side_bucket_value(
+                back_raw_buckets, "0-2%", "sample_percent"
+            ),
+            "back_raw_bucket_2_5_percent": _raw_side_bucket_value(
+                back_raw_buckets, "2-5%", "sample_percent"
+            ),
+            "back_raw_bucket_5_10_percent": _raw_side_bucket_value(
+                back_raw_buckets, "5-10%", "sample_percent"
+            ),
+            "back_raw_bucket_10_20_percent": _raw_side_bucket_value(
+                back_raw_buckets, "10-20%", "sample_percent"
+            ),
+            "back_raw_bucket_20_35_percent": _raw_side_bucket_value(
+                back_raw_buckets, "20-35%", "sample_percent"
+            ),
+            "back_raw_bucket_35_50_percent": _raw_side_bucket_value(
+                back_raw_buckets, "35-50%", "sample_percent"
+            ),
+            "back_raw_bucket_50_75_percent": _raw_side_bucket_value(
+                back_raw_buckets, "50-75%", "sample_percent"
+            ),
+            "back_raw_bucket_75_plus_percent": _raw_side_bucket_value(
+                back_raw_buckets, "75%+", "sample_percent"
+            ),
+            "front_raw_incident_flux_umol_s": front_raw_summary.get(
+                "raw_incident_flux_umol_s"
+            ),
+            "back_raw_incident_flux_umol_s": back_raw_summary.get(
+                "raw_incident_flux_umol_s"
+            ),
+            "total_two_sided_raw_incident_flux_umol_s": two_sided_raw_summary.get(
+                "total_raw_incident_flux_umol_s"
+            ),
+            "backside_contribution_percent": two_sided_raw_summary.get(
+                "backside_contribution_percent"
+            ),
+            "front_color_scale_anchors_percent": _raw_scale_anchor_percents(
+                absorption, "front"
+            ),
+            "back_color_scale_anchors_percent": _raw_scale_anchor_percents(
+                absorption, "back"
             ),
             "raw_bucket_0_20_leaf_count": raw_buckets.get("0-20%"),
             "raw_bucket_20_40_leaf_count": raw_buckets.get("20-40%"),
@@ -853,6 +1084,63 @@ def _raw_bucket_counts(
         if label is not None:
             counts[str(label)] = bucket.get("leaf_count")
     return counts
+
+
+def _raw_side_summary(absorption: Mapping[str, Any], side: str) -> Mapping[str, Any]:
+    summaries = absorption.get("raw_leaf_surface_flux_side_summaries")
+    if not isinstance(summaries, Mapping):
+        return {}
+    summary = summaries.get(side)
+    return summary if isinstance(summary, Mapping) else {}
+
+
+def _raw_two_sided_summary(absorption: Mapping[str, Any]) -> Mapping[str, Any]:
+    summaries = absorption.get("raw_leaf_surface_flux_side_summaries")
+    if not isinstance(summaries, Mapping):
+        return {}
+    summary = summaries.get("two_sided")
+    return summary if isinstance(summary, Mapping) else {}
+
+
+def _raw_side_bucket_counts(summary: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    buckets = summary.get("bucket_counts")
+    if not isinstance(buckets, list):
+        return {}
+    counts: dict[str, Mapping[str, Any]] = {}
+    for bucket in buckets:
+        if not isinstance(bucket, Mapping):
+            continue
+        label = bucket.get("label")
+        if label is not None:
+            counts[str(label)] = bucket
+    return counts
+
+
+def _raw_side_bucket_value(
+    buckets: Mapping[str, Mapping[str, Any]],
+    label: str,
+    key: str,
+) -> object:
+    bucket = buckets.get(label)
+    return bucket.get(key) if isinstance(bucket, Mapping) else None
+
+
+def _raw_scale_anchor_percents(absorption: Mapping[str, Any], side: str) -> str:
+    scales = absorption.get("raw_leaf_surface_flux_side_scales")
+    if not isinstance(scales, Mapping):
+        return ""
+    scale = scales.get(side)
+    if not isinstance(scale, Mapping):
+        return ""
+    anchors = scale.get("anchors")
+    if not isinstance(anchors, list):
+        return ""
+    percents = [
+        anchor.get("percent")
+        for anchor in anchors
+        if isinstance(anchor, Mapping) and _finite(anchor.get("percent")) is not None
+    ]
+    return json.dumps(percents, separators=(",", ":"))
 
 
 def _raw_surface_detail_bucket_counts(

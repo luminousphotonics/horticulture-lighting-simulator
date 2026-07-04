@@ -25,6 +25,7 @@ from rad_rebuild.radiance.assembly.fspm_csv import (  # noqa: E402
     FSPM_CSV_SCALAR_HEADERS,
     FSPM_CSV_SPECTRAL_HEADERS,
     FSPM_CSV_SURFACE_DETAIL_BUCKET_HEADERS,
+    build_fspm_metrics_csv,
 )
 from rad_rebuild.radiance.config import EXECUTION_MODE_LIVE_DOCKER, MODE_HPS, MODE_SMD  # noqa: E402
 from rad_rebuild.radiance.engine.plants.photoreceptor import PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA  # noqa: E402
@@ -935,6 +936,135 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
             if value:
                 self.assertRegex(value, r"^-?\d+(?:\.\d+)?(?:e[+-]?\d+)?$", key)
         self.assertNotRegex(text.lower(), r"yield|biomass|harvest|crop output|growth prediction")
+
+    def test_fspm_csv_exports_mesh_patch_front_back_raw_summary(self) -> None:
+        workspace = Path(tempfile.mkdtemp(prefix="rad_rebuild_fspm_csv_sides_"))
+        runtime = workspace / "runtime_state"
+        runtime.mkdir()
+        (runtime / "plant_surface_flux.json").write_text(
+            json.dumps(
+                {
+                    "schema": PLANT_SURFACE_FLUX_SCHEMA,
+                    "schema_version": 1,
+                    "status": "computed",
+                    "method": "radiance_leaf_surface_receiver_sampling_v1",
+                    "plant_count": 1,
+                    "leaf_count": 2,
+                    "surface_count": 4,
+                    "receiver_sample_count": 8,
+                    "receiver_granularity": "mesh_patch",
+                    "receiver_side_policy": "front_and_back_per_mesh_surface_row",
+                    "one_sided_leaf_area_m2": 0.1,
+                    "target_ppfd_umol_m2_s": 100.0,
+                    "raw_primary_side": "front",
+                    "raw_leaf_surface_flux_side_scales": {
+                        "front": {
+                            "anchors": [
+                                {"percent": 0},
+                                {"percent": 20},
+                                {"percent": 40},
+                                {"percent": 55},
+                                {"percent": 80},
+                                {"percent": 100},
+                                {"percent": 120},
+                                {"percent": 150},
+                            ]
+                        },
+                        "back": {
+                            "anchors": [
+                                {"percent": 0},
+                                {"percent": 2},
+                                {"percent": 5},
+                                {"percent": 10},
+                                {"percent": 20},
+                                {"percent": 35},
+                                {"percent": 50},
+                                {"percent": 75},
+                            ]
+                        },
+                    },
+                    "raw_leaf_surface_flux_summary": {
+                        "mean": 90.0,
+                        "summary_granularity": "leaf_average",
+                        "visualization_granularity": "mesh_patch",
+                        "bucket_counts": [{"label": "80-100%", "leaf_count": 2}],
+                    },
+                    "raw_leaf_surface_flux_side_summaries": {
+                        "front": {
+                            "mean": 100.0,
+                            "min": 80.0,
+                            "p05": 82.0,
+                            "median": 100.0,
+                            "p95": 118.0,
+                            "max": 120.0,
+                            "mean_percent_of_target": 100.0,
+                            "min_percent_of_target": 80.0,
+                            "p05_percent_of_target": 82.0,
+                            "median_percent_of_target": 100.0,
+                            "p95_percent_of_target": 118.0,
+                            "max_percent_of_target": 120.0,
+                            "raw_incident_flux_umol_s": 10.0,
+                            "bucket_counts": [
+                                {"label": "80-100%", "sample_count": 1, "sample_percent": 25},
+                                {"label": "100-120%", "sample_count": 3, "sample_percent": 75},
+                            ],
+                        },
+                        "back": {
+                            "mean": 10.0,
+                            "min": 2.0,
+                            "p05": 2.4,
+                            "median": 10.0,
+                            "p95": 17.6,
+                            "max": 18.0,
+                            "mean_percent_of_target": 10.0,
+                            "min_percent_of_target": 2.0,
+                            "p05_percent_of_target": 2.4,
+                            "median_percent_of_target": 10.0,
+                            "p95_percent_of_target": 17.6,
+                            "max_percent_of_target": 18.0,
+                            "raw_incident_flux_umol_s": 1.0,
+                            "bucket_counts": [
+                                {"label": "2-5%", "sample_count": 1, "sample_percent": 25},
+                                {"label": "5-10%", "sample_count": 1, "sample_percent": 25},
+                                {"label": "10-20%", "sample_count": 2, "sample_percent": 50},
+                            ],
+                        },
+                        "two_sided": {
+                            "total_raw_incident_flux_umol_s": 11.0,
+                            "backside_contribution_percent": 9.0909090909,
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        rows = list(
+            csv.DictReader(
+                StringIO(
+                    build_fspm_metrics_csv(
+                        workspace,
+                        run_id="run-side",
+                        mode=MODE_SMD,
+                    )
+                )
+            )
+        )
+
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["raw_primary_side"], "front")
+        self.assertEqual(row["front_raw_mean_ppfd"], "100")
+        self.assertEqual(row["back_raw_mean_ppfd"], "10")
+        self.assertEqual(row["front_raw_bucket_100_120_count"], "3")
+        self.assertEqual(row["back_raw_bucket_10_20_count"], "2")
+        self.assertEqual(row["front_raw_incident_flux_umol_s"], "10")
+        self.assertEqual(row["back_raw_incident_flux_umol_s"], "1")
+        self.assertEqual(row["total_two_sided_raw_incident_flux_umol_s"], "11")
+        self.assertEqual(row["backside_contribution_percent"], "9.0909090909")
+        self.assertEqual(row["front_color_scale_anchors_percent"], "[0,20,40,55,80,100,120,150]")
+        self.assertEqual(row["back_color_scale_anchors_percent"], "[0,2,5,10,20,35,50,75]")
+        self.assertNotIn("values_ppfd", row)
 
     def test_fspm_csv_missing_optional_artifacts_uses_blank_cells(self) -> None:
         def fake_authorize(_request: object, _req: object) -> Path:

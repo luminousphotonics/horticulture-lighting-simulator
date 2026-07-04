@@ -331,8 +331,18 @@ def _load_plant_surface_flux_summary(workspace_root: Path) -> dict[str, object] 
         "over_lit_plant_fraction": payload.get("over_lit_plant_fraction"),
         "raw_mean_flux_density_umol_m2_s": payload.get("raw_mean_flux_density_umol_m2_s"),
         "raw_leaf_surface_flux_scale": payload.get("raw_leaf_surface_flux_scale"),
+        "raw_leaf_surface_flux_side_scales": payload.get(
+            "raw_leaf_surface_flux_side_scales"
+        ),
         "raw_leaf_surface_flux_summary": payload.get("raw_leaf_surface_flux_summary"),
+        "raw_leaf_surface_flux_side_summaries": payload.get(
+            "raw_leaf_surface_flux_side_summaries"
+        ),
+        "raw_primary_side": payload.get("raw_primary_side"),
         "raw_leaf_surface_flux_legend": payload.get("raw_leaf_surface_flux_legend"),
+        "raw_leaf_surface_flux_side_legends": payload.get(
+            "raw_leaf_surface_flux_side_legends"
+        ),
         "target_classification_mean_ppfd_umol_m2_s": payload.get(
             "target_classification_mean_ppfd_umol_m2_s"
         ),

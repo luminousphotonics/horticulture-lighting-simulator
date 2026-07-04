@@ -57,6 +57,7 @@ const fspmExportStatusEl = document.getElementById("assembly-fspm-export-status"
 let fspmPanelExpanded = false;
 let fspmPanelAvailable = false;
 let fspmCsvUrl = "";
+let rawLegendPerspective = "front";
 const heatmapRaycaster = new THREE.Raycaster();
 const heatmapPointer = new THREE.Vector2();
 const heatmapIntersections = [];
@@ -185,13 +186,13 @@ function setPlantControlsEnabled(enabled, colorEnabled = false, detailEnabled = 
   }
 }
 
-function formatPlantLegendAnchor(anchor) {
+function formatPlantLegendAnchor(anchor, isLast = false) {
   const ratio = Number(anchor?.ratio);
   const percent = Number.isFinite(Number(anchor?.percent))
     ? Number(anchor.percent)
     : ratio * 100;
   const ppfd = Number(anchor?.ppfd_umol_m2_s);
-  const suffix = Number.isFinite(ratio) && ratio >= 1.5 ? "+" : "";
+  const suffix = isLast ? "+" : "";
   const percentLabel = Number.isFinite(percent) ? `${Math.round(percent)}%${suffix}` : "-";
   const ppfdLabel = Number.isFinite(ppfd) ? `${Math.round(ppfd)}${suffix}` : "-";
   return `${percentLabel} ${ppfdLabel}`;
@@ -209,15 +210,45 @@ function appendLegendHeader(parent, title, subtitle) {
 }
 
 function renderRawPlantLegend(parent, state) {
-  const legend = state.rawLeafSurfaceFluxLegend || {};
-  const scale = state.rawLeafSurfaceFluxScale || {};
+  const sideLegends = state.rawLeafSurfaceFluxSideLegends || {};
+  const sideScales = state.rawLeafSurfaceFluxSideScales || {};
+  const hasBackLegend = Boolean(sideLegends.back || sideScales.back);
+  const activeSide = rawLegendPerspective === "back" && hasBackLegend ? "back" : "front";
+  rawLegendPerspective = activeSide;
+  if (hasBackLegend) {
+    const label = document.createElement("label");
+    label.className = "assembly-viewer__plant-legend-control";
+    const text = document.createElement("span");
+    text.textContent = "Legend perspective";
+    const select = document.createElement("select");
+    for (const [value, optionText] of [
+      ["front", "Top/front"],
+      ["back", "Bottom/back"],
+    ]) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = optionText;
+      option.selected = activeSide === value;
+      select.append(option);
+    }
+    select.addEventListener("change", () => {
+      rawLegendPerspective = select.value === "back" ? "back" : "front";
+      renderPlantLegend(state);
+    });
+    label.append(text, select);
+    parent.append(label);
+  }
+  const legend = sideLegends[activeSide] || state.rawLeafSurfaceFluxLegend || {};
+  const scale = sideScales[activeSide] || state.rawLeafSurfaceFluxScale || {};
   const anchors = Array.isArray(legend.anchors) && legend.anchors.length > 0
     ? legend.anchors
     : scale.anchors;
   appendLegendHeader(
     parent,
     legend.title || "Raw leaf-surface incident PPFD",
-    `${legend.scale || "% of FSPM target"} · ${legend.units || scale.units || "umol/m²/s"}`,
+    `${legend.note || (activeSide === "back"
+      ? "Bottom/back scale = underside/reflected-light diagnostic"
+      : "Top/front scale = primary exposure comparison")} · ${legend.scale || "% of FSPM target"} · ${legend.units || scale.units || "umol/m²/s"}`,
   );
   const bar = document.createElement("div");
   bar.className = "assembly-viewer__plant-legend-gradient";
@@ -225,9 +256,9 @@ function renderRawPlantLegend(parent, state) {
   const ticks = document.createElement("div");
   ticks.className = "assembly-viewer__plant-legend-ticks";
   if (Array.isArray(anchors)) {
-    for (const anchor of anchors) {
+    for (const [index, anchor] of anchors.entries()) {
       const tick = document.createElement("span");
-      tick.textContent = formatPlantLegendAnchor(anchor);
+      tick.textContent = formatPlantLegendAnchor(anchor, index === anchors.length - 1);
       ticks.append(tick);
     }
   }
