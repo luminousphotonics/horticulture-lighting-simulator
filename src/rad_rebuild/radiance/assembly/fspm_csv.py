@@ -79,22 +79,45 @@ FSPM_CSV_SCALAR_HEADERS = (
     "raw_leaf_surface_flux_median_percent_of_target",
     "raw_leaf_surface_flux_p95_percent_of_target",
     "raw_leaf_surface_flux_max_percent_of_target",
-    "raw_bucket_0_25_leaf_count",
-    "raw_bucket_25_45_leaf_count",
-    "raw_bucket_45_70_leaf_count",
-    "raw_bucket_70_90_leaf_count",
-    "raw_bucket_90_115_leaf_count",
-    "raw_bucket_115_150_leaf_count",
+    "raw_leaf_summary_granularity",
+    "raw_visualization_granularity",
+    "raw_bucket_0_20_leaf_count",
+    "raw_bucket_20_40_leaf_count",
+    "raw_bucket_40_55_leaf_count",
+    "raw_bucket_55_80_leaf_count",
+    "raw_bucket_80_100_leaf_count",
+    "raw_bucket_100_120_leaf_count",
+    "raw_bucket_120_150_leaf_count",
     "raw_bucket_150_plus_leaf_count",
-    "raw_bucket_0_25_leaf_percent",
-    "raw_bucket_25_45_leaf_percent",
-    "raw_bucket_45_70_leaf_percent",
-    "raw_bucket_70_90_leaf_percent",
-    "raw_bucket_90_115_leaf_percent",
-    "raw_bucket_115_150_leaf_percent",
+    "raw_bucket_0_20_leaf_percent",
+    "raw_bucket_20_40_leaf_percent",
+    "raw_bucket_40_55_leaf_percent",
+    "raw_bucket_55_80_leaf_percent",
+    "raw_bucket_80_100_leaf_percent",
+    "raw_bucket_100_120_leaf_percent",
+    "raw_bucket_120_150_leaf_percent",
     "raw_bucket_150_plus_leaf_percent",
     "target_capped_plant_location_plant_to_plant_cv_percent",
     "note",
+)
+
+FSPM_CSV_SURFACE_DETAIL_BUCKET_HEADERS = (
+    "raw_surface_detail_bucket_0_20_sample_count",
+    "raw_surface_detail_bucket_20_40_sample_count",
+    "raw_surface_detail_bucket_40_55_sample_count",
+    "raw_surface_detail_bucket_55_80_sample_count",
+    "raw_surface_detail_bucket_80_100_sample_count",
+    "raw_surface_detail_bucket_100_120_sample_count",
+    "raw_surface_detail_bucket_120_150_sample_count",
+    "raw_surface_detail_bucket_150_plus_sample_count",
+    "raw_surface_detail_bucket_0_20_sample_percent",
+    "raw_surface_detail_bucket_20_40_sample_percent",
+    "raw_surface_detail_bucket_40_55_sample_percent",
+    "raw_surface_detail_bucket_55_80_sample_percent",
+    "raw_surface_detail_bucket_80_100_sample_percent",
+    "raw_surface_detail_bucket_100_120_sample_percent",
+    "raw_surface_detail_bucket_120_150_sample_percent",
+    "raw_surface_detail_bucket_150_plus_sample_percent",
 )
 
 FSPM_CSV_SPECTRAL_HEADERS = (
@@ -158,7 +181,11 @@ FSPM_CSV_SPECTRAL_HEADERS = (
     "calibration_status",
 )
 
-FSPM_CSV_HEADERS = FSPM_CSV_SCALAR_HEADERS[:-1] + FSPM_CSV_SPECTRAL_HEADERS + ("note",)
+FSPM_CSV_HEADERS = (
+    FSPM_CSV_SCALAR_HEADERS[:-1]
+    + FSPM_CSV_SPECTRAL_HEADERS
+    + ("note",)
+)
 
 
 def fspm_system_label(mode: str) -> str:
@@ -189,14 +216,16 @@ def build_fspm_metrics_csv(
         raise ValueError("FSPM artifact data is unavailable.")
 
     spectral_active = _panel_spectral_active(panel)
+    surface_detail_active = _panel_surface_detail_active(panel)
+    headers = _headers_for_export(spectral_active, surface_detail_active)
     row = _summary_row(
         panel,
         run_id=run_id,
         mode=mode,
         system_label=system_label or fspm_system_label(mode),
         spectral_active=spectral_active,
+        headers=headers,
     )
-    headers = _headers_for_export(spectral_active)
     handle = StringIO()
     writer = csv.DictWriter(
         handle,
@@ -216,6 +245,7 @@ def _summary_row(
     mode: str,
     system_label: str,
     spectral_active: bool,
+    headers: tuple[str, ...],
 ) -> dict[str, str]:
     counts = _object(panel.get("counts"))
     absorption = _object(
@@ -237,6 +267,20 @@ def _summary_row(
     dose = _object(exposure.get("blue_photon_dose"))
     raw_summary = _object(absorption.get("raw_leaf_surface_flux_summary"))
     raw_buckets = _raw_bucket_counts(absorption, raw_summary)
+    raw_surface_detail_buckets = _raw_surface_detail_bucket_counts(
+        absorption,
+        raw_summary,
+    )
+    raw_surface_detail_sample_count = _first_value(
+        raw_summary.get("surface_detail_sample_count"),
+        absorption.get("raw_leaf_surface_flux_surface_detail_sample_count"),
+        sum(
+            float(bucket.get("sample_count") or 0.0)
+            for bucket in raw_surface_detail_buckets.values()
+        )
+        if raw_surface_detail_buckets
+        else None,
+    )
     note = _text(panel.get("limitations_note")) or (
         "Lighting-analysis input only; unvalidated response-potential scaffold, "
         "not biological-output prediction."
@@ -441,40 +485,119 @@ def _summary_row(
             "raw_leaf_surface_flux_max_percent_of_target": raw_summary.get(
                 "max_percent_of_target"
             ),
-            "raw_bucket_0_25_leaf_count": raw_buckets.get("0-25%"),
-            "raw_bucket_25_45_leaf_count": raw_buckets.get("25-45%"),
-            "raw_bucket_45_70_leaf_count": raw_buckets.get("45-70%"),
-            "raw_bucket_70_90_leaf_count": raw_buckets.get("70-90%"),
-            "raw_bucket_90_115_leaf_count": raw_buckets.get("90-115%"),
-            "raw_bucket_115_150_leaf_count": raw_buckets.get("115-150%"),
+            "raw_leaf_summary_granularity": _first_value(
+                raw_summary.get("summary_granularity"),
+                absorption.get("raw_leaf_summary_granularity"),
+                "leaf_average",
+            ),
+            "raw_visualization_granularity": _first_value(
+                raw_summary.get("visualization_granularity"),
+                absorption.get("raw_visualization_granularity"),
+                "leaf_average",
+            ),
+            "raw_bucket_0_20_leaf_count": raw_buckets.get("0-20%"),
+            "raw_bucket_20_40_leaf_count": raw_buckets.get("20-40%"),
+            "raw_bucket_40_55_leaf_count": raw_buckets.get("40-55%"),
+            "raw_bucket_55_80_leaf_count": raw_buckets.get("55-80%"),
+            "raw_bucket_80_100_leaf_count": raw_buckets.get("80-100%"),
+            "raw_bucket_100_120_leaf_count": raw_buckets.get("100-120%"),
+            "raw_bucket_120_150_leaf_count": raw_buckets.get("120-150%"),
             "raw_bucket_150_plus_leaf_count": raw_buckets.get("150%+"),
-            "raw_bucket_0_25_leaf_percent": _ratio_percent(
-                raw_buckets.get("0-25%"),
+            "raw_bucket_0_20_leaf_percent": _ratio_percent(
+                raw_buckets.get("0-20%"),
                 leaf_count,
             ),
-            "raw_bucket_25_45_leaf_percent": _ratio_percent(
-                raw_buckets.get("25-45%"),
+            "raw_bucket_20_40_leaf_percent": _ratio_percent(
+                raw_buckets.get("20-40%"),
                 leaf_count,
             ),
-            "raw_bucket_45_70_leaf_percent": _ratio_percent(
-                raw_buckets.get("45-70%"),
+            "raw_bucket_40_55_leaf_percent": _ratio_percent(
+                raw_buckets.get("40-55%"),
                 leaf_count,
             ),
-            "raw_bucket_70_90_leaf_percent": _ratio_percent(
-                raw_buckets.get("70-90%"),
+            "raw_bucket_55_80_leaf_percent": _ratio_percent(
+                raw_buckets.get("55-80%"),
                 leaf_count,
             ),
-            "raw_bucket_90_115_leaf_percent": _ratio_percent(
-                raw_buckets.get("90-115%"),
+            "raw_bucket_80_100_leaf_percent": _ratio_percent(
+                raw_buckets.get("80-100%"),
                 leaf_count,
             ),
-            "raw_bucket_115_150_leaf_percent": _ratio_percent(
-                raw_buckets.get("115-150%"),
+            "raw_bucket_100_120_leaf_percent": _ratio_percent(
+                raw_buckets.get("100-120%"),
+                leaf_count,
+            ),
+            "raw_bucket_120_150_leaf_percent": _ratio_percent(
+                raw_buckets.get("120-150%"),
                 leaf_count,
             ),
             "raw_bucket_150_plus_leaf_percent": _ratio_percent(
                 raw_buckets.get("150%+"),
                 leaf_count,
+            ),
+            "raw_surface_detail_bucket_0_20_sample_count": _raw_bucket_sample_count(
+                raw_surface_detail_buckets,
+                "0-20%",
+            ),
+            "raw_surface_detail_bucket_20_40_sample_count": _raw_bucket_sample_count(
+                raw_surface_detail_buckets,
+                "20-40%",
+            ),
+            "raw_surface_detail_bucket_40_55_sample_count": _raw_bucket_sample_count(
+                raw_surface_detail_buckets,
+                "40-55%",
+            ),
+            "raw_surface_detail_bucket_55_80_sample_count": _raw_bucket_sample_count(
+                raw_surface_detail_buckets,
+                "55-80%",
+            ),
+            "raw_surface_detail_bucket_80_100_sample_count": _raw_bucket_sample_count(
+                raw_surface_detail_buckets,
+                "80-100%",
+            ),
+            "raw_surface_detail_bucket_100_120_sample_count": _raw_bucket_sample_count(
+                raw_surface_detail_buckets,
+                "100-120%",
+            ),
+            "raw_surface_detail_bucket_120_150_sample_count": _raw_bucket_sample_count(
+                raw_surface_detail_buckets,
+                "120-150%",
+            ),
+            "raw_surface_detail_bucket_150_plus_sample_count": _raw_bucket_sample_count(
+                raw_surface_detail_buckets,
+                "150%+",
+            ),
+            "raw_surface_detail_bucket_0_20_sample_percent": _ratio_percent(
+                _raw_bucket_sample_count(raw_surface_detail_buckets, "0-20%"),
+                raw_surface_detail_sample_count,
+            ),
+            "raw_surface_detail_bucket_20_40_sample_percent": _ratio_percent(
+                _raw_bucket_sample_count(raw_surface_detail_buckets, "20-40%"),
+                raw_surface_detail_sample_count,
+            ),
+            "raw_surface_detail_bucket_40_55_sample_percent": _ratio_percent(
+                _raw_bucket_sample_count(raw_surface_detail_buckets, "40-55%"),
+                raw_surface_detail_sample_count,
+            ),
+            "raw_surface_detail_bucket_55_80_sample_percent": _ratio_percent(
+                _raw_bucket_sample_count(raw_surface_detail_buckets, "55-80%"),
+                raw_surface_detail_sample_count,
+            ),
+            "raw_surface_detail_bucket_80_100_sample_percent": _ratio_percent(
+                _raw_bucket_sample_count(raw_surface_detail_buckets, "80-100%"),
+                raw_surface_detail_sample_count,
+            ),
+            "raw_surface_detail_bucket_100_120_sample_percent": _ratio_percent(
+                _raw_bucket_sample_count(raw_surface_detail_buckets, "100-120%"),
+                raw_surface_detail_sample_count,
+            ),
+            "raw_surface_detail_bucket_120_150_sample_percent": _ratio_percent(
+                _raw_bucket_sample_count(raw_surface_detail_buckets, "120-150%"),
+                raw_surface_detail_sample_count,
+            ),
+            "raw_surface_detail_bucket_150_plus_sample_percent": _ratio_percent(
+                _raw_bucket_sample_count(raw_surface_detail_buckets, "150%+"),
+                raw_surface_detail_sample_count,
             ),
             "target_capped_plant_location_plant_to_plant_cv_percent": _percent(
                 _first(
@@ -612,7 +735,7 @@ def _summary_row(
             "calibration_status": response.get("calibration_status"),
             "note": note,
         },
-        headers=_headers_for_export(spectral_active),
+        headers=headers,
     )
 
 
@@ -732,6 +855,33 @@ def _raw_bucket_counts(
     return counts
 
 
+def _raw_surface_detail_bucket_counts(
+    absorption: Mapping[str, Any],
+    raw_summary: Mapping[str, Any],
+) -> dict[str, Mapping[str, Any]]:
+    buckets = absorption.get("raw_leaf_surface_flux_surface_detail_bucket_counts")
+    if not isinstance(buckets, list):
+        buckets = raw_summary.get("surface_detail_bucket_counts")
+    if not isinstance(buckets, list):
+        return {}
+    counts: dict[str, Mapping[str, Any]] = {}
+    for bucket in buckets:
+        if not isinstance(bucket, Mapping):
+            continue
+        label = bucket.get("label")
+        if label is not None:
+            counts[str(label)] = bucket
+    return counts
+
+
+def _raw_bucket_sample_count(
+    buckets: Mapping[str, Mapping[str, Any]],
+    label: str,
+) -> object:
+    bucket = buckets.get(label)
+    return bucket.get("sample_count") if isinstance(bucket, Mapping) else None
+
+
 def _spectral_active(*payloads: Mapping[str, Any]) -> bool:
     for payload in payloads:
         mode = str(payload.get("fspm_spectral_transport_mode") or "")
@@ -765,10 +915,29 @@ def _panel_spectral_active(panel: Mapping[str, Any]) -> bool:
     )
 
 
-def _headers_for_export(spectral_active: bool) -> tuple[str, ...]:
+def _panel_surface_detail_active(panel: Mapping[str, Any]) -> bool:
+    absorption = _object(
+        panel.get("incident_leaf_surface_flux") or panel.get("plant_surface_absorption")
+    )
+    raw_summary = _object(absorption.get("raw_leaf_surface_flux_summary"))
+    buckets = (
+        absorption.get("raw_leaf_surface_flux_surface_detail_bucket_counts")
+        or raw_summary.get("surface_detail_bucket_counts")
+    )
+    return isinstance(buckets, list) and bool(buckets)
+
+
+def _headers_for_export(
+    spectral_active: bool,
+    surface_detail_active: bool,
+) -> tuple[str, ...]:
+    headers = list(FSPM_CSV_SCALAR_HEADERS[:-1])
     if spectral_active:
-        return FSPM_CSV_HEADERS
-    return FSPM_CSV_SCALAR_HEADERS
+        headers.extend(FSPM_CSV_SPECTRAL_HEADERS)
+    if surface_detail_active:
+        headers.extend(FSPM_CSV_SURFACE_DETAIL_BUCKET_HEADERS)
+    headers.append("note")
+    return tuple(headers)
 
 
 def _first_value(*values: object) -> object:

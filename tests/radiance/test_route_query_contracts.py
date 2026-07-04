@@ -24,6 +24,7 @@ from rad_rebuild.radiance.assembly.fspm_csv import (  # noqa: E402
     FSPM_CSV_HEADERS,
     FSPM_CSV_SCALAR_HEADERS,
     FSPM_CSV_SPECTRAL_HEADERS,
+    FSPM_CSV_SURFACE_DETAIL_BUCKET_HEADERS,
 )
 from rad_rebuild.radiance.config import EXECUTION_MODE_LIVE_DOCKER, MODE_HPS, MODE_SMD  # noqa: E402
 from rad_rebuild.radiance.engine.plants.photoreceptor import PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA  # noqa: E402
@@ -164,6 +165,88 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         self.assertTrue(captured.req.plants_enabled)
         self.assertEqual(captured.req.fspm_target_ppfd_umol_m2_s, 275.0)
         self.assertEqual(captured.req.fspm_target_tolerance_umol_m2_s, 20.0)
+
+    def test_metrics_response_excludes_mesh_patch_raw_detail_arrays(self) -> None:
+        workspace = Path(tempfile.mkdtemp(prefix="rad_rebuild_metrics_compact_fspm_"))
+        runtime = workspace / "runtime_state"
+        runtime.mkdir(parents=True)
+        (workspace / "ppfd_map.txt").write_text("0 0 0 1000\n", encoding="utf-8")
+        dense_detail = {
+            "mode": "raw_leaf_surface_flux",
+            "visual_granularity": "mesh_patch",
+            "receiver_granularity": "mesh_patch",
+            "encoding": "leaf_major_dense",
+            "leaf_count": 128,
+            "leaf_ids": [f"leaf_{index:03d}" for index in range(128)],
+            "samples_per_leaf": 32,
+            "patches_per_leaf": 16,
+            "sides": ["front", "back"],
+            "top_bottom_support": True,
+            "values_ppfd": {
+                "front": [[float(patch) for patch in range(16)] for _ in range(128)],
+                "back": [[float(patch + 100) for patch in range(16)] for _ in range(128)],
+            },
+            "patch_face_indices": [list(range(16)) for _ in range(128)],
+        }
+        (runtime / "plant_surface_flux.json").write_text(
+            json.dumps(
+                {
+                    "schema": PLANT_SURFACE_FLUX_SCHEMA,
+                    "schema_version": 1,
+                    "artifact_role": "incident_leaf_surface_flux",
+                    "status": "computed",
+                    "method": "radiance_leaf_surface_receiver_sampling_v1",
+                    "plant_count": 1,
+                    "leaf_count": 128,
+                    "surface_count": 2048,
+                    "receiver_sample_count": 4096,
+                    "receiver_granularity": "mesh_patch",
+                    "raw_mean_flux_density_umol_m2_s": 275.0,
+                    "raw_leaf_surface_flux_summary": {
+                        "mean": 275.0,
+                        "p05": 100.0,
+                        "median": 275.0,
+                        "p95": 400.0,
+                        "max": 450.0,
+                    },
+                    "raw_leaf_surface_flux_scale": {
+                        "mode": "raw_leaf_surface_flux",
+                        "target_ppfd_umol_m2_s": 275.0,
+                    },
+                    "visualization": {
+                        "raw_leaf_surface_flux_detail": dense_detail,
+                        "leaf_values": [{"leaf_id": "leaf_000"}],
+                    },
+                    "leaf_summaries": [{"leaf_id": f"leaf_{index:03d}"} for index in range(128)],
+                    "plant_summaries": [{"plant_id": "plant_r000_c000"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with patch.object(
+            metrics_route,
+            "authorize_workspace_from_request",
+            return_value=workspace,
+        ):
+            payload = metrics_route.radiance_metrics(
+                _request(),
+                mode=MODE_SMD,
+                execution_mode=EXECUTION_MODE_LIVE_DOCKER,
+                length_ft=10,
+                width_ft=10,
+                target_ppfd=1000,
+            )
+
+        metrics = payload["metrics"]
+        incident = metrics["plant_incident_surface_flux"]
+        self.assertEqual(incident["receiver_granularity"], "mesh_patch")
+        self.assertEqual(incident["raw_leaf_surface_flux_summary"]["mean"], 275.0)
+        self.assertNotIn("visualization", incident)
+        self.assertNotIn("leaf_summaries", incident)
+        self.assertNotIn("plant_summaries", incident)
+        self.assertNotIn("raw_leaf_surface_flux_detail", json.dumps(payload))
+        self.assertLess(len(json.dumps(payload, separators=(",", ":")).encode("utf-8")), 250_000)
 
     def test_metrics_rejects_removed_hps_ies_variant(self) -> None:
         with self.assertRaises(HTTPException) as raised:
@@ -313,13 +396,27 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
                             "p95_percent_of_target": 152.7272727273,
                             "max_percent_of_target": 181.8181818182,
                             "bucket_counts": [
-                                {"label": "0-25%", "leaf_count": 0},
-                                {"label": "25-45%", "leaf_count": 2},
-                                {"label": "45-70%", "leaf_count": 1},
-                                {"label": "70-90%", "leaf_count": 1},
-                                {"label": "90-115%", "leaf_count": 2},
-                                {"label": "115-150%", "leaf_count": 1},
+                                {"label": "0-20%", "leaf_count": 0},
+                                {"label": "20-40%", "leaf_count": 1},
+                                {"label": "40-55%", "leaf_count": 1},
+                                {"label": "55-80%", "leaf_count": 1},
+                                {"label": "80-100%", "leaf_count": 1},
+                                {"label": "100-120%", "leaf_count": 2},
+                                {"label": "120-150%", "leaf_count": 1},
                                 {"label": "150%+", "leaf_count": 1},
+                            ],
+                            "summary_granularity": "leaf_average",
+                            "visualization_granularity": "mesh_patch",
+                            "surface_detail_sample_count": 4,
+                            "surface_detail_bucket_counts": [
+                                {"label": "0-20%", "sample_count": 1},
+                                {"label": "20-40%", "sample_count": 0},
+                                {"label": "40-55%", "sample_count": 0},
+                                {"label": "55-80%", "sample_count": 1},
+                                {"label": "80-100%", "sample_count": 1},
+                                {"label": "100-120%", "sample_count": 0},
+                                {"label": "120-150%", "sample_count": 1},
+                                {"label": "150%+", "sample_count": 0},
                             ],
                             "units": "umol/m²/s",
                         },
@@ -561,7 +658,10 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         self.assertNotIn("leaf_id", text)
         self.assertNotIn("surface_id", text)
         rows = list(csv.DictReader(StringIO(text)))
-        self.assertEqual(list(rows[0].keys()), list(FSPM_CSV_HEADERS))
+        self.assertEqual(
+            list(rows[0].keys()),
+            list(FSPM_CSV_HEADERS[:-1] + FSPM_CSV_SURFACE_DETAIL_BUCKET_HEADERS + ("note",)),
+        )
         self.assertEqual(len(rows), 1)
         self.assertNotIn("raw_incident_vs_target_capacity_percent", rows[0])
         row = rows[0]
@@ -656,32 +756,42 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         self.assertEqual(row["raw_leaf_surface_flux_p95_ppfd_umol_m2_s"], "420")
         self.assertEqual(row["raw_leaf_surface_flux_mean_percent_of_target"], "116.363636364")
         self.assertEqual(row["raw_leaf_surface_flux_p05_percent_of_target"], "43.6363636364")
-        self.assertEqual(row["raw_bucket_0_25_leaf_count"], "0")
-        self.assertEqual(row["raw_bucket_25_45_leaf_count"], "2")
+        self.assertEqual(row["raw_leaf_summary_granularity"], "leaf_average")
+        self.assertEqual(row["raw_visualization_granularity"], "mesh_patch")
+        self.assertEqual(row["raw_bucket_0_20_leaf_count"], "0")
+        self.assertEqual(row["raw_bucket_20_40_leaf_count"], "1")
         self.assertEqual(row["raw_bucket_150_plus_leaf_count"], "1")
-        self.assertEqual(row["raw_bucket_0_25_leaf_percent"], "0")
-        self.assertEqual(row["raw_bucket_25_45_leaf_percent"], "25")
-        self.assertEqual(row["raw_bucket_45_70_leaf_percent"], "12.5")
-        self.assertEqual(row["raw_bucket_70_90_leaf_percent"], "12.5")
-        self.assertEqual(row["raw_bucket_90_115_leaf_percent"], "25")
-        self.assertEqual(row["raw_bucket_115_150_leaf_percent"], "12.5")
+        self.assertEqual(row["raw_bucket_0_20_leaf_percent"], "0")
+        self.assertEqual(row["raw_bucket_20_40_leaf_percent"], "12.5")
+        self.assertEqual(row["raw_bucket_40_55_leaf_percent"], "12.5")
+        self.assertEqual(row["raw_bucket_55_80_leaf_percent"], "12.5")
+        self.assertEqual(row["raw_bucket_80_100_leaf_percent"], "12.5")
+        self.assertEqual(row["raw_bucket_100_120_leaf_percent"], "25")
+        self.assertEqual(row["raw_bucket_120_150_leaf_percent"], "12.5")
         self.assertEqual(row["raw_bucket_150_plus_leaf_percent"], "12.5")
+        self.assertEqual(row["raw_surface_detail_bucket_0_20_sample_count"], "1")
+        self.assertEqual(row["raw_surface_detail_bucket_55_80_sample_count"], "1")
+        self.assertEqual(row["raw_surface_detail_bucket_80_100_sample_count"], "1")
+        self.assertEqual(row["raw_surface_detail_bucket_120_150_sample_count"], "1")
+        self.assertEqual(row["raw_surface_detail_bucket_0_20_sample_percent"], "25")
         bucket_counts = [
-            float(row["raw_bucket_0_25_leaf_count"] or 0),
-            float(row["raw_bucket_25_45_leaf_count"] or 0),
-            float(row["raw_bucket_45_70_leaf_count"] or 0),
-            float(row["raw_bucket_70_90_leaf_count"] or 0),
-            float(row["raw_bucket_90_115_leaf_count"] or 0),
-            float(row["raw_bucket_115_150_leaf_count"] or 0),
+            float(row["raw_bucket_0_20_leaf_count"] or 0),
+            float(row["raw_bucket_20_40_leaf_count"] or 0),
+            float(row["raw_bucket_40_55_leaf_count"] or 0),
+            float(row["raw_bucket_55_80_leaf_count"] or 0),
+            float(row["raw_bucket_80_100_leaf_count"] or 0),
+            float(row["raw_bucket_100_120_leaf_count"] or 0),
+            float(row["raw_bucket_120_150_leaf_count"] or 0),
             float(row["raw_bucket_150_plus_leaf_count"] or 0),
         ]
         bucket_percents = [
-            float(row["raw_bucket_0_25_leaf_percent"] or 0),
-            float(row["raw_bucket_25_45_leaf_percent"] or 0),
-            float(row["raw_bucket_45_70_leaf_percent"] or 0),
-            float(row["raw_bucket_70_90_leaf_percent"] or 0),
-            float(row["raw_bucket_90_115_leaf_percent"] or 0),
-            float(row["raw_bucket_115_150_leaf_percent"] or 0),
+            float(row["raw_bucket_0_20_leaf_percent"] or 0),
+            float(row["raw_bucket_20_40_leaf_percent"] or 0),
+            float(row["raw_bucket_40_55_leaf_percent"] or 0),
+            float(row["raw_bucket_55_80_leaf_percent"] or 0),
+            float(row["raw_bucket_80_100_leaf_percent"] or 0),
+            float(row["raw_bucket_100_120_leaf_percent"] or 0),
+            float(row["raw_bucket_120_150_leaf_percent"] or 0),
             float(row["raw_bucket_150_plus_leaf_percent"] or 0),
         ]
         self.assertEqual(sum(bucket_counts), float(row["leaf_count"]))
@@ -812,6 +922,8 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
                 "uses_falsecolor_or_illuminance_conversion",
                 "coverage_basis_label",
                 "coverage_source_label",
+                "raw_leaf_summary_granularity",
+                "raw_visualization_granularity",
                 "spectral_absorption_optical_profile_id",
                 "spectral_absorption_source_spectrum_basis",
                 "spectral_absorption_scalar_flux_basis",
@@ -864,14 +976,17 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
                             "p95_percent_of_target": 130.0,
                             "max_percent_of_target": 133.3333333333,
                             "bucket_counts": [
-                                {"label": "0-25%", "leaf_count": 0},
-                                {"label": "25-45%", "leaf_count": 0},
-                                {"label": "45-70%", "leaf_count": 0},
-                                {"label": "70-90%", "leaf_count": 1},
-                                {"label": "90-115%", "leaf_count": 0},
-                                {"label": "115-150%", "leaf_count": 1},
+                                {"label": "0-20%", "leaf_count": 0},
+                                {"label": "20-40%", "leaf_count": 0},
+                                {"label": "40-55%", "leaf_count": 0},
+                                {"label": "55-80%", "leaf_count": 0},
+                                {"label": "80-100%", "leaf_count": 1},
+                                {"label": "100-120%", "leaf_count": 0},
+                                {"label": "120-150%", "leaf_count": 1},
                                 {"label": "150%+", "leaf_count": 0},
                             ],
+                            "summary_granularity": "leaf_average",
+                            "visualization_granularity": "leaf_average",
                         },
                         "total_absorbed_photon_flux_umol_s": 5.6,
                         "mean_absorbed_fraction_of_incident": 0.7,
@@ -907,26 +1022,30 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
             "",
         )
         self.assertEqual(row["deficit_to_target_capacity_percent"], "")
-        self.assertEqual(row["raw_bucket_70_90_leaf_count"], "1")
-        self.assertEqual(row["raw_bucket_115_150_leaf_count"], "1")
-        self.assertEqual(row["raw_bucket_70_90_leaf_percent"], "50")
-        self.assertEqual(row["raw_bucket_115_150_leaf_percent"], "50")
+        self.assertEqual(row["raw_leaf_summary_granularity"], "leaf_average")
+        self.assertEqual(row["raw_visualization_granularity"], "leaf_average")
+        self.assertEqual(row["raw_bucket_80_100_leaf_count"], "1")
+        self.assertEqual(row["raw_bucket_120_150_leaf_count"], "1")
+        self.assertEqual(row["raw_bucket_80_100_leaf_percent"], "50")
+        self.assertEqual(row["raw_bucket_120_150_leaf_percent"], "50")
         scalar_bucket_counts = [
-            float(row["raw_bucket_0_25_leaf_count"] or 0),
-            float(row["raw_bucket_25_45_leaf_count"] or 0),
-            float(row["raw_bucket_45_70_leaf_count"] or 0),
-            float(row["raw_bucket_70_90_leaf_count"] or 0),
-            float(row["raw_bucket_90_115_leaf_count"] or 0),
-            float(row["raw_bucket_115_150_leaf_count"] or 0),
+            float(row["raw_bucket_0_20_leaf_count"] or 0),
+            float(row["raw_bucket_20_40_leaf_count"] or 0),
+            float(row["raw_bucket_40_55_leaf_count"] or 0),
+            float(row["raw_bucket_55_80_leaf_count"] or 0),
+            float(row["raw_bucket_80_100_leaf_count"] or 0),
+            float(row["raw_bucket_100_120_leaf_count"] or 0),
+            float(row["raw_bucket_120_150_leaf_count"] or 0),
             float(row["raw_bucket_150_plus_leaf_count"] or 0),
         ]
         scalar_bucket_percents = [
-            float(row["raw_bucket_0_25_leaf_percent"] or 0),
-            float(row["raw_bucket_25_45_leaf_percent"] or 0),
-            float(row["raw_bucket_45_70_leaf_percent"] or 0),
-            float(row["raw_bucket_70_90_leaf_percent"] or 0),
-            float(row["raw_bucket_90_115_leaf_percent"] or 0),
-            float(row["raw_bucket_115_150_leaf_percent"] or 0),
+            float(row["raw_bucket_0_20_leaf_percent"] or 0),
+            float(row["raw_bucket_20_40_leaf_percent"] or 0),
+            float(row["raw_bucket_40_55_leaf_percent"] or 0),
+            float(row["raw_bucket_55_80_leaf_percent"] or 0),
+            float(row["raw_bucket_80_100_leaf_percent"] or 0),
+            float(row["raw_bucket_100_120_leaf_percent"] or 0),
+            float(row["raw_bucket_120_150_leaf_percent"] or 0),
             float(row["raw_bucket_150_plus_leaf_percent"] or 0),
         ]
         self.assertEqual(sum(scalar_bucket_counts), float(row["leaf_count"]))

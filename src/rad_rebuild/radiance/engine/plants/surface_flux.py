@@ -623,23 +623,24 @@ def _build_leaf_centroid_receiver_samples(
     for leaf_id, items in sorted(_leaf_surface_geometry(scene).items()):
         representative = _aggregate_receiver_geometry(items)
         first = items[0]
-        samples.append(
-            _receiver_sample_metadata(
-                sample_id=f"{leaf_id}_centroid",
-                surface_id=f"{leaf_id}_centroid",
-                plant_id=str(first["plant_id"]),
-                leaf_id=leaf_id,
-                leaf_index=int(first["leaf_index"]),
-                face_index=None,
-                side="front",
-                centroid=representative["centroid_m"],
-                direction=representative["normal"],
-                area_m2=representative["area_m2"],
-                offset_m=offset_m,
-                granularity=RECEIVER_GRANULARITY_LEAF_CENTROID,
-                representative_sample_count=1,
-            )
+        sample = _receiver_sample_metadata(
+            sample_id=f"{leaf_id}_centroid",
+            surface_id=f"{leaf_id}_centroid",
+            plant_id=str(first["plant_id"]),
+            leaf_id=leaf_id,
+            leaf_index=int(first["leaf_index"]),
+            face_index=None,
+            side="front",
+            centroid=representative["centroid_m"],
+            direction=representative["normal"],
+            area_m2=representative["area_m2"],
+            offset_m=offset_m,
+            granularity=RECEIVER_GRANULARITY_LEAF_CENTROID,
+            representative_sample_count=1,
         )
+        sample["mapped_surface_ids"] = [str(item["surface_id"]) for item in items]
+        sample["mapped_face_indices"] = [int(item["face_index"]) for item in items]
+        samples.append(sample)
     return samples
 
 
@@ -655,23 +656,25 @@ def _build_leaf_quadrature_receiver_samples(
         non_empty_bucket_count = len(buckets)
         for bucket_index, bucket in enumerate(buckets):
             representative = _aggregate_receiver_geometry(bucket)
-            samples.append(
-                _receiver_sample_metadata(
-                    sample_id=f"{leaf_id}_quadrature_{bucket_index + 1}",
-                    surface_id=f"{leaf_id}_quadrature_{bucket_index + 1}",
-                    plant_id=str(first["plant_id"]),
-                    leaf_id=leaf_id,
-                    leaf_index=int(first["leaf_index"]),
-                    face_index=None,
-                    side="front",
-                    centroid=representative["centroid_m"],
-                    direction=representative["normal"],
-                    area_m2=representative["area_m2"],
-                    offset_m=offset_m,
-                    granularity=RECEIVER_GRANULARITY_LEAF_QUADRATURE_4,
-                    representative_sample_count=non_empty_bucket_count,
-                )
+            sample = _receiver_sample_metadata(
+                sample_id=f"{leaf_id}_quadrature_{bucket_index + 1}",
+                surface_id=f"{leaf_id}_quadrature_{bucket_index + 1}",
+                plant_id=str(first["plant_id"]),
+                leaf_id=leaf_id,
+                leaf_index=int(first["leaf_index"]),
+                face_index=None,
+                side="front",
+                centroid=representative["centroid_m"],
+                direction=representative["normal"],
+                area_m2=representative["area_m2"],
+                offset_m=offset_m,
+                granularity=RECEIVER_GRANULARITY_LEAF_QUADRATURE_4,
+                representative_sample_count=non_empty_bucket_count,
             )
+            sample["quadrature_index"] = bucket_index
+            sample["mapped_surface_ids"] = [str(item["surface_id"]) for item in bucket]
+            sample["mapped_face_indices"] = [int(item["face_index"]) for item in bucket]
+            samples.append(sample)
     return samples
 
 
@@ -930,6 +933,143 @@ def _build_representative_receiver_surface_flux_rows(
     return rows
 
 
+def _raw_surface_detail_payload(
+    receiver_samples: Iterable[Mapping[str, Any]],
+    receiver_flux_density_umol_m2_s: Iterable[float],
+    *,
+    receiver_scale_multiplier: float,
+    receiver_granularity: str,
+    leaf_count: int,
+    surface_count: int,
+) -> dict[str, Any]:
+    granularity = normalize_receiver_granularity(receiver_granularity)
+    scale = _finite_non_negative("receiver_scale_multiplier", receiver_scale_multiplier)
+    samples = list(receiver_samples)
+    densities = [
+        _finite_non_negative(f"receiver_flux_density_umol_m2_s[{index}]", value)
+        for index, value in enumerate(receiver_flux_density_umol_m2_s)
+    ]
+    if len(samples) != len(densities):
+        raise ValueError(
+            f"Receiver sample count {len(samples)} does not match rtrace output count {len(densities)}."
+        )
+
+    if granularity == RECEIVER_GRANULARITY_LEAF_CENTROID:
+        visual_granularity = "leaf_average"
+    elif granularity == RECEIVER_GRANULARITY_LEAF_QUADRATURE_4:
+        visual_granularity = "quadrature_mapped"
+    else:
+        visual_granularity = "mesh_patch"
+
+    side_values = sorted(
+        {
+            str(sample.get("side") or "unknown")
+            for sample in samples
+            if isinstance(sample, Mapping)
+        }
+    )
+    leaf_order: list[str] = []
+    by_leaf: dict[str, list[tuple[Mapping[str, Any], float]]] = {}
+    for sample, density in zip(samples, densities, strict=True):
+        if not isinstance(sample, Mapping):
+            continue
+        leaf_id = sample.get("leaf_id")
+        if not isinstance(leaf_id, str) or not leaf_id:
+            continue
+        if leaf_id not in by_leaf:
+            by_leaf[leaf_id] = []
+            leaf_order.append(leaf_id)
+        by_leaf[leaf_id].append((sample, density * scale))
+
+    values_ppfd: Any
+    detail_mapping: dict[str, Any] = {}
+    if visual_granularity == "leaf_average":
+        values_ppfd = []
+    elif visual_granularity == "quadrature_mapped":
+        values_ppfd = []
+        quadrature_face_sample_indices: list[list[int | None]] = []
+        sample_counts: list[int] = []
+        for leaf_id in leaf_order:
+            leaf_items = sorted(
+                by_leaf[leaf_id],
+                key=lambda item: (
+                    int(item[0].get("quadrature_index", 0) or 0),
+                    str(item[0].get("sample_id") or ""),
+                ),
+            )
+            sample_index_by_face: dict[int, int] = {}
+            leaf_values: list[float] = []
+            for sample_index, (sample, density) in enumerate(leaf_items):
+                leaf_values.append(density)
+                mapped_face_indices = sample.get("mapped_face_indices")
+                if isinstance(mapped_face_indices, list):
+                    for face_index in mapped_face_indices:
+                        if isinstance(face_index, int):
+                            sample_index_by_face[face_index] = sample_index
+            max_face_index = max(sample_index_by_face, default=-1)
+            face_map: list[int | None] = [None] * (max_face_index + 1)
+            for face_index, sample_index in sample_index_by_face.items():
+                face_map[face_index] = sample_index
+            values_ppfd.append(leaf_values)
+            quadrature_face_sample_indices.append(face_map)
+            sample_counts.append(len(leaf_values))
+        detail_mapping["quadrature_face_sample_indices"] = quadrature_face_sample_indices
+        detail_mapping["samples_per_leaf_values"] = sample_counts
+    else:
+        allowed_sides = [side for side in ("front", "back") if side in side_values]
+        if not allowed_sides:
+            allowed_sides = side_values or ["front"]
+        values_by_side: dict[str, list[list[float | None]]] = {
+            side: [] for side in allowed_sides
+        }
+        patch_face_indices: list[list[int]] = []
+        for leaf_id in leaf_order:
+            leaf_items = by_leaf[leaf_id]
+            face_indices = sorted(
+                {
+                    int(sample.get("face_index"))
+                    for sample, _density in leaf_items
+                    if isinstance(sample.get("face_index"), int)
+                }
+            )
+            patch_face_indices.append(face_indices)
+            face_position = {face_index: index for index, face_index in enumerate(face_indices)}
+            for side in allowed_sides:
+                values_by_side[side].append([None] * len(face_indices))
+            for sample, density in leaf_items:
+                face_index = sample.get("face_index")
+                side = str(sample.get("side") or allowed_sides[0])
+                if not isinstance(face_index, int) or side not in values_by_side:
+                    continue
+                position = face_position.get(face_index)
+                if position is not None:
+                    values_by_side[side][-1][position] = density
+        values_ppfd = values_by_side
+        detail_mapping["patch_face_indices"] = patch_face_indices
+
+    return {
+        "mode": "raw_leaf_surface_flux",
+        "visual_granularity": visual_granularity,
+        "receiver_granularity": granularity,
+        "encoding": "leaf_major_dense",
+        "leaf_count": len(leaf_order),
+        "leaf_ids": leaf_order,
+        "true_sample_count_per_leaf": len(samples) / leaf_count if leaf_count else None,
+        "samples_per_leaf": len(samples) / leaf_count if leaf_count else None,
+        "patches_per_leaf": surface_count / leaf_count if leaf_count else None,
+        "mesh_surface_rows_per_leaf": surface_count / leaf_count if leaf_count else None,
+        "sides": side_values,
+        "side_policy": receiver_side_policy(granularity),
+        "top_bottom_support": (
+            granularity == RECEIVER_GRANULARITY_MESH_PATCH
+            and {"front", "back"}.issubset(side_values)
+        ),
+        "value_field": "incident_photon_flux_density_umol_m2_s",
+        "values_ppfd": values_ppfd,
+        **detail_mapping,
+    }
+
+
 def write_radiance_receiver_plant_surface_flux_artifact(
     target_dir: str | Path,
     scene: PlantScene,
@@ -986,6 +1126,14 @@ def write_radiance_receiver_plant_surface_flux_artifact(
         receiver_flux_density_umol_m2_s,
         receiver_scale_multiplier=receiver_scale_multiplier,
     )
+    raw_surface_detail = _raw_surface_detail_payload(
+        samples,
+        receiver_flux_density_umol_m2_s,
+        receiver_scale_multiplier=receiver_scale_multiplier,
+        receiver_granularity=granularity,
+        leaf_count=leaf_count,
+        surface_count=surface_count,
+    )
     payload = build_plant_surface_flux_payload(
         scene,
         rows,
@@ -1020,6 +1168,7 @@ def write_radiance_receiver_plant_surface_flux_artifact(
         normal_generation_basis=normal_basis,
         receiver_granularity_role_value=granularity_role,
         leaf_material_metadata=material_metadata,
+        raw_surface_detail=raw_surface_detail,
         target_ppfd_umol_m2_s=target_ppfd_umol_m2_s,
         target_tolerance_umol_m2_s=target_tolerance_umol_m2_s,
         target_classification_ppfd_map_path=target_classification_ppfd_map_path,
@@ -1175,11 +1324,12 @@ def _linear_percentile(values: list[float], fraction: float) -> float:
 
 RAW_LEAF_SURFACE_FLUX_RATIO_ANCHORS: tuple[tuple[float, str], ...] = (
     (0.00, "#2563EB"),
-    (0.25, "#06B6D4"),
-    (0.45, "#22C55E"),
-    (0.70, "#22C55E"),
-    (0.90, "#EAB308"),
-    (1.15, "#F97316"),
+    (0.20, "#06B6D4"),
+    (0.40, "#14B8A6"),
+    (0.55, "#22C55E"),
+    (0.80, "#22C55E"),
+    (1.00, "#A3E635"),
+    (1.20, "#F59E0B"),
     (1.50, "#DC2626"),
 )
 
@@ -1210,21 +1360,52 @@ def _raw_flux_bucket_template() -> list[dict[str, Any]]:
 def _raw_flux_bucket_counts(
     values: list[float],
     target_ppfd_umol_m2_s: float | None,
+    *,
+    count_key: str = "leaf_count",
+    percent_key: str = "leaf_percent",
 ) -> list[dict[str, Any]]:
     buckets = _raw_flux_bucket_template()
+    for bucket in buckets:
+        bucket[count_key] = bucket.pop("leaf_count")
+        bucket[percent_key] = 0.0
     if target_ppfd_umol_m2_s is None or target_ppfd_umol_m2_s <= 0.0:
         return buckets
     for value in values:
         ratio = value / target_ppfd_umol_m2_s
         if ratio < 0.0:
-            buckets[0]["leaf_count"] += 1
+            buckets[0][count_key] += 1
             continue
         for bucket in buckets:
             max_ratio = bucket["max_ratio"]
             if max_ratio is None or ratio < max_ratio:
-                bucket["leaf_count"] += 1
+                bucket[count_key] += 1
                 break
+    denominator = sum(int(bucket[count_key]) for bucket in buckets)
+    if denominator > 0:
+        for bucket in buckets:
+            bucket[percent_key] = float(bucket[count_key]) / denominator * 100.0
     return buckets
+
+
+def _raw_surface_detail_values(raw_surface_detail: Mapping[str, Any]) -> list[float]:
+    def collect(value: object, values: list[float]) -> None:
+        if isinstance(value, bool):
+            return
+        if isinstance(value, int | float) and math.isfinite(float(value)):
+            values.append(float(value))
+            return
+        if isinstance(value, Mapping):
+            for nested in value.values():
+                collect(nested, values)
+            return
+        if isinstance(value, list | tuple):
+            for nested in value:
+                collect(nested, values)
+
+    values_ppfd = raw_surface_detail.get("values_ppfd")
+    values: list[float] = []
+    collect(values_ppfd, values)
+    return values
 
 
 def _raw_flux_ratio(value: float, target_ppfd_umol_m2_s: float | None) -> float | None:
@@ -1301,6 +1482,8 @@ def _raw_leaf_surface_flux_metadata(
             "max_percent_of_target": None,
             "target_ppfd_umol_m2_s": target_ppfd,
             "bucket_counts": _raw_flux_bucket_counts(values, target_ppfd),
+            "summary_granularity": "leaf_average",
+            "visualization_granularity": "leaf_average",
             "units": "umol/m²/s",
         }
 
@@ -1355,6 +1538,8 @@ def _raw_leaf_surface_flux_metadata(
         ),
         "target_ppfd_umol_m2_s": target_ppfd,
         "bucket_counts": _raw_flux_bucket_counts(values, target_ppfd),
+        "summary_granularity": "leaf_average",
+        "visualization_granularity": "leaf_average",
         "by_stat": {
             "mean": _raw_flux_summary_stat(mean, target_ppfd),
             "min": _raw_flux_summary_stat(min_value, target_ppfd),
@@ -1395,6 +1580,11 @@ def _visualization_payload(
     *,
     target_ppfd_umol_m2_s: float | None,
     target_tolerance_umol_m2_s: float | None,
+    receiver_granularity: str | None = None,
+    receiver_samples_per_leaf: float | None = None,
+    receiver_rows_per_mesh_surface_row: float | None = None,
+    receiver_side_policy_value: str | None = None,
+    raw_surface_detail: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     key = "incident_photon_flux_density_umol_m2_s"
     target_key = "target_classification_ppfd_umol_m2_s"
@@ -1404,6 +1594,46 @@ def _visualization_payload(
         leaf_summaries,
         target_ppfd_umol_m2_s=target_ppfd_umol_m2_s,
     )
+    detail = dict(raw_surface_detail or {})
+    if not detail:
+        detail = {
+            "mode": "raw_leaf_surface_flux",
+            "visual_granularity": "leaf_average",
+            "receiver_granularity": receiver_granularity,
+            "encoding": "leaf_major_dense",
+            "leaf_count": len(leaf_summaries),
+            "leaf_ids": [],
+            "true_sample_count_per_leaf": receiver_samples_per_leaf,
+            "samples_per_leaf": receiver_samples_per_leaf,
+            "patches_per_leaf": None,
+            "mesh_surface_rows_per_leaf": None,
+            "receiver_rows_per_mesh_surface_row": receiver_rows_per_mesh_surface_row,
+            "sides": [],
+            "side_policy": receiver_side_policy_value,
+            "top_bottom_support": False,
+            "value_field": key,
+            "values_ppfd": [],
+        }
+    detail.update(
+        {
+            "target_ppfd_umol_m2_s": raw_scale["target_ppfd_umol_m2_s"],
+            "scale_basis": raw_scale["target_source"],
+            "color_anchors": raw_scale["anchors"],
+        }
+    )
+    raw_summary["summary_granularity"] = "leaf_average"
+    raw_summary["visualization_granularity"] = str(
+        detail.get("visual_granularity") or "leaf_average"
+    )
+    surface_detail_values = _raw_surface_detail_values(detail)
+    if raw_summary["visualization_granularity"] != "leaf_average" and surface_detail_values:
+        raw_summary["surface_detail_sample_count"] = len(surface_detail_values)
+        raw_summary["surface_detail_bucket_counts"] = _raw_flux_bucket_counts(
+            surface_detail_values,
+            raw_scale["target_ppfd_umol_m2_s"],
+            count_key="sample_count",
+            percent_key="sample_percent",
+        )
     return {
         "color_metric": key,
         "color_quantity": "incident_leaf_surface_ppfd",
@@ -1433,6 +1663,7 @@ def _visualization_payload(
             "target_source": raw_scale["target_source"],
             "anchors": raw_scale["anchors"],
         },
+        "raw_leaf_surface_flux_detail": detail,
         "leaf_scale": {
             "min": leaf_min,
             "max": leaf_max,
@@ -1504,6 +1735,7 @@ def build_plant_surface_flux_payload(
     normal_generation_basis: str | None = None,
     receiver_granularity_role_value: str | None = None,
     leaf_material_metadata: Mapping[str, Any] | None = None,
+    raw_surface_detail: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     normalized_rows, incident_by_surface_id = _normalize_surface_rows(scene, surface_flux_rows)
     classification_by_surface_id = target_classification_ppfd_by_surface_id
@@ -1566,6 +1798,11 @@ def build_plant_surface_flux_payload(
         surface_summaries,
         target_ppfd_umol_m2_s=absorption_metrics.get("target_ppfd_umol_m2_s"),
         target_tolerance_umol_m2_s=absorption_metrics.get("target_tolerance_umol_m2_s"),
+        receiver_granularity=receiver_granularity,
+        receiver_samples_per_leaf=receiver_samples_per_leaf,
+        receiver_rows_per_mesh_surface_row=receiver_rows_per_mesh_surface_row,
+        receiver_side_policy_value=receiver_side_policy,
+        raw_surface_detail=raw_surface_detail,
     )
 
     target_keys = (
@@ -1749,6 +1986,7 @@ def compact_plant_surface_flux_payload(payload: Mapping[str, Any]) -> dict[str, 
                 "raw_leaf_surface_flux_scale",
                 "raw_leaf_surface_flux_summary",
                 "raw_leaf_surface_flux_legend",
+                "raw_leaf_surface_flux_detail",
                 "plant_values",
                 "leaf_values",
             )

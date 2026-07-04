@@ -506,6 +506,53 @@ def test_large_fspm_scene_embeds_compact_leaf_visualization_under_proxy_limit(tm
     assert len(json.dumps(scene, separators=(",", ":")).encode("utf-8")) < PROXY_RESPONSE_LIMIT_BYTES
 
 
+def test_large_fspm_scene_embeds_compact_mesh_patch_detail_under_proxy_limit(tmp_path: Path) -> None:
+    _write_layout(tmp_path)
+    runtime = tmp_path / "runtime_state"
+    runtime.mkdir(parents=True, exist_ok=True)
+    _write_minimal_large_plant_payload(runtime)
+    plants_payload = json.loads((runtime / "plants_viewer.json").read_text(encoding="utf-8"))
+    surface_payload = json.loads((runtime / "plant_surface_flux.json").read_text(encoding="utf-8"))
+    leaf_ids = [
+        leaf["leaf_id"]
+        for plant in plants_payload["plants"]
+        for leaf in plant["leaves"]
+    ]
+    surface_payload["receiver_granularity"] = "mesh_patch"
+    surface_payload["receiver_sample_count"] = len(leaf_ids) * 2
+    surface_payload["visualization"]["raw_leaf_surface_flux_detail"] = {
+        "mode": "raw_leaf_surface_flux",
+        "visual_granularity": "mesh_patch",
+        "receiver_granularity": "mesh_patch",
+        "encoding": "leaf_major_dense",
+        "leaf_count": len(leaf_ids),
+        "leaf_ids": leaf_ids,
+        "samples_per_leaf": 2,
+        "patches_per_leaf": 1,
+        "mesh_surface_rows_per_leaf": 1,
+        "sides": ["front", "back"],
+        "side_policy": "front_and_back_per_mesh_surface_row",
+        "top_bottom_support": True,
+        "value_field": "incident_photon_flux_density_umol_m2_s",
+        "values_ppfd": {
+            "front": [[250.0 + index % 12] for index, _leaf_id in enumerate(leaf_ids)],
+            "back": [[125.0 + index % 12] for index, _leaf_id in enumerate(leaf_ids)],
+        },
+        "patch_face_indices": [[0] for _leaf_id in leaf_ids],
+    }
+    (runtime / "plant_surface_flux.json").write_text(json.dumps(surface_payload), encoding="utf-8")
+
+    scene = build_assembly_scene(tmp_path, _smd_req(plants_enabled=True))
+
+    detail = scene["plants"]["surface_flux"]["visualization"]["raw_leaf_surface_flux_detail"]
+    assert detail["encoding"] == "leaf_major_dense"
+    assert detail["visual_granularity"] == "mesh_patch"
+    assert "samples" not in detail
+    assert len(detail["leaf_ids"]) == 6348
+    assert len(detail["values_ppfd"]["front"]) == 6348
+    assert len(json.dumps(scene, separators=(",", ":")).encode("utf-8")) < PROXY_RESPONSE_LIMIT_BYTES
+
+
 def test_builder_attaches_sanitized_fspm_panel_metrics(tmp_path: Path) -> None:
     _write_layout(tmp_path)
     runtime = tmp_path / "runtime_state"
@@ -830,8 +877,8 @@ def test_fspm_panel_and_csv_prefer_compact_metrics_artifact(tmp_path: Path) -> N
     csv_text = build_fspm_metrics_csv(tmp_path, run_id="compact", mode=MODE_SMD)
 
     assert panel == compact_panel
-    assert "scalar_source_weighted" in csv_text
-    assert "opaque_occluder" in csv_text
+    assert "scalar_source_weighted" not in csv_text
+    assert "opaque_occluder" not in csv_text
     assert "leaf_centroid" in csv_text
 
 

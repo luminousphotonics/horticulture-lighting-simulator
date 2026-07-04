@@ -29,6 +29,7 @@ def test_assembly_viewer_plant_helpers(tmp_path: Path) -> None:
 import assert from "node:assert/strict";
 import {{
   PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX,
+  PLANT_COLOR_MODE_TARGET_RANGE,
   createLeafGeometry,
   createPlantGroup,
   createPlantVisibilityController,
@@ -539,11 +540,12 @@ const rawModeScale = {{
   clamp_max_ratio: 1.5,
   anchors: [
     {{ ratio: 0.00, percent: 0, ppfd_umol_m2_s: 0, color: "#2563EB" }},
-    {{ ratio: 0.25, percent: 25, ppfd_umol_m2_s: 68.75, color: "#06B6D4" }},
-    {{ ratio: 0.45, percent: 45, ppfd_umol_m2_s: 123.75, color: "#22C55E" }},
-    {{ ratio: 0.70, percent: 70, ppfd_umol_m2_s: 192.5, color: "#22C55E" }},
-    {{ ratio: 0.90, percent: 90, ppfd_umol_m2_s: 247.5, color: "#EAB308" }},
-    {{ ratio: 1.15, percent: 115, ppfd_umol_m2_s: 316.25, color: "#F97316" }},
+    {{ ratio: 0.20, percent: 20, ppfd_umol_m2_s: 55, color: "#06B6D4" }},
+    {{ ratio: 0.40, percent: 40, ppfd_umol_m2_s: 110, color: "#14B8A6" }},
+    {{ ratio: 0.55, percent: 55, ppfd_umol_m2_s: 151.25, color: "#22C55E" }},
+    {{ ratio: 0.80, percent: 80, ppfd_umol_m2_s: 220, color: "#22C55E" }},
+    {{ ratio: 1.00, percent: 100, ppfd_umol_m2_s: 275, color: "#A3E635" }},
+    {{ ratio: 1.20, percent: 120, ppfd_umol_m2_s: 330, color: "#F59E0B" }},
     {{ ratio: 1.50, percent: 150, ppfd_umol_m2_s: 412.5, color: "#DC2626" }},
   ],
   units: "umol/m²/s",
@@ -585,7 +587,13 @@ const rawModeScene = {{
 }};
 assert.equal(rawLeafSurfaceFluxColorHexForValue(-50, rawModeScale), rawLeafSurfaceFluxColorHexForValue(0, rawModeScale));
 assert.equal(rawLeafSurfaceFluxColorHexForValue(1200, rawModeScale), rawLeafSurfaceFluxColorHexForValue(412.5, rawModeScale));
-assert.notEqual(rawLeafSurfaceFluxColorHexForValue(68.75, rawModeScale), rawLeafSurfaceFluxColorHexForValue(412.5, rawModeScale));
+assert.notEqual(rawLeafSurfaceFluxColorHexForValue(55, rawModeScale), rawLeafSurfaceFluxColorHexForValue(412.5, rawModeScale));
+assert.equal(rawLeafSurfaceFluxColorHexForValue(183, rawModeScale), "#22C55E");
+assert.equal(rawLeafSurfaceFluxColorHexForValue(275, rawModeScale), "#A3E635");
+assert.notEqual(rawLeafSurfaceFluxColorHexForValue(0.95 * 275, rawModeScale), "#F59E0B");
+assert.notEqual(rawLeafSurfaceFluxColorHexForValue(1.05 * 275, rawModeScale), "#DC2626");
+assert.ok(hexDistance(rawLeafSurfaceFluxColorHexForValue(1.25 * 275, rawModeScale), "#F59E0B") < 80);
+assert.equal(rawLeafSurfaceFluxColorHexForValue(2.0 * 275, rawModeScale), "#DC2626");
 const sameTargetDifferentSystemScale = {{
   ...rawModeScale,
   p05: 9000,
@@ -627,6 +635,238 @@ rawController.setAbsorptionColor(false);
 assert.equal(rawModeMesh.geometry.getAttribute("color"), rawModeMesh.userData.defaultColorAttribute);
 rawController.setAbsorptionColor(true);
 assert.equal(rawModeMesh.geometry.getAttribute("color"), rawModeMesh.userData.rawFluxColorAttribute);
+assert.equal(rawModeGroup.userData.hasSurfaceDetail, false);
+
+function fourFaceLeaf(leafId) {{
+  return {{
+    plant_id: "plant_r000_c000",
+    leaf_id: leafId,
+    radiance_material_id: "plant_leaf_material",
+    mesh: {{
+      vertices: [
+        [0, 0, 0.02],
+        [0.12, 0, 0.03],
+        [0.12, 0.12, 0.04],
+        [0, 0.12, 0.05],
+        [-0.08, 0.06, 0.03],
+      ],
+      faces: [[0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 1]],
+    }},
+  }};
+}}
+
+function meshByName(group, name) {{
+  let match = null;
+  group.traverse((child) => {{
+    if (child.isMesh && child.name === name) {{
+      match = child;
+    }}
+  }});
+  return match;
+}}
+
+function uniqueColors(attribute) {{
+  const values = [];
+  const array = Array.from(attribute.array);
+  for (let index = 0; index < array.length; index += 3) {{
+    values.push(array.slice(index, index + 3).map((value) => Number(value.toFixed(4))).join(","));
+  }}
+  return new Set(values);
+}}
+
+function firstColor(attribute, vertexIndex = 0) {{
+  const array = Array.from(attribute.array);
+  const offset = vertexIndex * 3;
+  return array.slice(offset, offset + 3);
+}}
+
+const quadratureScene = {{
+  plants: {{
+    schema: "rad_rebuild.fspm.plants.viewer.v1",
+    units: "meters",
+    material: {{ id: "plant_leaf_material", transmittance: 0.08 }},
+    surface_flux: {{
+      target_ppfd_umol_m2_s: 275,
+      target_tolerance_umol_m2_s: 20,
+      visualization: {{
+        color_metric: "incident_photon_flux_density_umol_m2_s",
+        raw_leaf_surface_flux_scale: rawModeScale,
+        leaf_values: [
+          {{
+            leaf_id: "plant_r000_c000_leaf_detail",
+            plant_id: "plant_r000_c000",
+            lighting_region: "over_lit",
+            target_classification_ppfd_umol_m2_s: 0,
+            target_deviation: -999,
+            incident_photon_flux_density_umol_m2_s: 275,
+          }},
+        ],
+        raw_leaf_surface_flux_detail: {{
+          mode: "raw_leaf_surface_flux",
+          visual_granularity: "quadrature_mapped",
+          receiver_granularity: "leaf_quadrature_4",
+          encoding: "leaf_major_dense",
+          leaf_count: 1,
+          leaf_ids: ["plant_r000_c000_leaf_detail"],
+          true_sample_count_per_leaf: 4,
+          samples_per_leaf: 4,
+          patches_per_leaf: 4,
+          mesh_surface_rows_per_leaf: 4,
+          sides: ["front"],
+          side_policy: "single_light_facing_side",
+          top_bottom_support: false,
+          value_field: "incident_photon_flux_density_umol_m2_s",
+          values_ppfd: [[0, 100, 275, 1000]],
+          quadrature_face_sample_indices: [[0, 1, 2, 3]],
+        }},
+      }},
+    }},
+    plants: [
+      {{
+        plant_id: "plant_r000_c000",
+        leaves: [fourFaceLeaf("plant_r000_c000_leaf_detail")],
+      }},
+    ],
+  }},
+}};
+const quadratureGroup = createPlantGroup(quadratureScene);
+const quadratureDetailMesh = meshByName(quadratureGroup, "plant-leaves-raw-surface-detail");
+assert.ok(quadratureDetailMesh);
+assert.equal(quadratureGroup.userData.hasSurfaceDetail, true);
+assert.equal(quadratureGroup.userData.surfaceDetailMode, "quadrature_mapped");
+assert.equal(quadratureGroup.userData.rawSurfaceDetail.encoding, "leaf_major_dense");
+assert.equal("samples" in quadratureGroup.userData.rawSurfaceDetail, false);
+assert.equal(quadratureGroup.userData.rawSurfaceDetailSampleCount, 4);
+assert.equal(uniqueColors(quadratureDetailMesh.geometry.getAttribute("color")).size, 4);
+const quadratureController = createPlantVisibilityController(quadratureGroup);
+assert.equal(quadratureDetailMesh.visible, false);
+quadratureController.setColorMode(PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX);
+assert.equal(quadratureDetailMesh.visible, true);
+assert.equal(meshByName(quadratureGroup, "plant-leaves-batched").visible, false);
+assert.equal(quadratureController.getState().surfaceDetailMode, "quadrature_mapped");
+quadratureController.setSurfaceDetail(false);
+assert.equal(quadratureDetailMesh.visible, false);
+assert.equal(meshByName(quadratureGroup, "plant-leaves-batched").visible, true);
+assert.equal(
+  meshByName(quadratureGroup, "plant-leaves-batched").geometry.getAttribute("color"),
+  meshByName(quadratureGroup, "plant-leaves-batched").userData.rawFluxColorAttribute,
+);
+quadratureController.setColorMode(PLANT_COLOR_MODE_TARGET_RANGE);
+assert.equal(quadratureDetailMesh.visible, false);
+assert.equal(
+  meshByName(quadratureGroup, "plant-leaves-batched").geometry.getAttribute("color"),
+  meshByName(quadratureGroup, "plant-leaves-batched").userData.targetColorAttribute,
+);
+
+const meshPatchScene = structuredClone(quadratureScene);
+meshPatchScene.plants.surface_flux.visualization.leaf_values[0] = {{
+  leaf_id: "plant_r000_c000_leaf_detail",
+  plant_id: "plant_r000_c000",
+  lighting_region: "target_range",
+  target_classification_ppfd_umol_m2_s: 999,
+  target_deviation: 999,
+  incident_photon_flux_density_umol_m2_s: 275,
+}};
+meshPatchScene.plants.surface_flux.visualization.raw_leaf_surface_flux_detail = {{
+  mode: "raw_leaf_surface_flux",
+  visual_granularity: "mesh_patch",
+  receiver_granularity: "mesh_patch",
+  encoding: "leaf_major_dense",
+  leaf_count: 1,
+  leaf_ids: ["plant_r000_c000_leaf_detail"],
+  true_sample_count_per_leaf: 8,
+  samples_per_leaf: 8,
+  patches_per_leaf: 4,
+  mesh_surface_rows_per_leaf: 4,
+  sides: ["front", "back"],
+  side_policy: "front_and_back_per_mesh_surface_row",
+  top_bottom_support: true,
+  value_field: "incident_photon_flux_density_umol_m2_s",
+  values_ppfd: {{
+    front: [[100, 100, 100, 100]],
+    back: [[400, 400, 400, 400]],
+  }},
+  patch_face_indices: [[0, 1, 2, 3]],
+}};
+const meshPatchGroup = createPlantGroup(meshPatchScene);
+const meshPatchDetailMesh = meshByName(meshPatchGroup, "plant-leaves-raw-surface-detail");
+assert.ok(meshPatchDetailMesh);
+assert.equal(meshPatchGroup.userData.surfaceDetailMode, "mesh_patch");
+assert.equal(meshPatchGroup.userData.rawSurfaceDetail.encoding, "leaf_major_dense");
+assert.equal("samples" in meshPatchGroup.userData.rawSurfaceDetail, false);
+assert.equal(meshPatchGroup.userData.rawSurfaceDetailSampleCount, 8);
+assert.ok(uniqueColors(meshPatchDetailMesh.geometry.getAttribute("color")).size >= 2);
+assertColorNearHex(
+  firstColor(meshPatchDetailMesh.geometry.getAttribute("color"), 0),
+  rawLeafSurfaceFluxColorHexForValue(100, rawModeScale),
+);
+assertColorNearHex(
+  firstColor(meshPatchDetailMesh.geometry.getAttribute("color"), 3),
+  rawLeafSurfaceFluxColorHexForValue(400, rawModeScale),
+);
+
+const detailTargetScene = structuredClone(meshPatchScene);
+detailTargetScene.plants.surface_flux.target_ppfd_umol_m2_s = 1000;
+detailTargetScene.plants.surface_flux.visualization.raw_leaf_surface_flux_scale = {{
+  ...rawModeScale,
+  target_ppfd_umol_m2_s: 1000,
+  target_source: "lighting_target_ppfd",
+}};
+detailTargetScene.plants.surface_flux.visualization.raw_leaf_surface_flux_detail.target_ppfd_umol_m2_s = 275;
+detailTargetScene.plants.surface_flux.visualization.raw_leaf_surface_flux_detail.scale_basis = "fspm_target_ppfd_umol_m2_s";
+detailTargetScene.plants.surface_flux.visualization.raw_leaf_surface_flux_detail.color_anchors = rawModeScale.anchors;
+detailTargetScene.plants.surface_flux.visualization.raw_leaf_surface_flux_detail.values_ppfd = {{
+  front: [[183, null, 266, 90]],
+  back: [[10, 20, 30, 40]],
+}};
+detailTargetScene.plants.surface_flux.visualization.leaf_values[0].incident_photon_flux_density_umol_m2_s = 183;
+const detailTargetGroup = createPlantGroup(detailTargetScene);
+const detailTargetMesh = meshByName(detailTargetGroup, "plant-leaves-raw-surface-detail");
+assert.ok(detailTargetMesh);
+assert.equal(detailTargetGroup.userData.rawLeafSurfaceFluxScale.targetPpfd, 275);
+assert.equal(detailTargetGroup.userData.rawLeafSurfaceFluxScale.targetSource, "fspm_target_ppfd_umol_m2_s");
+assert.equal(rawLeafSurfaceFluxColorHexForValue(183, detailTargetGroup.userData.rawLeafSurfaceFluxScale), "#22C55E");
+assert.notEqual(
+  rawLeafSurfaceFluxColorHexForValue(183, detailTargetGroup.userData.rawLeafSurfaceFluxScale),
+  rawLeafSurfaceFluxColorHexForValue(183, {{ ...rawModeScale, target_ppfd_umol_m2_s: 1000, targetPpfd: 1000 }}),
+);
+assert.ok(hexDistance(rawLeafSurfaceFluxColorHexForValue(90, detailTargetGroup.userData.rawLeafSurfaceFluxScale), "#2563EB") > 100);
+assert.ok(hexDistance(rawLeafSurfaceFluxColorHexForValue(266, detailTargetGroup.userData.rawLeafSurfaceFluxScale), "#2563EB") > 300);
+assertColorNearHex(
+  firstColor(detailTargetMesh.geometry.getAttribute("color"), 0),
+  rawLeafSurfaceFluxColorHexForValue(183, detailTargetGroup.userData.rawLeafSurfaceFluxScale),
+);
+assertColorNearHex(
+  firstColor(detailTargetMesh.geometry.getAttribute("color"), 3),
+  rawLeafSurfaceFluxColorHexForValue(10, detailTargetGroup.userData.rawLeafSurfaceFluxScale),
+);
+assertColorNearHex(
+  firstColor(detailTargetMesh.geometry.getAttribute("color"), 6),
+  rawLeafSurfaceFluxColorHexForValue(183, detailTargetGroup.userData.rawLeafSurfaceFluxScale),
+);
+assertColorNearHex(
+  firstColor(detailTargetMesh.geometry.getAttribute("color"), 12),
+  rawLeafSurfaceFluxColorHexForValue(266, detailTargetGroup.userData.rawLeafSurfaceFluxScale),
+);
+
+const invalidDetailScene = structuredClone(detailTargetScene);
+invalidDetailScene.plants.surface_flux.visualization.raw_leaf_surface_flux_detail.values_ppfd = {{
+  front: [[null, null, null, null]],
+  back: [[null, null, null, null]],
+}};
+const invalidDetailGroup = createPlantGroup(invalidDetailScene);
+assert.equal(meshByName(invalidDetailGroup, "plant-leaves-raw-surface-detail"), null);
+const invalidDetailController = createPlantVisibilityController(invalidDetailGroup);
+invalidDetailController.setColorMode(PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX);
+assert.equal(invalidDetailController.getState().surfaceDetailMode, "leaf_average");
+assert.equal(
+  meshByName(invalidDetailGroup, "plant-leaves-batched").geometry.getAttribute("color"),
+  meshByName(invalidDetailGroup, "plant-leaves-batched").userData.rawFluxColorAttribute,
+);
+assertColorNearHex(
+  leafColor(meshByName(invalidDetailGroup, "plant-leaves-batched").userData.rawFluxColorAttribute, 0),
+  rawLeafSurfaceFluxColorHexForValue(183, invalidDetailGroup.userData.rawLeafSurfaceFluxScale),
+);
 
 const legacyScene = {{
   plants: {{
@@ -716,11 +956,11 @@ assert.equal(state.rawLeafSurfaceFluxScale.targetPpfd, 275);
 assert.equal(state.rawLeafSurfaceFluxScale.targetSource, "fspm_target_ppfd_umol_m2_s");
 assert.deepEqual(
   state.rawLeafSurfaceFluxScale.anchors.map((anchor) => anchor.ratio),
-  [0, 0.25, 0.45, 0.7, 0.9, 1.15, 1.5],
+  [0, 0.2, 0.4, 0.55, 0.8, 1, 1.2, 1.5],
 );
 assert.deepEqual(
   state.rawLeafSurfaceFluxScale.anchors.map((anchor) => anchor.ppfd_umol_m2_s),
-  [0, 68.75, 123.75, 192.5, 247.5, 316.25, 412.5],
+  [0, 55, 110, 151.25, 220, 275, 330, 412.5],
 );
 assert.equal(state.rawLeafSurfaceFluxLegend.title, "Raw leaf-surface incident PPFD");
 assert.equal(state.rawLeafSurfaceFluxLegend.scale, "% of FSPM target");
@@ -735,7 +975,7 @@ target550Scene.plants.surface_flux.target_tolerance_umol_m2_s = 20;
 const target550State = createPlantVisibilityController(createPlantGroup(target550Scene)).getState();
 assert.deepEqual(
   target550State.rawLeafSurfaceFluxLegend.anchors.map((anchor) => anchor.ppfd_umol_m2_s),
-  [0, 137.5, 247.5, 385, 495, 632.5, 825],
+  [0, 110, 220, 302.5, 440, 550, 660, 825],
 );
 assert.equal(plantMesh.geometry.getAttribute("color"), plantMesh.userData.absorptionColorAttribute);
 assert.equal(plantMesh.material, plantMesh.userData.absorptionMaterial);

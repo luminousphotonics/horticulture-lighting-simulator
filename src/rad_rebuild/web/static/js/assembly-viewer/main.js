@@ -45,6 +45,8 @@ const plantsControlEl = document.getElementById("assembly-plants-control");
 const plantsToggle = document.getElementById("assembly-plants-toggle");
 const plantsColorToggle = document.getElementById("assembly-plants-color-toggle");
 const plantsColorModeSelect = document.getElementById("assembly-plants-color-mode");
+const plantsDetailControl = document.getElementById("assembly-plants-detail-control");
+const plantsDetailModeSelect = document.getElementById("assembly-plants-detail-mode");
 const plantsStatusEl = document.getElementById("assembly-plants-status");
 const plantsLegendEl = document.getElementById("assembly-plants-legend");
 const perfEl = document.getElementById("assembly-perf");
@@ -162,7 +164,7 @@ function wireFixtureControls(fixtureGroup, scenePayload) {
   return controller;
 }
 
-function setPlantControlsEnabled(enabled, colorEnabled = false) {
+function setPlantControlsEnabled(enabled, colorEnabled = false, detailEnabled = false) {
   if (plantsControlEl instanceof HTMLElement) {
     plantsControlEl.hidden = !enabled;
   }
@@ -174,6 +176,12 @@ function setPlantControlsEnabled(enabled, colorEnabled = false) {
   }
   if (plantsColorModeSelect instanceof window.HTMLSelectElement) {
     plantsColorModeSelect.disabled = !(enabled && colorEnabled);
+  }
+  if (plantsDetailControl instanceof HTMLElement) {
+    plantsDetailControl.hidden = !(enabled && detailEnabled);
+  }
+  if (plantsDetailModeSelect instanceof window.HTMLSelectElement) {
+    plantsDetailModeSelect.disabled = !(enabled && colorEnabled && detailEnabled);
   }
 }
 
@@ -282,7 +290,9 @@ function renderPlantStatus(controller) {
   const leafText = `${state.leafCount} ${state.leafCount === 1 ? "leaf" : "leaves"}`;
   const colorText = state.hasAbsorptionColor
     ? (state.absorptionColor
-      ? ` · ${state.colorMode === PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX ? "raw flux color" : "target color"}`
+      ? ` · ${state.colorMode === PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX
+        ? `raw flux ${state.surfaceDetail ? String(state.surfaceDetailMode).replaceAll("_", " ") : "leaf average"}`
+        : "target color"}`
       : " · geometry color")
     : (state.surfaceFluxUnavailableReason ? " · surface flux unavailable" : "");
   plantsStatusEl.textContent = `${leafText}${colorText}`;
@@ -318,6 +328,13 @@ function wirePlantControls(plantGroup) {
       if (plantsColorModeSelect instanceof window.HTMLSelectElement) {
         plantsColorModeSelect.disabled = !(nextState.hasAbsorptionColor && nextState.absorptionColor);
       }
+      if (plantsDetailModeSelect instanceof window.HTMLSelectElement) {
+        plantsDetailModeSelect.disabled = !(
+          nextState.hasAbsorptionColor
+          && nextState.absorptionColor
+          && nextState.hasSurfaceDetail
+        );
+      }
       renderPlantStatus(controller);
     });
   }
@@ -325,11 +342,40 @@ function wirePlantControls(plantGroup) {
     plantsColorModeSelect.value = state.colorMode;
     plantsColorModeSelect.disabled = !state.hasAbsorptionColor;
     plantsColorModeSelect.addEventListener("change", () => {
-      controller.setColorMode(plantsColorModeSelect.value);
+      const nextState = controller.setColorMode(plantsColorModeSelect.value);
+      if (plantsDetailModeSelect instanceof window.HTMLSelectElement) {
+        plantsDetailModeSelect.disabled = !(
+          nextState.hasAbsorptionColor
+          && nextState.absorptionColor
+          && nextState.hasSurfaceDetail
+          && nextState.colorMode === PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX
+        );
+      }
       renderPlantStatus(controller);
     });
   }
-  setPlantControlsEnabled(true, state.hasAbsorptionColor);
+  if (plantsDetailModeSelect instanceof window.HTMLSelectElement) {
+    plantsDetailModeSelect.value = state.surfaceDetail ? "surface_detail" : "leaf_average";
+    plantsDetailModeSelect.disabled = !(
+      state.hasAbsorptionColor
+      && state.absorptionColor
+      && state.hasSurfaceDetail
+      && state.colorMode === PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX
+    );
+    plantsDetailModeSelect.addEventListener("change", () => {
+      controller.setSurfaceDetail(plantsDetailModeSelect.value === "surface_detail");
+      renderPlantStatus(controller);
+    });
+  }
+  setPlantControlsEnabled(true, state.hasAbsorptionColor, state.hasSurfaceDetail);
+  if (plantsDetailModeSelect instanceof window.HTMLSelectElement) {
+    plantsDetailModeSelect.disabled = !(
+      state.hasAbsorptionColor
+      && state.absorptionColor
+      && state.hasSurfaceDetail
+      && state.colorMode === PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX
+    );
+  }
   renderPlantStatus(controller);
   return controller;
 }

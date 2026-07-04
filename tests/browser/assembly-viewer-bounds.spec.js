@@ -356,14 +356,17 @@ test("FSPM panel formatter summarizes available plant metrics", async ({ page })
             p95_percent_of_target: 120,
             max_percent_of_target: 130.9090909091,
             bucket_counts: [
-              { label: "0-25%", leaf_count: 0 },
-              { label: "25-45%", leaf_count: 1 },
-              { label: "45-70%", leaf_count: 1 },
-              { label: "70-90%", leaf_count: 0 },
-              { label: "90-115%", leaf_count: 4 },
-              { label: "115-150%", leaf_count: 2 },
+              { label: "0-20%", leaf_count: 0 },
+              { label: "20-40%", leaf_count: 0 },
+              { label: "40-55%", leaf_count: 2 },
+              { label: "55-80%", leaf_count: 0 },
+              { label: "80-100%", leaf_count: 4 },
+              { label: "100-120%", leaf_count: 1 },
+              { label: "120-150%", leaf_count: 1 },
               { label: "150%+", leaf_count: 0 },
             ],
+            summary_granularity: "leaf_average",
+            visualization_granularity: "mesh_patch",
             units: "umol/m²/s",
           },
           lower_tail_raw_flux_density_umol_m2_s: 150,
@@ -456,8 +459,10 @@ test("FSPM panel formatter summarizes available plant metrics", async ({ page })
   expect(result.text).toContain("Target PPFD");
   expect(result.text).toContain("Mean 271.5 umol/m²/s (99% target)");
   expect(result.text).toContain("p95 330.0 umol/m²/s (120% target)");
+  expect(result.text).toContain("Summary granularity leaf average");
+  expect(result.text).toContain("Visualization granularity mesh patch surface detail");
   expect(result.text).toContain("Actual receiver-based incident PPFD");
-  expect(result.text).toContain("90-115% 4 leaves");
+  expect(result.text).toContain("Leaf avg 80-100% 4 leaves");
   expect(result.text).toContain("Target-range leaves");
   expect(result.text).toContain("Coverage basis");
   expect(result.text).toContain("Source baseline PPFD map sampled at leaf XY positions");
@@ -522,11 +527,12 @@ test("plant surface-flux legends are visual and mode-aware", async ({ page }) =>
                 clamp_max_ratio: 1.5,
                 anchors: [
                   { ratio: 0, percent: 0, ppfd_umol_m2_s: 0, color: "#2563EB" },
-                  { ratio: 0.25, percent: 25, ppfd_umol_m2_s: 68.75, color: "#06B6D4" },
-                  { ratio: 0.45, percent: 45, ppfd_umol_m2_s: 123.75, color: "#22C55E" },
-                  { ratio: 0.7, percent: 70, ppfd_umol_m2_s: 192.5, color: "#22C55E" },
-                  { ratio: 0.9, percent: 90, ppfd_umol_m2_s: 247.5, color: "#EAB308" },
-                  { ratio: 1.15, percent: 115, ppfd_umol_m2_s: 316.25, color: "#F97316" },
+                  { ratio: 0.2, percent: 20, ppfd_umol_m2_s: 55, color: "#06B6D4" },
+                  { ratio: 0.4, percent: 40, ppfd_umol_m2_s: 110, color: "#14B8A6" },
+                  { ratio: 0.55, percent: 55, ppfd_umol_m2_s: 151.25, color: "#22C55E" },
+                  { ratio: 0.8, percent: 80, ppfd_umol_m2_s: 220, color: "#22C55E" },
+                  { ratio: 1, percent: 100, ppfd_umol_m2_s: 275, color: "#A3E635" },
+                  { ratio: 1.2, percent: 120, ppfd_umol_m2_s: 330, color: "#F59E0B" },
                   { ratio: 1.5, percent: 150, ppfd_umol_m2_s: 412.5, color: "#DC2626" },
                 ],
                 units: "umol/m²/s",
@@ -538,11 +544,12 @@ test("plant surface-flux legends are visual and mode-aware", async ({ page }) =>
                 target_ppfd_umol_m2_s: 275,
                 anchors: [
                   { ratio: 0, percent: 0, ppfd_umol_m2_s: 0, color: "#2563EB" },
-                  { ratio: 0.25, percent: 25, ppfd_umol_m2_s: 68.75, color: "#06B6D4" },
-                  { ratio: 0.45, percent: 45, ppfd_umol_m2_s: 123.75, color: "#22C55E" },
-                  { ratio: 0.7, percent: 70, ppfd_umol_m2_s: 192.5, color: "#22C55E" },
-                  { ratio: 0.9, percent: 90, ppfd_umol_m2_s: 247.5, color: "#EAB308" },
-                  { ratio: 1.15, percent: 115, ppfd_umol_m2_s: 316.25, color: "#F97316" },
+                  { ratio: 0.2, percent: 20, ppfd_umol_m2_s: 55, color: "#06B6D4" },
+                  { ratio: 0.4, percent: 40, ppfd_umol_m2_s: 110, color: "#14B8A6" },
+                  { ratio: 0.55, percent: 55, ppfd_umol_m2_s: 151.25, color: "#22C55E" },
+                  { ratio: 0.8, percent: 80, ppfd_umol_m2_s: 220, color: "#22C55E" },
+                  { ratio: 1, percent: 100, ppfd_umol_m2_s: 275, color: "#A3E635" },
+                  { ratio: 1.2, percent: 120, ppfd_umol_m2_s: 330, color: "#F59E0B" },
                   { ratio: 1.5, percent: 150, ppfd_umol_m2_s: 412.5, color: "#DC2626" },
                 ],
               },
@@ -594,7 +601,8 @@ test("plant surface-flux legends are visual and mode-aware", async ({ page }) =>
   await page.locator("#assembly-plants-color-mode").selectOption("raw_leaf_surface_flux");
   await expect(legend).toContainText("Raw leaf-surface incident PPFD");
   await expect(legend.locator(".assembly-viewer__plant-legend-gradient")).toBeVisible();
-  await expect(legend).toContainText("25% 69");
+  await expect(legend).toContainText("20% 55");
+  await expect(legend).toContainText("100% 275");
   await expect(legend).toContainText("150%+ 413+");
   await expect(legend).not.toContainText("Under-lit");
 

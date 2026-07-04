@@ -226,11 +226,21 @@ def test_surface_flux_raw_leaf_mode_metadata_uses_raw_incident_values() -> None:
     assert raw_scale["clamp_min_ratio"] == pytest.approx(0.0)
     assert raw_scale["clamp_max_ratio"] == pytest.approx(1.5)
     assert [anchor["ratio"] for anchor in raw_scale["anchors"]] == pytest.approx(
-        [0.0, 0.25, 0.45, 0.70, 0.90, 1.15, 1.50]
+        [0.0, 0.20, 0.40, 0.55, 0.80, 1.00, 1.20, 1.50]
     )
     assert [anchor["ppfd_umol_m2_s"] for anchor in raw_scale["anchors"]] == pytest.approx(
-        [0.0, 68.75, 123.75, 192.5, 247.5, 316.25, 412.5]
+        [0.0, 55.0, 110.0, 151.25, 220.0, 275.0, 330.0, 412.5]
     )
+    assert [anchor["color"] for anchor in raw_scale["anchors"]] == [
+        "#2563EB",
+        "#06B6D4",
+        "#14B8A6",
+        "#22C55E",
+        "#22C55E",
+        "#A3E635",
+        "#F59E0B",
+        "#DC2626",
+    ]
     assert raw_summary["mean"] == pytest.approx(950.0)
     assert raw_summary["min"] == pytest.approx(0.0)
     assert raw_summary["p05"] == pytest.approx(95.0)
@@ -240,6 +250,18 @@ def test_surface_flux_raw_leaf_mode_metadata_uses_raw_incident_values() -> None:
     assert raw_summary["mean_percent_of_target"] == pytest.approx(345.4545454545)
     assert raw_summary["p05_percent_of_target"] == pytest.approx(34.5454545455)
     assert raw_summary["p95_percent_of_target"] == pytest.approx(656.3636363636)
+    assert [bucket["label"] for bucket in raw_summary["bucket_counts"]] == [
+        "0-20%",
+        "20-40%",
+        "40-55%",
+        "55-80%",
+        "80-100%",
+        "100-120%",
+        "120-150%",
+        "150%+",
+    ]
+    assert raw_summary["summary_granularity"] == "leaf_average"
+    assert raw_summary["visualization_granularity"] == "leaf_average"
     assert raw_summary["units"] == "umol/m²/s"
     assert raw_mode["scale"] == raw_scale
     assert "p05" not in raw_scale
@@ -726,6 +748,8 @@ def test_leaf_quadrature_receiver_granularity_uses_four_samples_per_leaf() -> No
     )
     assert all(float(sample["direction"][2]) > 0.0 for sample in samples)
     assert all(sample["leaf_representative_sample_count"] == 4 for sample in samples)
+    assert all(len(sample["mapped_face_indices"]) >= 1 for sample in samples)
+    assert all(len(sample["mapped_surface_ids"]) >= 1 for sample in samples)
 
 
 def test_unknown_receiver_granularity_is_clear() -> None:
@@ -851,6 +875,14 @@ def test_radiance_receiver_surface_flux_payload_is_computed(tmp_path) -> None:
     )
     assert payload["ppfd_field_summary"]["two_sided"] is False
     assert payload["total_absorbed_photon_flux_umol_s"] > 0
+    detail = payload["visualization"]["raw_leaf_surface_flux_detail"]
+    assert detail["visual_granularity"] == "leaf_average"
+    assert detail["receiver_granularity"] == RECEIVER_GRANULARITY_LEAF_CENTROID
+    assert detail["encoding"] == "leaf_major_dense"
+    assert detail["true_sample_count_per_leaf"] == pytest.approx(1.0)
+    assert detail["top_bottom_support"] is False
+    assert detail["values_ppfd"] == []
+    assert "samples" not in detail
 
 
 def test_radiance_receiver_surface_flux_payload_preserves_leaf_material_metadata(
@@ -932,6 +964,54 @@ def test_mesh_patch_receiver_payload_reports_two_sided_policy(tmp_path) -> None:
     assert payload["receiver_sample_area_sum_m2"] == pytest.approx(
         payload["one_sided_leaf_area_m2"] * 2.0
     )
+    detail = payload["visualization"]["raw_leaf_surface_flux_detail"]
+    assert detail["visual_granularity"] == "mesh_patch"
+    assert detail["receiver_granularity"] == RECEIVER_GRANULARITY_MESH_PATCH
+    assert detail["encoding"] == "leaf_major_dense"
+    assert detail["top_bottom_support"] is True
+    assert detail["leaf_count"] == 1
+    assert detail["leaf_ids"] == ["plant_r000_c000_leaf_000"]
+    assert detail["sides"] == ["back", "front"]
+    assert set(detail["values_ppfd"]) == {"front", "back"}
+    assert all(value == pytest.approx(100.0) for value in detail["values_ppfd"]["front"][0])
+    assert all(value == pytest.approx(100.0) for value in detail["values_ppfd"]["back"][0])
+    assert len(detail["values_ppfd"]["front"][0]) == payload["surface_count"]
+    assert len(detail["values_ppfd"]["back"][0]) == payload["surface_count"]
+    assert len(detail["patch_face_indices"][0]) == payload["surface_count"]
+    assert "samples" not in detail
+
+
+def test_leaf_quadrature_receiver_payload_exposes_four_raw_detail_zones(
+    tmp_path,
+) -> None:
+    scene = _single_plant_scene(leaf_count=1)
+    samples = build_radiance_receiver_samples(
+        scene,
+        receiver_granularity=RECEIVER_GRANULARITY_LEAF_QUADRATURE_4,
+    )
+    densities = [100.0, 200.0, 300.0, 400.0]
+
+    path = write_radiance_receiver_plant_surface_flux_artifact(
+        tmp_path,
+        scene,
+        samples,
+        densities,
+        source_octree="test.oct",
+        receiver_granularity=RECEIVER_GRANULARITY_LEAF_QUADRATURE_4,
+    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    detail = payload["visualization"]["raw_leaf_surface_flux_detail"]
+    assert detail["visual_granularity"] == "quadrature_mapped"
+    assert detail["receiver_granularity"] == RECEIVER_GRANULARITY_LEAF_QUADRATURE_4
+    assert detail["encoding"] == "leaf_major_dense"
+    assert detail["true_sample_count_per_leaf"] == pytest.approx(4.0)
+    assert detail["top_bottom_support"] is False
+    assert detail["values_ppfd"] == [[100.0, 200.0, 300.0, 400.0]]
+    assert len(detail["values_ppfd"][0]) <= 4
+    assert detail["samples_per_leaf_values"] == [4]
+    assert all(value is not None for value in detail["quadrature_face_sample_indices"][0])
+    assert "samples" not in detail
 
 
 def test_radiance_receiver_target_classification_prefers_ppfd_map(tmp_path) -> None:

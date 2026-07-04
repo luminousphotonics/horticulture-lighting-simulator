@@ -573,6 +573,7 @@ def _optional_plant_surface_flux_payload(workspace_root: Path) -> dict[str, Any]
                 "raw_leaf_surface_flux_scale",
                 "raw_leaf_surface_flux_summary",
                 "raw_leaf_surface_flux_legend",
+                "raw_leaf_surface_flux_detail",
                 "leaf_values",
                 "plant_values",
             )

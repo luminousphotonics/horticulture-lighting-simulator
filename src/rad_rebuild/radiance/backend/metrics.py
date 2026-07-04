@@ -387,9 +387,6 @@ def _load_plant_surface_flux_summary(workspace_root: Path) -> dict[str, object] 
             "plant_to_plant_target_capped_flux_cv"
         ),
         "units": payload.get("units"),
-        "plant_summaries": payload.get("plant_summaries", []),
-        "leaf_summaries": payload.get("leaf_summaries", []),
-        "visualization": payload.get("visualization"),
         "outputs_do_not_predict": payload.get(
             "outputs_do_not_predict",
             ["yield", "biomass", "growth", "crop_output"],

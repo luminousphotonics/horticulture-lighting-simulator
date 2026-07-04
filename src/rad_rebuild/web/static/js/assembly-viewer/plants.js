@@ -40,6 +40,9 @@ const ABOVE_TARGET_COLOR_ANCHORS = [
 ];
 
 function finiteNumber(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
@@ -56,6 +59,23 @@ function finiteCoordinateTriple(value) {
 
 function radianceVertexToWorld(vertex) {
   return [vertex[0], vertex[2], vertex[1]];
+}
+
+function centroidOfVertices(vertices) {
+  const centroid = [0, 0, 0];
+  if (!vertices.length) {
+    return centroid;
+  }
+  for (const vertex of vertices) {
+    centroid[0] += vertex[0];
+    centroid[1] += vertex[1];
+    centroid[2] += vertex[2];
+  }
+  return centroid.map((value) => value / vertices.length);
+}
+
+function distanceSquared3(a, b) {
+  return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
 }
 
 function normalizedFaceIndices(face, vertexCount) {
@@ -235,15 +255,26 @@ function targetDeviationColor(value, surfaceFlux = {}) {
 
 const RAW_LEAF_SURFACE_FLUX_ANCHORS = [
   { ratio: 0.00, percent: 0, color: "#2563EB" },
-  { ratio: 0.25, percent: 25, color: "#06B6D4" },
-  { ratio: 0.45, percent: 45, color: "#22C55E" },
-  { ratio: 0.70, percent: 70, color: "#22C55E" },
-  { ratio: 0.90, percent: 90, color: "#EAB308" },
-  { ratio: 1.15, percent: 115, color: "#F97316" },
+  { ratio: 0.20, percent: 20, color: "#06B6D4" },
+  { ratio: 0.40, percent: 40, color: "#14B8A6" },
+  { ratio: 0.55, percent: 55, color: "#22C55E" },
+  { ratio: 0.80, percent: 80, color: "#22C55E" },
+  { ratio: 1.00, percent: 100, color: "#A3E635" },
+  { ratio: 1.20, percent: 120, color: "#F59E0B" },
   { ratio: 1.50, percent: 150, color: "#DC2626" },
 ];
 
 function rawLeafSurfaceFluxTarget(surfaceFlux = {}) {
+  const detail = surfaceFlux?.visualization?.raw_leaf_surface_flux_detail
+    || surfaceFlux?.visualization?.raw_surface_detail;
+  const detailTarget = finiteNumber(detail?.target_ppfd_umol_m2_s);
+  if (detailTarget !== null && detailTarget > 0) {
+    return {
+      target: detailTarget,
+      source: detail?.scale_basis || "fspm_target_ppfd_umol_m2_s",
+    };
+  }
+
   const explicitScale = surfaceFlux?.visualization?.raw_leaf_surface_flux_scale
     || surfaceFlux?.raw_leaf_surface_flux_scale;
   const explicitTarget = finiteNumber(explicitScale?.target_ppfd_umol_m2_s);
@@ -310,14 +341,26 @@ function surfaceFluxLeafValues(plantPayload) {
   return Array.isArray(values) ? values : [];
 }
 
+function rawSurfaceDetail(plantPayload) {
+  const detail = plantPayload?.surface_flux?.visualization?.raw_leaf_surface_flux_detail
+    || plantPayload?.surface_flux?.visualization?.raw_surface_detail;
+  return detail && typeof detail === "object" ? detail : null;
+}
+
 function rawLeafSurfaceFluxScale(surfaceFlux = {}) {
+  const detail = surfaceFlux?.visualization?.raw_leaf_surface_flux_detail
+    || surfaceFlux?.visualization?.raw_surface_detail;
   const explicitScale = surfaceFlux?.visualization?.raw_leaf_surface_flux_scale
     || surfaceFlux?.raw_leaf_surface_flux_scale;
   const { target, source } = rawLeafSurfaceFluxTarget(surfaceFlux);
   const units = explicitScale?.units || "umol/m²/s";
-  const anchors = Array.isArray(explicitScale?.anchors) && explicitScale.anchors.length > 0
-    ? explicitScale.anchors
-    : rawLeafSurfaceFluxAnchorEntries(target);
+  const anchors = Array.isArray(detail?.color_anchors) && detail.color_anchors.length > 0
+    ? detail.color_anchors
+    : (
+      Array.isArray(explicitScale?.anchors) && explicitScale.anchors.length > 0
+        ? explicitScale.anchors
+        : rawLeafSurfaceFluxAnchorEntries(target)
+    );
   const ratioMin = finiteNumber(explicitScale?.ratio_min) ?? 0;
   const ratioMax = finiteNumber(explicitScale?.ratio_max) ?? 1.5;
   return {
@@ -467,6 +510,18 @@ function createAbsorptionLeafMaterial(plantPayload) {
   return material;
 }
 
+function createRawDetailMaterial(plantPayload) {
+  const material = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    vertexColors: true,
+    side: THREE.FrontSide,
+    transparent: true,
+    opacity: leafMaterialOpacity(plantPayload),
+  });
+  material.toneMapped = false;
+  return material;
+}
+
 function leafFluxById(plantPayload) {
   const map = new Map();
   for (const row of surfaceFluxLeafValues(plantPayload)) {
@@ -482,6 +537,181 @@ function leafFluxById(plantPayload) {
 function leafFluxRow(leaf, fluxByLeafId) {
   const leafId = typeof leaf?.leaf_id === "string" ? leaf.leaf_id : "";
   return leafId ? fluxByLeafId.get(leafId) || null : null;
+}
+
+function rawDetailRowsByLeaf(plantPayload) {
+  const detail = rawSurfaceDetail(plantPayload);
+  const rows = detail?.samples;
+  const map = new Map();
+  if (Array.isArray(rows)) {
+    for (const row of rows) {
+      const leafId = typeof row?.leaf_id === "string" ? row.leaf_id : "";
+      const rawValue = finiteNumber(row?.[SURFACE_FLUX_METRIC]);
+      if (!leafId || rawValue === null) {
+        continue;
+      }
+      if (!map.has(leafId)) {
+        map.set(leafId, []);
+      }
+      map.get(leafId).push(row);
+    }
+    return map;
+  }
+
+  if (detail?.encoding !== "leaf_major_dense") {
+    return map;
+  }
+  const leafIds = Array.isArray(detail.leaf_ids) ? detail.leaf_ids : [];
+  const visualGranularity = String(detail.visual_granularity || "leaf_average");
+  const valuesPpfd = detail.values_ppfd;
+  if (visualGranularity === "leaf_average") {
+    return map;
+  }
+
+  if (visualGranularity === "quadrature_mapped" && Array.isArray(valuesPpfd)) {
+    const faceMaps = Array.isArray(detail.quadrature_face_sample_indices)
+      ? detail.quadrature_face_sample_indices
+      : [];
+    for (let leafIndex = 0; leafIndex < leafIds.length; leafIndex += 1) {
+      const leafId = typeof leafIds[leafIndex] === "string" ? leafIds[leafIndex] : "";
+      const leafValues = Array.isArray(valuesPpfd[leafIndex]) ? valuesPpfd[leafIndex] : [];
+      if (!leafId || leafValues.length === 0) {
+        continue;
+      }
+      const faceMap = Array.isArray(faceMaps[leafIndex]) ? faceMaps[leafIndex] : [];
+      const rowsForLeaf = [];
+      for (let sampleIndex = 0; sampleIndex < leafValues.length; sampleIndex += 1) {
+        const rawValue = finiteNumber(leafValues[sampleIndex]);
+        if (rawValue === null) {
+          continue;
+        }
+        const mappedFaceIndices = [];
+        for (let faceIndex = 0; faceIndex < faceMap.length; faceIndex += 1) {
+          const mappedSampleIndex = finiteNumber(faceMap[faceIndex]);
+          if (mappedSampleIndex === sampleIndex) {
+            mappedFaceIndices.push(faceIndex);
+          }
+        }
+        rowsForLeaf.push({
+          sample_id: `${leafId}_quadrature_${sampleIndex + 1}`,
+          leaf_id: leafId,
+          side: "front",
+          quadrature_index: sampleIndex,
+          mapped_face_indices: mappedFaceIndices,
+          mapped_surface_ids: mappedFaceIndices.map((faceIndex) => surfaceIdForFace(leafId, faceIndex)),
+          [SURFACE_FLUX_METRIC]: rawValue,
+        });
+      }
+      if (rowsForLeaf.length > 0) {
+        map.set(leafId, rowsForLeaf);
+      }
+    }
+    return map;
+  }
+
+  if (visualGranularity === "mesh_patch" && valuesPpfd && typeof valuesPpfd === "object") {
+    const patchFaceIndices = Array.isArray(detail.patch_face_indices)
+      ? detail.patch_face_indices
+      : [];
+    const sides = Array.isArray(detail.sides) && detail.sides.length > 0
+      ? detail.sides
+      : Object.keys(valuesPpfd);
+    for (let leafIndex = 0; leafIndex < leafIds.length; leafIndex += 1) {
+      const leafId = typeof leafIds[leafIndex] === "string" ? leafIds[leafIndex] : "";
+      const faceIndices = Array.isArray(patchFaceIndices[leafIndex]) ? patchFaceIndices[leafIndex] : [];
+      if (!leafId || faceIndices.length === 0) {
+        continue;
+      }
+      const rowsForLeaf = [];
+      for (const side of sides) {
+        const sideValues = valuesPpfd[side];
+        const leafValues = Array.isArray(sideValues) && Array.isArray(sideValues[leafIndex])
+          ? sideValues[leafIndex]
+          : [];
+        for (let patchIndex = 0; patchIndex < faceIndices.length; patchIndex += 1) {
+          const faceIndex = Number(faceIndices[patchIndex]);
+          const rawValue = finiteNumber(leafValues[patchIndex]);
+          if (!Number.isInteger(faceIndex) || rawValue === null) {
+            continue;
+          }
+          const surfaceId = surfaceIdForFace(leafId, faceIndex);
+          rowsForLeaf.push({
+            sample_id: `${surfaceId}_${side}`,
+            leaf_id: leafId,
+            surface_id: surfaceId,
+            face_index: faceIndex,
+            side,
+            [SURFACE_FLUX_METRIC]: rawValue,
+          });
+        }
+      }
+      if (rowsForLeaf.length > 0) {
+        map.set(leafId, rowsForLeaf);
+      }
+    }
+    return map;
+  }
+
+  return map;
+}
+
+function rowHasFace(row, faceIndex) {
+  if (Number(row?.face_index) === faceIndex) {
+    return true;
+  }
+  const mappedFaceIndices = row?.mapped_face_indices;
+  return Array.isArray(mappedFaceIndices)
+    && mappedFaceIndices.some((value) => Number(value) === faceIndex);
+}
+
+function surfaceIdForFace(leafId, faceIndex) {
+  return `${leafId}_face_${String(faceIndex).padStart(4, "0")}`;
+}
+
+function rowHasSurface(row, leafId, faceIndex) {
+  const surfaceId = surfaceIdForFace(leafId, faceIndex);
+  if (row?.surface_id === surfaceId) {
+    return true;
+  }
+  const mappedSurfaceIds = row?.mapped_surface_ids;
+  return Array.isArray(mappedSurfaceIds)
+    && mappedSurfaceIds.some((value) => value === surfaceId);
+}
+
+function rowOrigin(row) {
+  return finiteCoordinateTriple(row?.origin_m);
+}
+
+function nearestRawDetailRow(rows, centroid) {
+  let best = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  let originCount = 0;
+  for (const row of rows) {
+    const origin = rowOrigin(row);
+    if (!origin) {
+      continue;
+    }
+    originCount += 1;
+    const distance = distanceSquared3(origin, centroid);
+    if (distance < bestDistance) {
+      best = row;
+      bestDistance = distance;
+    }
+  }
+  return originCount > 0 ? best : null;
+}
+
+function rawDetailRowForFace(rows, leafId, faceIndex, centroid, side = "") {
+  if (!rows.length) {
+    return null;
+  }
+  const sideRows = side
+    ? rows.filter((row) => String(row?.side || "") === side)
+    : rows;
+  const candidates = sideRows.length ? sideRows : rows;
+  return candidates.find((row) => rowHasSurface(row, leafId, faceIndex))
+    || candidates.find((row) => rowHasFace(row, faceIndex))
+    || nearestRawDetailRow(candidates, centroid);
 }
 
 function plantCounts(plants) {
@@ -512,8 +742,10 @@ export function createPlantVisibilityController(plantGroup) {
   }
   plantGroup.visible = plantGroup.visible !== false;
   const hasAbsorptionColor = Boolean(plantGroup.userData?.hasAbsorptionColor);
+  const hasSurfaceDetail = Boolean(plantGroup.userData?.hasSurfaceDetail);
   let absorptionColor = hasAbsorptionColor;
   let colorMode = plantGroup.userData?.colorMode || PLANT_COLOR_MODE_TARGET_RANGE;
+  let surfaceDetail = hasSurfaceDetail && Boolean(plantGroup.userData?.surfaceDetail);
 
   function activeColorAttribute(child) {
     if (colorMode === PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX) {
@@ -523,10 +755,19 @@ export function createPlantVisibilityController(plantGroup) {
   }
 
   function applyAbsorptionColor() {
+    const rawDetailActive = absorptionColor
+      && colorMode === PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX
+      && surfaceDetail
+      && hasSurfaceDetail;
     plantGroup.traverse((child) => {
       if (!(child instanceof THREE.Mesh)) {
         return;
       }
+      if (child.userData?.rawDetailMesh) {
+        child.visible = rawDetailActive;
+        return;
+      }
+      child.visible = !rawDetailActive;
       const defaultColorAttribute = child.userData?.defaultColorAttribute;
       const absorptionColorAttribute = activeColorAttribute(child);
       if (defaultColorAttribute && absorptionColorAttribute && child.geometry instanceof THREE.BufferGeometry) {
@@ -568,6 +809,13 @@ export function createPlantVisibilityController(plantGroup) {
     return getState();
   }
 
+  function setSurfaceDetail(value) {
+    surfaceDetail = hasSurfaceDetail && Boolean(value);
+    plantGroup.userData.surfaceDetail = surfaceDetail;
+    applyAbsorptionColor();
+    return getState();
+  }
+
   function getState() {
     return {
       visible: plantGroup.visible !== false,
@@ -579,13 +827,20 @@ export function createPlantVisibilityController(plantGroup) {
       colorMode,
       rawLeafSurfaceFluxScale: plantGroup.userData?.rawLeafSurfaceFluxScale || null,
       rawLeafSurfaceFluxLegend: plantGroup.userData?.rawLeafSurfaceFluxLegend || null,
+      hasSurfaceDetail,
+      surfaceDetail,
+      surfaceDetailMode: surfaceDetail && hasSurfaceDetail
+        ? plantGroup.userData?.surfaceDetailMode || "surface_detail"
+        : "leaf_average",
+      rawSurfaceDetail: plantGroup.userData?.rawSurfaceDetail || null,
+      rawSurfaceDetailSampleCount: Number(plantGroup.userData?.rawSurfaceDetailSampleCount || 0),
       surfaceFluxAvailable: Boolean(plantGroup.userData?.surfaceFluxAvailable),
       surfaceFluxUnavailableReason: plantGroup.userData?.surfaceFluxUnavailableReason || "",
     };
   }
 
   applyAbsorptionColor();
-  return { setVisible, setAbsorptionColor, setColorMode, getState };
+  return { setVisible, setAbsorptionColor, setColorMode, setSurfaceDetail, getState };
 }
 
 export function createLeafGeometry(leaf) {
@@ -643,6 +898,88 @@ function appendLeafGeometryBuffers({
   return true;
 }
 
+function appendTriangle({
+  vertices,
+  order,
+  color,
+  positions,
+  colors,
+}) {
+  for (const index of order) {
+    positions.push(...radianceVertexToWorld(vertices[index]));
+    colors.push(color.r, color.g, color.b);
+  }
+}
+
+function appendRawDetailLeafGeometryBuffers({
+  leaf,
+  rawRows,
+  aggregateRawRow,
+  rawScale,
+  topBottomSupport,
+  positions,
+  colors,
+  sampleIds,
+}) {
+  const leafId = typeof leaf?.leaf_id === "string" ? leaf.leaf_id : "";
+  const sourceVertices = Array.isArray(leaf?.mesh?.vertices) ? leaf.mesh.vertices : [];
+  const vertices = sourceVertices.map(finiteCoordinateTriple);
+  if (!leafId || vertices.some((vertex) => vertex === null)) {
+    return false;
+  }
+  if (!vertices.length || !Array.isArray(leaf?.mesh?.faces)) {
+    return false;
+  }
+
+  let rendered = false;
+  for (let faceIndex = 0; faceIndex < leaf.mesh.faces.length; faceIndex += 1) {
+    const indices = normalizedFaceIndices(leaf.mesh.faces[faceIndex], vertices.length);
+    if (!indices) {
+      continue;
+    }
+    const faceVertices = indices.map((index) => vertices[index]);
+    const centroid = centroidOfVertices(faceVertices);
+    const frontDetailRow = rawDetailRowForFace(rawRows, leafId, faceIndex, centroid, "front");
+    const anySideDetailRow = topBottomSupport
+      ? null
+      : rawDetailRowForFace(rawRows, leafId, faceIndex, centroid);
+    const frontRow = frontDetailRow || anySideDetailRow || aggregateRawRow;
+    const backRow = topBottomSupport
+      ? rawDetailRowForFace(rawRows, leafId, faceIndex, centroid, "back") || aggregateRawRow || frontRow
+      : frontRow;
+    if (!frontRow) {
+      continue;
+    }
+    const frontColor = rawLeafSurfaceFluxColor(frontRow, rawScale);
+    const backColor = rawLeafSurfaceFluxColor(backRow, rawScale);
+    sampleIds.add(String(frontRow.sample_id || frontRow.surface_id || `${leafId}:${faceIndex}:front`));
+    if (backRow) {
+      sampleIds.add(String(backRow.sample_id || backRow.surface_id || `${leafId}:${faceIndex}:back`));
+    }
+    for (let index = 1; index < indices.length - 1; index += 1) {
+      const triangleOrder = [indices[0], indices[index], indices[index + 1]];
+      // The Radiance-to-Three axis swap flips handedness, so reverse front
+      // triangles to keep receiver-front values on the visible front surface.
+      appendTriangle({
+        vertices,
+        order: [triangleOrder[2], triangleOrder[1], triangleOrder[0]],
+        color: frontColor,
+        positions,
+        colors,
+      });
+      appendTriangle({
+        vertices,
+        order: triangleOrder,
+        color: backColor,
+        positions,
+        colors,
+      });
+      rendered = true;
+    }
+  }
+  return rendered;
+}
+
 export function createPlantGroup(scenePayload) {
   const group = new THREE.Group();
   group.name = "plant-geometry";
@@ -661,8 +998,13 @@ export function createPlantGroup(scenePayload) {
     vertexColors: true,
   });
   const absorptionMaterial = createAbsorptionLeafMaterial(plantPayload);
+  const rawDetailMaterial = createRawDetailMaterial(plantPayload);
   const leafFluxValues = surfaceFluxLeafValues(plantPayload);
   const fluxByLeafId = leafFluxById(plantPayload);
+  const rawDetail = rawSurfaceDetail(plantPayload);
+  const rawDetailByLeafId = rawDetailRowsByLeaf(plantPayload);
+  const rawDetailVisualGranularity = String(rawDetail?.visual_granularity || "leaf_average");
+  const rawDetailTopBottomSupport = Boolean(rawDetail?.top_bottom_support);
   const colorMetric = plantPayload?.surface_flux?.visualization?.color_metric || "";
   const surfaceFlux = plantPayload?.surface_flux || {};
   const rawScale = rawLeafSurfaceFluxScale(surfaceFlux);
@@ -683,6 +1025,10 @@ export function createPlantGroup(scenePayload) {
   const defaultColors = [];
   const targetColors = [];
   const rawFluxColors = [];
+  const rawDetailPositions = [];
+  const rawDetailColors = [];
+  const rawDetailSampleIds = new Set();
+  let rawDetailLeafCount = 0;
 
   for (const plant of plantPayload.plants) {
     const leaves = Array.isArray(plant?.leaves) ? plant.leaves : [];
@@ -704,6 +1050,22 @@ export function createPlantGroup(scenePayload) {
       if (!rendered) {
         warnings.push(`${leaf?.leaf_id || "unknown leaf"} has invalid plant mesh data.`);
         continue;
+      }
+      const rawRows = rawDetailByLeafId.get(leaf?.leaf_id) || [];
+      if (rawRows.length > 0 && rawDetailVisualGranularity !== "leaf_average") {
+        const detailRendered = appendRawDetailLeafGeometryBuffers({
+          leaf,
+          rawRows,
+          aggregateRawRow: fluxRow,
+          rawScale,
+          topBottomSupport: rawDetailTopBottomSupport,
+          positions: rawDetailPositions,
+          colors: rawDetailColors,
+          sampleIds: rawDetailSampleIds,
+        });
+        if (detailRendered) {
+          rawDetailLeafCount += 1;
+        }
       }
       if (fluxRow !== null) {
         matchedLeafCount += 1;
@@ -749,6 +1111,36 @@ export function createPlantGroup(scenePayload) {
     group.add(mesh);
   }
 
+  if (rawDetailPositions.length > 0) {
+    const detailGeometry = new THREE.BufferGeometry();
+    const rawFluxDetailColorAttribute = new THREE.Float32BufferAttribute(rawDetailColors, 3);
+    detailGeometry.setAttribute("position", new THREE.Float32BufferAttribute(rawDetailPositions, 3));
+    detailGeometry.setAttribute("color", rawFluxDetailColorAttribute);
+    detailGeometry.computeVertexNormals();
+    detailGeometry.computeBoundingBox();
+
+    const detailMesh = new THREE.Mesh(detailGeometry, rawDetailMaterial);
+    detailMesh.name = "plant-leaves-raw-surface-detail";
+    detailMesh.castShadow = true;
+    detailMesh.receiveShadow = true;
+    detailMesh.visible = false;
+    detailMesh.userData = {
+      rawDetailMesh: true,
+      rawFluxDetailColorAttribute,
+      rawDetailVisualGranularity,
+      rawDetailSampleCount: rawDetailSampleIds.size,
+      rawDetailLeafCount,
+      absorptionMaterial: rawDetailMaterial,
+    };
+    group.add(detailMesh);
+  } else if (rawDetailVisualGranularity !== "leaf_average") {
+    warnings.push("Raw surface-detail data was advertised but did not map to renderable leaf faces; using leaf-average raw colors.");
+  }
+
+  if (rawDetailVisualGranularity === "mesh_patch" && !rawDetailTopBottomSupport) {
+    warnings.push("Mesh-patch raw detail lacks front/back receiver values; top/bottom inspection falls back to available patch values.");
+  }
+
   group.userData = {
     plantCount: counts.plantCount,
     leafCount: counts.leafCount,
@@ -769,6 +1161,12 @@ export function createPlantGroup(scenePayload) {
     colorModes: [PLANT_COLOR_MODE_TARGET_RANGE, PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX],
     rawLeafSurfaceFluxScale: rawScale,
     rawLeafSurfaceFluxLegend: rawLegend,
+    rawSurfaceDetail: rawDetail,
+    hasSurfaceDetail: rawDetailPositions.length > 0,
+    surfaceDetail: rawDetailPositions.length > 0,
+    surfaceDetailMode: rawDetailPositions.length > 0 ? rawDetailVisualGranularity : "leaf_average",
+    rawSurfaceDetailSampleCount: rawDetailSampleIds.size,
+    rawSurfaceDetailLeafCount: rawDetailLeafCount,
     warnings,
   };
   return group;

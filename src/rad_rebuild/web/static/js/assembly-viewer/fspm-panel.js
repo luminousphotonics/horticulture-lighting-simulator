@@ -62,14 +62,28 @@ function bandAbsorbedFlux(bandTotals, bandId) {
 }
 
 const RAW_FLUX_BUCKETS = [
-  { label: "0-25%", minRatio: 0, maxRatio: 0.25 },
-  { label: "25-45%", minRatio: 0.25, maxRatio: 0.45 },
-  { label: "45-70%", minRatio: 0.45, maxRatio: 0.70 },
-  { label: "70-90%", minRatio: 0.70, maxRatio: 0.90 },
-  { label: "90-115%", minRatio: 0.90, maxRatio: 1.15 },
-  { label: "115-150%", minRatio: 1.15, maxRatio: 1.50 },
+  { label: "0-20%", minRatio: 0, maxRatio: 0.20 },
+  { label: "20-40%", minRatio: 0.20, maxRatio: 0.40 },
+  { label: "40-55%", minRatio: 0.40, maxRatio: 0.55 },
+  { label: "55-80%", minRatio: 0.55, maxRatio: 0.80 },
+  { label: "80-100%", minRatio: 0.80, maxRatio: 1.00 },
+  { label: "100-120%", minRatio: 1.00, maxRatio: 1.20 },
+  { label: "120-150%", minRatio: 1.20, maxRatio: 1.50 },
   { label: "150%+", minRatio: 1.50, maxRatio: null },
 ];
+
+function rawGranularityLabel(value) {
+  if (value === "leaf_average") {
+    return "leaf average";
+  }
+  if (value === "quadrature_mapped") {
+    return "quadrature mapped";
+  }
+  if (value === "mesh_patch") {
+    return "mesh patch surface detail";
+  }
+  return labelStatus(value);
+}
 
 function coverageSourceLabel(source) {
   if (source === "interpolated_runtime_ppfd_map") {
@@ -106,6 +120,12 @@ function rawBucketCounts(absorption) {
     return explicit;
   }
   return rawBucketCountsFromLeafValues(absorption);
+}
+
+function rawSurfaceDetailBucketCounts(absorption) {
+  const explicit = absorption?.raw_leaf_surface_flux_surface_detail_bucket_counts
+    || absorption?.raw_leaf_surface_flux_summary?.surface_detail_bucket_counts;
+  return Array.isArray(explicit) ? explicit : [];
 }
 
 function spectralModeActive(...payloads) {
@@ -217,13 +237,31 @@ export function buildFspmPanelSections(scene) {
     const rawSummary = asObject(absorption.raw_leaf_surface_flux_summary);
     if (rawSummary) {
       const bucketRows = rawBucketCounts(absorption).map((bucket) => [
-        bucket.label || `${formatNumber(bucket.min_percent, 0)}%`,
+        `Leaf avg ${bucket.label || `${formatNumber(bucket.min_percent, 0)}%`}`,
         formatCount(bucket.leaf_count, "leaf", "leaves"),
+      ]);
+      const surfaceDetailRows = rawSurfaceDetailBucketCounts(absorption).map((bucket) => [
+        `Surface detail ${bucket.label || `${formatNumber(bucket.min_percent, 0)}%`}`,
+        formatCount(bucket.sample_count, "sample", "samples"),
       ]);
       sections.push({
         title: "Raw leaf-surface flux",
         note: "Actual receiver-based incident PPFD at leaf surfaces.",
         rows: [
+          [
+            "Summary granularity",
+            rawGranularityLabel(
+              rawSummary.summary_granularity || absorption.raw_leaf_summary_granularity || "leaf_average",
+            ),
+          ],
+          [
+            "Visualization granularity",
+            rawGranularityLabel(
+              rawSummary.visualization_granularity ||
+                absorption.raw_visualization_granularity ||
+                "leaf_average",
+            ),
+          ],
           ["Mean", formatRawFluxStat(rawSummary, "mean", 1)],
           ["Min", formatRawFluxStat(rawSummary, "min", 1)],
           ["p05", formatRawFluxStat(rawSummary, "p05", 1)],
@@ -235,6 +273,7 @@ export function buildFspmPanelSections(scene) {
             formatMetric(absorption.total_incident_photon_flux_umol_s, "umol/s", 2),
           ],
           ...bucketRows,
+          ...surfaceDetailRows,
         ],
       });
     }

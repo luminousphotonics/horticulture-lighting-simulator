@@ -219,6 +219,20 @@ def _surface_absorption(payload: Mapping[str, Any] | None) -> dict[str, object] 
         "raw_leaf_surface_flux_scale": payload.get("raw_leaf_surface_flux_scale"),
         "raw_leaf_surface_flux_summary": raw_summary,
         "raw_leaf_surface_flux_bucket_counts": raw_summary_mapping.get("bucket_counts"),
+        "raw_leaf_summary_granularity": raw_summary_mapping.get(
+            "summary_granularity",
+            "leaf_average",
+        ),
+        "raw_visualization_granularity": raw_summary_mapping.get(
+            "visualization_granularity",
+            "leaf_average",
+        ),
+        "raw_leaf_surface_flux_surface_detail_bucket_counts": raw_summary_mapping.get(
+            "surface_detail_bucket_counts"
+        ),
+        "raw_leaf_surface_flux_surface_detail_sample_count": raw_summary_mapping.get(
+            "surface_detail_sample_count"
+        ),
         "raw_leaf_surface_flux_legend": payload.get("raw_leaf_surface_flux_legend"),
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),
