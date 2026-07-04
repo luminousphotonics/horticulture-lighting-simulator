@@ -831,6 +831,46 @@ def _can_reuse_committed_workspace(req: Any | None) -> bool:
     return execution_mode == EXECUTION_MODE_PRECOMPUTED
 
 
+def _requires_mesh_patch_plant_detail(req: Any | None) -> bool:
+    if req is None:
+        return False
+    execution_mode = canonicalize_execution_mode(
+        getattr(req, "execution_mode", DEFAULT_EXECUTION_MODE)
+    )
+    return (
+        execution_mode == EXECUTION_MODE_PRECOMPUTED
+        and bool(getattr(req, "plants_enabled", False))
+        and str(getattr(req, "fspm_receiver_granularity", "")) == "mesh_patch"
+    )
+
+
+def _workspace_has_mesh_patch_plant_detail(workspace_root: Path) -> bool:
+    path = workspace_root / "runtime_state" / "plant_surface_flux.json"
+    payload = _read_json(path)
+    if not isinstance(payload, dict):
+        return False
+    if payload.get("receiver_granularity") != "mesh_patch":
+        return False
+    visualization = payload.get("visualization")
+    if not isinstance(visualization, dict):
+        return False
+    detail = visualization.get("raw_leaf_surface_flux_detail")
+    if not isinstance(detail, dict):
+        return False
+    values = detail.get("values_ppfd")
+    sides = detail.get("sides")
+    return (
+        detail.get("visual_granularity") == "mesh_patch"
+        and detail.get("encoding") == "leaf_major_dense"
+        and detail.get("top_bottom_support") is True
+        and isinstance(values, dict)
+        and isinstance(values.get("front"), list)
+        and isinstance(values.get("back"), list)
+        and isinstance(sides, list)
+        and {"front", "back"}.issubset({str(side) for side in sides})
+    )
+
+
 def commit_staged_workspace(lease: WorkspaceLease, runtime_identity: dict[str, object], req: Any | None = None) -> None:
     request_obj = req
     with _workspace_lock(lease.record_root):
@@ -853,14 +893,30 @@ def commit_staged_workspace(lease: WorkspaceLease, runtime_identity: dict[str, o
                     state["failure_reason"] = f"required output missing: {relpath}"
                     _write_state(lease.record_root, state, WorkspaceState.FAILED)
                     raise RuntimeError(f"Required workspace output missing: {relpath}")
+            if (
+                _requires_mesh_patch_plant_detail(request_obj)
+                and not _workspace_has_mesh_patch_plant_detail(lease.staging_workspace)
+            ):
+                state["failure_reason"] = (
+                    "precomputed mesh_patch plant surface detail is missing or malformed"
+                )
+                _write_state(lease.record_root, state, WorkspaceState.FAILED)
+                raise RuntimeError(
+                    "Precomputed mesh_patch plant surface detail is missing or malformed."
+                )
         manifest = _workspace_manifest(lease.staging_workspace)
         if not _validate_workspace_manifest(lease.staging_workspace, manifest):
             state["failure_reason"] = "integrity manifest verification failed"
             _write_state(lease.record_root, state, WorkspaceState.FAILED)
             raise RuntimeError("Workspace integrity verification failed.")
         _write_state(lease.record_root, state, WorkspaceState.VERIFIED)
+        committed_reusable = _can_reuse_committed_workspace(request_obj)
+        if committed_reusable and _requires_mesh_patch_plant_detail(request_obj):
+            committed_reusable = _workspace_has_mesh_patch_plant_detail(
+                lease.committed_workspace
+            )
         if (
-            _can_reuse_committed_workspace(request_obj)
+            committed_reusable
             and lease.committed_workspace.exists()
             and _workspace_integrity_current(lease.record_root, lease.committed_workspace)
             and _state_runtime_identity(state) == runtime_identity

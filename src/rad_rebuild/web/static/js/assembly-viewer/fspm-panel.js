@@ -145,6 +145,20 @@ function rawSideSummaries(absorption) {
   };
 }
 
+function hasCompactMeshPatchDetail(absorption) {
+  if (absorption?.raw_mesh_patch_side_detail_available === true) {
+    return true;
+  }
+  const detail = asObject(absorption?.raw_leaf_surface_flux_detail_summary)
+    || asObject(absorption?.visualization?.raw_leaf_surface_flux_detail);
+  const values = asObject(detail?.values_ppfd);
+  const sides = Array.isArray(detail?.sides) ? detail.sides.map(String) : [];
+  const hasSideValues = Boolean(values && Array.isArray(values.front) && Array.isArray(values.back));
+  return detail?.encoding === "leaf_major_dense"
+    && detail?.visual_granularity === "mesh_patch"
+    && (sides.includes("front") && sides.includes("back") || hasSideValues);
+}
+
 function rawSideBucketRows(summary, prefix) {
   const buckets = Array.isArray(summary?.bucket_counts) ? summary.bucket_counts : [];
   return buckets.map((bucket) => {
@@ -284,6 +298,7 @@ export function buildFspmPanelSections(scene) {
     const rawSummary = asObject(absorption.raw_leaf_surface_flux_summary);
     if (rawSummary) {
       const sideSummaries = rawSideSummaries(absorption);
+      const compactMeshPatchDetail = hasCompactMeshPatchDetail(absorption);
       const rawRows = [];
       if (sideSummaries) {
         rawRows.push(
@@ -350,7 +365,11 @@ export function buildFspmPanelSections(scene) {
         title: "Raw leaf-surface flux",
         note: sideSummaries
           ? "Actual receiver-based incident PPFD separated by top/front and bottom/back mesh-patch sides."
-          : "Actual receiver-based incident PPFD at leaf surfaces. Side-specific mesh-patch values are unavailable, so single-side/leaf-average reporting is shown.",
+          : (
+            compactMeshPatchDetail
+              ? "Actual receiver-based incident PPFD includes compact front/back mesh-patch detail for visualization."
+              : "Actual receiver-based incident PPFD at leaf surfaces. Side-specific mesh-patch values are unavailable, so single-side/leaf-average reporting is shown."
+          ),
         rows: rawRows,
       });
     }

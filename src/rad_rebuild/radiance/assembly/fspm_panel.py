@@ -175,6 +175,31 @@ def _surface_absorption(payload: Mapping[str, Any] | None) -> dict[str, object] 
     ppfd_field_summary = ppfd_field if isinstance(ppfd_field, Mapping) else {}
     raw_summary = payload.get("raw_leaf_surface_flux_summary")
     raw_summary_mapping = raw_summary if isinstance(raw_summary, Mapping) else {}
+    visualization = payload.get("visualization")
+    visualization_mapping = visualization if isinstance(visualization, Mapping) else {}
+    raw_detail = visualization_mapping.get("raw_leaf_surface_flux_detail")
+    raw_detail_mapping = raw_detail if isinstance(raw_detail, Mapping) else {}
+    detail_values = raw_detail_mapping.get("values_ppfd")
+    detail_sides = raw_detail_mapping.get("sides")
+    mesh_patch_detail_available = (
+        raw_detail_mapping.get("encoding") == "leaf_major_dense"
+        and raw_detail_mapping.get("visual_granularity") == "mesh_patch"
+        and isinstance(detail_values, Mapping)
+        and {"front", "back"}.issubset(set(detail_values))
+        and isinstance(detail_sides, list)
+        and {"front", "back"}.issubset({str(side) for side in detail_sides})
+    )
+    detail_leaf_count = _finite(raw_detail_mapping.get("leaf_count"))
+    detail_patches_per_leaf = _finite(raw_detail_mapping.get("patches_per_leaf"))
+    detail_sample_count = (
+        int(detail_leaf_count * detail_patches_per_leaf * 2)
+        if detail_leaf_count is not None and detail_patches_per_leaf is not None
+        else payload.get("receiver_sample_count")
+    )
+    raw_visualization_granularity = raw_summary_mapping.get(
+        "visualization_granularity",
+        "mesh_patch" if mesh_patch_detail_available else "leaf_average",
+    )
     area = _finite(payload.get("one_sided_leaf_area_m2"))
     absorbed = _finite(payload.get("total_absorbed_photon_flux_umol_s"))
     mean_density = absorbed / area if absorbed is not None and area and area > 0.0 else None
@@ -230,16 +255,29 @@ def _surface_absorption(payload: Mapping[str, Any] | None) -> dict[str, object] 
             "summary_granularity",
             "leaf_average",
         ),
-        "raw_visualization_granularity": raw_summary_mapping.get(
-            "visualization_granularity",
-            "leaf_average",
-        ),
+        "raw_visualization_granularity": raw_visualization_granularity,
         "raw_leaf_surface_flux_surface_detail_bucket_counts": raw_summary_mapping.get(
             "surface_detail_bucket_counts"
         ),
         "raw_leaf_surface_flux_surface_detail_sample_count": raw_summary_mapping.get(
-            "surface_detail_sample_count"
+            "surface_detail_sample_count",
+            detail_sample_count if mesh_patch_detail_available else None,
         ),
+        "raw_mesh_patch_side_detail_available": mesh_patch_detail_available,
+        "raw_leaf_surface_flux_detail_summary": {
+            "visual_granularity": "mesh_patch",
+            "encoding": "leaf_major_dense",
+            "leaf_count": int(detail_leaf_count) if detail_leaf_count is not None else None,
+            "patches_per_leaf": (
+                int(detail_patches_per_leaf)
+                if detail_patches_per_leaf is not None
+                else None
+            ),
+            "sides": ["front", "back"],
+            "sample_count": detail_sample_count,
+        }
+        if mesh_patch_detail_available
+        else None,
         "raw_leaf_surface_flux_legend": payload.get("raw_leaf_surface_flux_legend"),
         "raw_leaf_surface_flux_side_legends": payload.get(
             "raw_leaf_surface_flux_side_legends"

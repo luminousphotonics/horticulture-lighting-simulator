@@ -40,6 +40,8 @@ from rad_rebuild.radiance.engine.photometry.ppfd_metrics import format_ppfd_metr
 from rad_rebuild.radiance.engine.simulation.precomputed_dataset import (
     PRECOMPUTED_PLANT_RECEIVER_BASIS_NPZ_ARTIFACT_KEY,
     PRECOMPUTED_PLANT_RECEIVER_BASIS_NPY_ARTIFACT_KEY,
+    PRECOMPUTED_FSPM_RECEIVER_GRANULARITY,
+    PRECOMPUTED_FSPM_SPECTRAL_TRANSPORT_MODE,
     PRECOMPUTED_PLANT_RECEIVER_JSON_GZ_ARTIFACT_KEY,
     PRECOMPUTED_PLANT_RECEIVER_JSON_ARTIFACT_KEY,
     PRECOMPUTED_PLANT_RECEIVER_JSON_FILENAME,
@@ -47,7 +49,7 @@ from rad_rebuild.radiance.engine.simulation.precomputed_dataset import (
     PRECOMPUTED_PLANT_RECEIVER_SCHEMA,
     PRECOMPUTED_PLANT_RECEIVER_SCHEMA_VERSION,
     bundle_ref,
-    load_precomputed_plant_receiver_npz,
+    load_precomputed_plant_receiver_npz_compact,
     load_manifest,
     write_precomputed_plant_receiver_payload,
 )
@@ -169,10 +171,10 @@ class PrecomputedPlaybackConfig:
     plant_canopy_radius_m: float | None = None
     plant_leaf_count: int | None = None
     plant_growth_stage: float | None = None
-    fspm_receiver_granularity: str = "leaf_quadrature_4"
+    fspm_receiver_granularity: str = PRECOMPUTED_FSPM_RECEIVER_GRANULARITY
     fspm_leaf_optical_profile_id: str = "rex_green_butterhead_mature_leaf_optics_v1"
     fspm_leaf_radiance_material_mode: str = "rex_source_weighted_trans"
-    fspm_spectral_transport_mode: str = "banded_5"
+    fspm_spectral_transport_mode: str = PRECOMPUTED_FSPM_SPECTRAL_TRANSPORT_MODE
     fspm_target_ppfd_umol_m2_s: float | None = None
     fspm_target_tolerance_umol_m2_s: float | None = None
     dataset_root: Path | None = None
@@ -475,7 +477,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--plant-canopy-radius-m", type=float, default=None)
     ap.add_argument("--plant-leaf-count", type=int, default=None)
     ap.add_argument("--plant-growth-stage", type=float, default=None)
-    ap.add_argument("--fspm-receiver-granularity", default="leaf_quadrature_4")
+    ap.add_argument(
+        "--fspm-receiver-granularity",
+        default=PRECOMPUTED_FSPM_RECEIVER_GRANULARITY,
+    )
     ap.add_argument(
         "--fspm-leaf-optical-profile-id",
         default="rex_green_butterhead_mature_leaf_optics_v1",
@@ -484,7 +489,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--fspm-leaf-radiance-material-mode",
         default="rex_source_weighted_trans",
     )
-    ap.add_argument("--fspm-spectral-transport-mode", default="banded_5")
+    ap.add_argument(
+        "--fspm-spectral-transport-mode",
+        default=PRECOMPUTED_FSPM_SPECTRAL_TRANSPORT_MODE,
+    )
     ap.add_argument(
         "--fspm-target-ppfd-umol-m2-s",
         "--fspm-target-ppfd",
@@ -893,7 +901,7 @@ def _load_plant_receiver_payload(
     npz_path = resolved_artifacts.get(PRECOMPUTED_PLANT_RECEIVER_NPZ_ARTIFACT_KEY)
     if npz_path is not None:
         try:
-            payload = load_precomputed_plant_receiver_npz(npz_path)
+            payload = load_precomputed_plant_receiver_npz_compact(npz_path)
         except ValueError as exc:
             raise PlaybackError(str(exc)) from exc
         return _validate_plant_receiver_payload(payload, npz_path)
@@ -971,6 +979,54 @@ def _plant_receiver_entries(payload: Mapping[str, Any]) -> list[Mapping[str, Any
     return entries
 
 
+def _plant_receiver_samples(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    raw = payload.get("receiver_samples")
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise PlaybackError("Precomputed plant receiver receiver_samples must be a list.")
+    entries: list[Mapping[str, Any]] = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, Mapping):
+            raise PlaybackError(
+                f"Precomputed plant receiver sample {index} must be an object."
+            )
+        surface_id = item.get("surface_id")
+        if not isinstance(surface_id, str) or not surface_id:
+            raise PlaybackError(
+                f"Precomputed plant receiver sample {index} is missing surface_id."
+            )
+        side = item.get("side")
+        if not isinstance(side, str) or not side:
+            raise PlaybackError(
+                f"Precomputed plant receiver sample {index} is missing side."
+            )
+        entries.append(item)
+    return entries
+
+
+def _plant_receiver_value_entries(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    samples = _plant_receiver_samples(payload)
+    return samples if samples else _plant_receiver_entries(payload)
+
+
+def _compact_sample_arrays(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    arrays = payload.get("_sample_arrays")
+    return arrays if isinstance(arrays, Mapping) else None
+
+
+def _compact_surface_arrays(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    arrays = payload.get("_surface_arrays")
+    return arrays if isinstance(arrays, Mapping) else None
+
+
+def _plant_receiver_value_count(payload: Mapping[str, Any]) -> int:
+    arrays = _compact_sample_arrays(payload)
+    if arrays is not None and "stored_ppfd_umol_m2_s" in arrays:
+        return int(len(arrays["stored_ppfd_umol_m2_s"]))
+    return len(_plant_receiver_value_entries(payload))
+
+
 def _receiver_density_value(entry: Mapping[str, Any], *, index: int) -> float:
     for key in (
         "runtime_ppfd_umol_m2_s",
@@ -995,7 +1051,31 @@ def _plant_receiver_runtime_values(
     scale: float | None = None,
     coeffs: FloatArray | None = None,
 ) -> list[float]:
-    entries = _plant_receiver_entries(payload)
+    arrays = _compact_sample_arrays(payload)
+    if arrays is not None:
+        basis = _load_plant_receiver_basis(resolved_artifacts)
+        sample_count = int(len(arrays["stored_ppfd_umol_m2_s"]))
+        if basis is not None:
+            if coeffs is None:
+                raise PlaybackError(
+                    "Precomputed plant receiver basis requires solved SMD coefficients."
+                )
+            if basis.ndim != 2:
+                raise PlaybackError("Precomputed plant receiver basis must be a 2D matrix.")
+            if basis.shape[0] != sample_count:
+                raise PlaybackError(
+                    "Precomputed plant receiver basis row count does not match receiver samples."
+                )
+            if basis.shape[1] != coeffs.size:
+                raise PlaybackError(
+                    "Precomputed plant receiver basis columns do not match SMD coefficients."
+                )
+            return [max(0.0, float(value)) for value in (basis @ coeffs)]
+        multiplier = 1.0 if scale is None else float(scale)
+        stored = np.asarray(arrays["stored_ppfd_umol_m2_s"], dtype=np.float64)
+        return [max(0.0, float(value) * multiplier) for value in stored]
+
+    entries = _plant_receiver_value_entries(payload)
     basis = _load_plant_receiver_basis(resolved_artifacts)
     if basis is not None:
         if coeffs is None:
@@ -1028,9 +1108,70 @@ def _plant_receiver_surface_flux_rows(
 ) -> tuple[Any, list[dict[str, Any]]]:
     scene = generate_plant_scene(plant_geometry_config_from_request(req))
     surfaces = {surface.surface_id: surface for surface in leaf_absorption_surfaces(scene)}
-    entries = _plant_receiver_entries(payload)
+    samples = _plant_receiver_samples(payload)
+    entries = samples if samples else _plant_receiver_entries(payload)
     if len(entries) != len(runtime_values):
         raise PlaybackError("Plant receiver values do not align with receiver rows.")
+    if samples:
+        grouped: dict[str, list[tuple[Mapping[str, Any], float]]] = {}
+        for entry, density in zip(entries, runtime_values, strict=True):
+            surface_id = str(entry["surface_id"])
+            if surface_id not in surfaces:
+                raise PlaybackError(
+                    f"Precomputed plant receiver sample references unknown surface_id "
+                    f"{surface_id!r}."
+                )
+            grouped.setdefault(surface_id, []).append((entry, max(0.0, float(density))))
+        rows: list[dict[str, Any]] = []
+        for surface_id in sorted(grouped):
+            surface = surfaces[surface_id]
+            sample_items = grouped[surface_id]
+            incident_density = sum(density for _entry, density in sample_items)
+            side_summaries: list[dict[str, Any]] = []
+            for entry, density in sample_items:
+                side = str(entry.get("side") or "unknown")
+                area_m2 = float(entry.get("area_m2") or surface.area_m2)
+                side_row: dict[str, Any] = {
+                    "sample_id": str(entry.get("sample_id") or f"{surface_id}_{side}"),
+                    "surface_id": surface.surface_id,
+                    "side": side,
+                    "plant_id": surface.plant_id,
+                    "leaf_id": surface.leaf_id,
+                    "leaf_index": surface.leaf_index,
+                    "face_index": surface.face_index,
+                    "area_m2": area_m2,
+                    "incident_photon_flux_density_umol_m2_s": density,
+                    "incident_photon_flux_umol_s": density * area_m2,
+                    "source": "precomputed_plant_receiver_playback",
+                }
+                for key in ("centroid_m", "normal"):
+                    value = entry.get(key)
+                    if isinstance(value, list):
+                        side_row[key] = list(value)
+                side_summaries.append(side_row)
+            rows.append(
+                {
+                    "surface_id": surface.surface_id,
+                    "plant_id": surface.plant_id,
+                    "leaf_id": surface.leaf_id,
+                    "leaf_index": surface.leaf_index,
+                    "face_index": surface.face_index,
+                    "area_m2": surface.area_m2,
+                    "receiver_sample_count": len(sample_items),
+                    "receiver_granularity": "mesh_patch",
+                    "receiver_rows_per_mesh_surface_row": len(sample_items),
+                    "receiver_sides": [
+                        str(entry.get("side") or "unknown")
+                        for entry, _density in sample_items
+                    ],
+                    "side_summaries": side_summaries,
+                    "visual_granularity": "mesh_patch",
+                    "incident_photon_flux_density_umol_m2_s": incident_density,
+                    "incident_photon_flux_umol_s": incident_density * surface.area_m2,
+                    "source": "precomputed_plant_receiver_playback",
+                }
+            )
+        return scene, rows
     rows: list[dict[str, Any]] = []
     for index, (entry, density) in enumerate(zip(entries, runtime_values, strict=True)):
         surface_id = str(entry["surface_id"])
@@ -1057,6 +1198,173 @@ def _plant_receiver_surface_flux_rows(
     return scene, rows
 
 
+def _dense_mesh_patch_detail_from_arrays(
+    payload: Mapping[str, Any],
+    runtime_values: list[float],
+    *,
+    leaf_count: int,
+    leaf_ids: Sequence[str] | None = None,
+) -> JsonObject | None:
+    arrays = _compact_sample_arrays(payload)
+    if arrays is None:
+        return None
+    leaf_indices = np.asarray(arrays["leaf_index"], dtype=np.int32)
+    face_indices = np.asarray(arrays["face_index"], dtype=np.int32)
+    sides = np.asarray(arrays["side"])
+    values = np.asarray(runtime_values, dtype=np.float64)
+    if not (
+        leaf_indices.size == face_indices.size == sides.size == values.size
+    ):
+        raise PlaybackError("Compact mesh_patch receiver sample arrays are misaligned.")
+    if leaf_indices.size == 0:
+        return None
+    leaf_id_values = np.asarray(arrays["leaf_id"]) if "leaf_id" in arrays else None
+    leaf_id_list = [str(value) for value in leaf_ids] if leaf_ids is not None else []
+    if leaf_id_values is not None and leaf_id_values.size == values.size:
+        if not leaf_id_list:
+            seen: set[str] = set()
+            for value in leaf_id_values:
+                leaf_id = str(value)
+                if leaf_id and leaf_id not in seen:
+                    seen.add(leaf_id)
+                    leaf_id_list.append(leaf_id)
+        leaf_row_by_id = {leaf_id: index for index, leaf_id in enumerate(leaf_id_list)}
+        leaf_rows = np.asarray(
+            [leaf_row_by_id.get(str(value), -1) for value in leaf_id_values],
+            dtype=np.int32,
+        )
+        leaf_count = len(leaf_id_list)
+    else:
+        leaf_rows = leaf_indices
+        if not leaf_id_list:
+            leaf_id_list = [f"leaf_{index:04d}" for index in range(leaf_count)]
+    patches_per_leaf = int(face_indices.max()) + 1
+    if patches_per_leaf <= 0 or leaf_count <= 0:
+        return None
+    dense = {
+        "front": np.zeros((leaf_count, patches_per_leaf), dtype=np.float64),
+        "back": np.zeros((leaf_count, patches_per_leaf), dtype=np.float64),
+    }
+    for leaf_row, face_index, side, value in zip(
+        leaf_rows,
+        face_indices,
+        sides,
+        values,
+        strict=True,
+    ):
+        leaf = int(leaf_row)
+        face = int(face_index)
+        side_key = str(side)
+        if leaf < 0 or leaf >= leaf_count or face < 0 or face >= patches_per_leaf:
+            continue
+        if side_key in dense:
+            dense[side_key][leaf, face] = max(0.0, float(value))
+    sides_list = ["front", "back"]
+    return {
+        "mode": "raw_leaf_surface_flux",
+        "visual_granularity": "mesh_patch",
+        "receiver_granularity": "mesh_patch",
+        "encoding": "leaf_major_dense",
+        "leaf_count": int(leaf_count),
+        "leaf_ids": leaf_id_list,
+        "true_sample_count_per_leaf": int(patches_per_leaf * len(sides_list)),
+        "samples_per_leaf": int(patches_per_leaf * len(sides_list)),
+        "patches_per_leaf": int(patches_per_leaf),
+        "mesh_surface_rows_per_leaf": int(patches_per_leaf),
+        "sides": sides_list,
+        "side_policy": "front_and_back_per_mesh_surface_row",
+        "top_bottom_support": True,
+        "value_field": "incident_photon_flux_density_umol_m2_s",
+        "patch_face_indices": [
+            list(range(patches_per_leaf)) for _index in range(leaf_count)
+        ],
+        "values_ppfd": {
+            "front": dense["front"].tolist(),
+            "back": dense["back"].tolist(),
+        },
+    }
+
+
+def _compact_mesh_patch_surface_flux_rows(
+    req: RadianceRunRequest,
+    payload: Mapping[str, Any],
+    runtime_values: list[float],
+) -> tuple[Any, list[dict[str, Any]], JsonObject | None]:
+    arrays = _compact_sample_arrays(payload)
+    if arrays is None:
+        raise PlaybackError("Compact mesh_patch playback requires receiver sample arrays.")
+    scene = generate_plant_scene(plant_geometry_config_from_request(req))
+    surfaces = list(leaf_absorption_surfaces(scene))
+    leaf_ids = [
+        leaf.leaf_id
+        for plant in scene.plants
+        for leaf in plant.leaves
+    ]
+    leaf_count = len(leaf_ids)
+    detail = _dense_mesh_patch_detail_from_arrays(
+        payload,
+        runtime_values,
+        leaf_count=leaf_count,
+        leaf_ids=leaf_ids,
+    )
+    if detail is None:
+        raise PlaybackError("Compact mesh_patch playback could not build dense detail.")
+    patches_per_leaf = int(detail["patches_per_leaf"])
+    surface_values = np.zeros(leaf_count * patches_per_leaf, dtype=np.float64)
+    sample_counts = np.zeros(leaf_count * patches_per_leaf, dtype=np.int32)
+    leaf_indices = np.asarray(arrays["leaf_index"], dtype=np.int32)
+    face_indices = np.asarray(arrays["face_index"], dtype=np.int32)
+    values = np.asarray(runtime_values, dtype=np.float64)
+    if "leaf_id" in arrays:
+        leaf_row_by_id = {leaf_id: index for index, leaf_id in enumerate(leaf_ids)}
+        leaf_id_values = np.asarray(arrays["leaf_id"])
+        leaf_rows = np.asarray(
+            [leaf_row_by_id.get(str(value), -1) for value in leaf_id_values],
+            dtype=np.int32,
+        )
+    else:
+        leaf_rows = leaf_indices
+    surface_keys = leaf_rows * patches_per_leaf + face_indices
+    valid = (
+        (leaf_rows >= 0)
+        & (leaf_rows < leaf_count)
+        & (face_indices >= 0)
+        & (face_indices < patches_per_leaf)
+    )
+    np.add.at(surface_values, surface_keys[valid], values[valid])
+    np.add.at(sample_counts, surface_keys[valid], 1)
+    leaf_row_by_id = {leaf_id: index for index, leaf_id in enumerate(leaf_ids)}
+    rows: list[dict[str, Any]] = []
+    for surface in surfaces:
+        leaf_row = leaf_row_by_id.get(surface.leaf_id, -1)
+        key = int(leaf_row) * patches_per_leaf + int(surface.face_index)
+        value = (
+            max(0.0, float(surface_values[key]))
+            if 0 <= key < surface_values.size
+            else 0.0
+        )
+        sample_count = int(sample_counts[key]) if 0 <= key < sample_counts.size else 0
+        rows.append(
+            {
+                "surface_id": surface.surface_id,
+                "plant_id": surface.plant_id,
+                "leaf_id": surface.leaf_id,
+                "leaf_index": surface.leaf_index,
+                "face_index": surface.face_index,
+                "area_m2": surface.area_m2,
+                "receiver_sample_count": sample_count or 2,
+                "receiver_granularity": "mesh_patch",
+                "receiver_rows_per_mesh_surface_row": sample_count or 2,
+                "receiver_sides": ["front", "back"],
+                "visual_granularity": "mesh_patch",
+                "incident_photon_flux_density_umol_m2_s": value,
+                "incident_photon_flux_umol_s": value * surface.area_m2,
+                "source": "precomputed_plant_receiver_playback",
+            }
+        )
+    return scene, rows, detail
+
+
 def _precomputed_plant_receiver_metadata(
     req: RadianceRunRequest,
     payload: Mapping[str, Any],
@@ -1067,7 +1375,11 @@ def _precomputed_plant_receiver_metadata(
 ) -> dict[str, Any]:
     granularity = str(
         payload.get("receiver_granularity")
-        or getattr(req, "fspm_receiver_granularity", "leaf_quadrature_4")
+        or getattr(
+            req,
+            "fspm_receiver_granularity",
+            PRECOMPUTED_FSPM_RECEIVER_GRANULARITY,
+        )
     )
     source_mode = "smd_basis_coefficients" if coeffs is not None else "scaled_raw_values"
     return {
@@ -1104,14 +1416,34 @@ def _write_runtime_plant_receiver_payload(
     *,
     runtime_source: RuntimeSource | None = None,
 ) -> None:
-    entries = _plant_receiver_entries(receiver_payload)
+    if _compact_sample_arrays(receiver_payload) is not None:
+        payload = {
+            str(key): value
+            for key, value in receiver_payload.items()
+            if not str(key).startswith("_")
+            and key not in {"receiver_samples", "surface_receivers"}
+        }
+        payload["runtime_value_source"] = "precomputed_playback"
+        payload["runtime_receiver_sample_count"] = len(runtime_values)
+        source = _runtime_source_payload(runtime_source)
+        if source is not None:
+            payload["runtime_source"] = source
+        write_precomputed_plant_receiver_payload(
+            workspace_root / "runtime_state" / PRECOMPUTED_PLANT_RECEIVER_JSON_FILENAME,
+            payload,
+        )
+        return
+    entries = _plant_receiver_value_entries(receiver_payload)
     rows: list[JsonObject] = []
     for entry, value in zip(entries, runtime_values, strict=True):
         row = dict(entry)
         row["runtime_ppfd_umol_m2_s"] = max(0.0, float(value))
         rows.append(row)
     payload = dict(receiver_payload)
-    payload["surface_receivers"] = rows
+    if _plant_receiver_samples(receiver_payload):
+        payload["receiver_samples"] = rows
+    else:
+        payload["surface_receivers"] = rows
     payload["runtime_value_source"] = "precomputed_playback"
     source = _runtime_source_payload(runtime_source)
     if source is not None:
@@ -1268,6 +1600,11 @@ def precomputed_plant_playback_diagnostics(workspace_root: str | Path) -> JsonOb
     }
 
 
+def _target_classification_map_for_playback(workspace_root: Path) -> Path | None:
+    path = workspace_root / "ppfd_map.txt"
+    return path if path.is_file() else None
+
+
 def _materialize_plant_receiver_surface_flux(
     req: RadianceRunRequest,
     workspace_root: Path,
@@ -1294,10 +1631,22 @@ def _materialize_plant_receiver_surface_flux(
         runtime_values,
         runtime_source=runtime_source,
     )
-    scene, rows = _plant_receiver_surface_flux_rows(req, receiver_payload, runtime_values)
+    dense_detail: JsonObject | None = None
+    if _compact_sample_arrays(receiver_payload) is not None:
+        scene, rows, dense_detail = _compact_mesh_patch_surface_flux_rows(
+            req,
+            receiver_payload,
+            runtime_values,
+        )
+    else:
+        scene, rows = _plant_receiver_surface_flux_rows(
+            req,
+            receiver_payload,
+            runtime_values,
+        )
     surface_count = len(leaf_absorption_surfaces(scene))
     leaf_count = len({leaf.leaf_id for plant in scene.plants for leaf in plant.leaves})
-    receiver_sample_count = len(_plant_receiver_entries(receiver_payload))
+    receiver_sample_count = _plant_receiver_value_count(receiver_payload)
     receiver_samples_per_leaf = (
         receiver_sample_count / leaf_count if leaf_count else 0.0
     )
@@ -1327,7 +1676,9 @@ def _materialize_plant_receiver_surface_flux(
         ppfd_field_summary=metadata,
         target_ppfd_umol_m2_s=target_ppfd,
         target_tolerance_umol_m2_s=target_tolerance,
-        target_classification_ppfd_map_path=None,
+        target_classification_ppfd_map_path=_target_classification_map_for_playback(
+            workspace_root
+        ),
         receiver_sample_count=receiver_sample_count,
         receiver_granularity=str(metadata["receiver_granularity"]),
         receiver_samples_per_leaf=receiver_samples_per_leaf,
@@ -1353,6 +1704,24 @@ def _materialize_plant_receiver_surface_flux(
             "receiver_rows_per_mesh_surface_row": receiver_rows_per_surface,
         }
     )
+    if dense_detail is not None:
+        visualization = payload.setdefault("visualization", {})
+        if isinstance(visualization, dict):
+            visualization["raw_leaf_surface_flux_detail"] = dense_detail
+            visualization["visual_granularity"] = "mesh_patch"
+            raw_summary = visualization.get("raw_leaf_surface_flux_summary")
+            if isinstance(raw_summary, dict):
+                raw_summary["visualization_granularity"] = "mesh_patch"
+                raw_summary["surface_detail_sample_count"] = receiver_sample_count
+                raw_summary["surface_detail_bucket_counts"] = []
+        payload["raw_leaf_surface_flux_detail"] = dense_detail
+        payload["visualization_granularity"] = "mesh_patch"
+        payload["mesh_patch_side_detail_available"] = True
+        raw_summary = payload.get("raw_leaf_surface_flux_summary")
+        if isinstance(raw_summary, dict):
+            raw_summary["visualization_granularity"] = "mesh_patch"
+            raw_summary["surface_detail_sample_count"] = receiver_sample_count
+            raw_summary["surface_detail_bucket_counts"] = []
     payload = _with_runtime_source(payload, runtime_source)
     try:
         plant_paths = write_plant_artifacts(

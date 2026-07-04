@@ -801,6 +801,33 @@ def _build_mesh_patch_receiver_surface_flux_rows(
         incident_density = sum(density for _sample, density in sample_items)
         centroid = item["centroid_m"]
         normal = item["normal"]
+        side_summaries: list[dict[str, Any]] = []
+        for sample, density in sample_items:
+            side = str(sample.get("side") or "unknown")
+            sample_centroid = sample.get("centroid_m")
+            sample_normal = sample.get("normal") or sample.get("direction")
+            side_summary: dict[str, Any] = {
+                "sample_id": str(sample.get("sample_id") or f"{surface_id}_{side}"),
+                "surface_id": surface.surface_id,
+                "plant_id": surface.plant_id,
+                "leaf_id": surface.leaf_id,
+                "leaf_index": surface.leaf_index,
+                "face_index": surface.face_index,
+                "side": side,
+                "area_m2": surface.area_m2,
+                "incident_photon_flux_density_umol_m2_s": density,
+                "incident_photon_flux_umol_s": density * surface.area_m2,
+                "source": "radiance_two_sided_leaf_surface_receiver",
+            }
+            if isinstance(sample_centroid, list):
+                side_summary["centroid_m"] = list(sample_centroid)
+            else:
+                side_summary["centroid_m"] = [float(value) for value in centroid]
+            if isinstance(sample_normal, list):
+                side_summary["normal"] = list(sample_normal)
+            else:
+                side_summary["normal"] = [float(value) for value in normal]
+            side_summaries.append(side_summary)
         rows.append(
             {
                 "surface_id": surface.surface_id,
@@ -830,6 +857,7 @@ def _build_mesh_patch_receiver_surface_flux_rows(
                     str(sample.get("side") or "unknown")
                     for sample, _density in sample_items
                 ],
+                "side_summaries": side_summaries,
                 "incident_photon_flux_density_umol_m2_s": incident_density,
                 "incident_photon_flux_umol_s": incident_density * surface.area_m2,
                 "source": "radiance_two_sided_leaf_surface_receiver",

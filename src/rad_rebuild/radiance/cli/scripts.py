@@ -1047,11 +1047,17 @@ def _write_precomputed_plant_receiver_runtime_artifact(
     *,
     value_semantics: str,
     basis_metadata: Mapping[str, Any] | None = None,
+    receiver_samples: Sequence[Mapping[str, Any]] | None = None,
+    receiver_densities: Sequence[float] | None = None,
+    receiver_scale_multiplier: float = 1.0,
 ) -> Path:
     payload = build_precomputed_plant_receiver_payload(
         surface_flux_payload,
         value_semantics=value_semantics,
         basis_metadata=basis_metadata,
+        receiver_samples=None if receiver_samples is None else list(receiver_samples),
+        receiver_densities=None if receiver_densities is None else list(receiver_densities),
+        receiver_scale_multiplier=receiver_scale_multiplier,
     )
     return write_precomputed_plant_receiver_payload(
         config.runtime_state_root / PRECOMPUTED_PLANT_RECEIVER_JSON_FILENAME,
@@ -2036,6 +2042,13 @@ def _write_banded_plant_surface_flux_artifact(
             value_semantics="fixed_output_plant_ppfd"
             if spectral_mode == "hps"
             else "full_output_raw_plant_ppfd",
+            receiver_samples=samples
+            if receiver_granularity == "mesh_patch"
+            else None,
+            receiver_densities=receiver_densities
+            if receiver_granularity == "mesh_patch"
+            else None,
+            receiver_scale_multiplier=receiver_scale_multiplier,
         )
         if scalar_precompute_only:
             _clear_fspm_spectral_biology_artifacts(config.runtime_state_root)
@@ -2220,6 +2233,13 @@ def _write_optional_plant_surface_flux_artifact(
             value_semantics="fixed_output_plant_ppfd"
             if spectral_mode == "hps"
             else "full_output_raw_plant_ppfd",
+            receiver_samples=samples
+            if receiver_granularity == "mesh_patch"
+            else None,
+            receiver_densities=receiver_densities
+            if receiver_granularity == "mesh_patch"
+            else None,
+            receiver_scale_multiplier=receiver_scale_multiplier,
         )
         if scalar_precompute_only:
             _clear_fspm_spectral_biology_artifacts(config.runtime_state_root)

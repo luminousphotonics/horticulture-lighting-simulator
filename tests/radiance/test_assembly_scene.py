@@ -21,13 +21,20 @@ from rad_rebuild.radiance.assembly.fspm_panel import (  # noqa: E402
     _spectral_absorption,
     build_fspm_panel_metrics,
 )
+from rad_rebuild.radiance.backend import workspace as workspace_mod  # noqa: E402
 from rad_rebuild.radiance.backend.models import AssemblySceneResponse, RadianceRunRequest  # noqa: E402
 from rad_rebuild.radiance.backend.routes import assembly as assembly_route  # noqa: E402
 from rad_rebuild.radiance.backend.workspace import (  # noqa: E402
     allocate_workspace_for_run,
     commit_staged_workspace,
 )
-from rad_rebuild.radiance.config import EXECUTION_MODE_LIVE_DOCKER, MODE_COMPETITOR, MODE_HPS, MODE_SMD  # noqa: E402
+from rad_rebuild.radiance.config import (  # noqa: E402
+    EXECUTION_MODE_LIVE_DOCKER,
+    EXECUTION_MODE_PRECOMPUTED,
+    MODE_COMPETITOR,
+    MODE_HPS,
+    MODE_SMD,
+)
 from rad_rebuild.radiance.engine.plants import PlantGeometryConfig, write_plant_artifacts  # noqa: E402
 from rad_rebuild.radiance.engine.plants.photoreceptor import PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA  # noqa: E402
 from rad_rebuild.radiance.engine.plants.photosynthesis import PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA  # noqa: E402
@@ -398,6 +405,53 @@ def _write_minimal_workspace(workspace_root: Path) -> None:
     _write_layout(workspace_root)
 
 
+def _write_mesh_patch_surface_flux(
+    workspace_root: Path,
+    *,
+    valid_detail: bool,
+) -> None:
+    runtime = workspace_root / "runtime_state"
+    runtime.mkdir(parents=True, exist_ok=True)
+    if valid_detail:
+        detail = {
+            "mode": "raw_leaf_surface_flux",
+            "visual_granularity": "mesh_patch",
+            "receiver_granularity": "mesh_patch",
+            "encoding": "leaf_major_dense",
+            "leaf_count": 1,
+            "patches_per_leaf": 1,
+            "sides": ["front", "back"],
+            "top_bottom_support": True,
+            "values_ppfd": {"front": [[275.0]], "back": [[25.0]]},
+        }
+    else:
+        detail = {
+            "mode": "raw_leaf_surface_flux",
+            "visual_granularity": "leaf_average",
+            "receiver_granularity": "mesh_patch",
+            "encoding": "leaf_major_dense",
+            "leaf_count": 1,
+            "patches_per_leaf": None,
+            "sides": [],
+            "top_bottom_support": False,
+            "values_ppfd": [275.0],
+        }
+    (runtime / "plant_surface_flux.json").write_text(
+        json.dumps(
+            {
+                "schema": PLANT_SURFACE_FLUX_SCHEMA,
+                "schema_version": 1,
+                "status": "computed",
+                "method": "radiance_leaf_surface_receiver_sampling_v1",
+                "receiver_sample_count": 2,
+                "receiver_granularity": "mesh_patch",
+                "visualization": {"raw_leaf_surface_flux_detail": detail},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def _write_minimal_workspace_for_mode(workspace_root: Path, mode: str) -> None:
     workspace_root.mkdir(parents=True, exist_ok=True)
     (workspace_root / "ppfd_map.txt").write_text("0 0 0 1000\n", encoding="utf-8")
@@ -551,6 +605,58 @@ def test_large_fspm_scene_embeds_compact_mesh_patch_detail_under_proxy_limit(tmp
     assert len(detail["leaf_ids"]) == 6348
     assert len(detail["values_ppfd"]["front"]) == 6348
     assert len(json.dumps(scene, separators=(",", ":")).encode("utf-8")) < PROXY_RESPONSE_LIMIT_BYTES
+
+
+def test_fspm_panel_reports_compact_mesh_patch_detail_available(tmp_path: Path) -> None:
+    runtime = tmp_path / "runtime_state"
+    runtime.mkdir(parents=True, exist_ok=True)
+    (runtime / "plant_surface_flux.json").write_text(
+        json.dumps(
+            {
+                "schema": PLANT_SURFACE_FLUX_SCHEMA,
+                "schema_version": 1,
+                "status": "computed",
+                "method": "radiance_leaf_surface_receiver_sampling_v1",
+                "artifact_role": "incident_leaf_surface_flux",
+                "plant_count": 64,
+                "leaf_count": 768,
+                "surface_count": 12288,
+                "receiver_sample_count": 24576,
+                "receiver_granularity": "mesh_patch",
+                "receiver_side_policy": "front_and_back_per_mesh_surface_row",
+                "raw_leaf_surface_flux_summary": {
+                    "summary_granularity": "leaf_average",
+                    "mean": 275.0,
+                },
+                "visualization": {
+                    "raw_leaf_surface_flux_detail": {
+                        "mode": "raw_leaf_surface_flux",
+                        "visual_granularity": "mesh_patch",
+                        "receiver_granularity": "mesh_patch",
+                        "encoding": "leaf_major_dense",
+                        "leaf_count": 768,
+                        "patches_per_leaf": 16,
+                        "sides": ["front", "back"],
+                        "values_ppfd": {
+                            "front": [[275.0] * 16 for _index in range(768)],
+                            "back": [[12.0] * 16 for _index in range(768)],
+                        },
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    panel = build_fspm_panel_metrics(tmp_path)
+
+    assert panel is not None
+    raw = panel["incident_leaf_surface_flux"]
+    assert raw["receiver_sample_count"] == 24576
+    assert raw["raw_visualization_granularity"] == "mesh_patch"
+    assert raw["raw_mesh_patch_side_detail_available"] is True
+    assert raw["raw_leaf_surface_flux_detail_summary"]["sample_count"] == 24576
+    assert "values_ppfd" not in json.dumps(raw)
 
 
 def test_builder_attaches_sanitized_fspm_panel_metrics(tmp_path: Path) -> None:
@@ -1173,6 +1279,55 @@ def test_route_authorizes_committed_workspace_with_artifact_token() -> None:
             target_ppfd=1000,
         )
     assert missing.value.status_code == 403
+
+
+def test_precomputed_mesh_patch_commit_replaces_stale_leaf_average_detail() -> None:
+    session_id = "assembly-precomputed-meshpatch-stale"
+    req = _smd_req(
+        execution_mode=EXECUTION_MODE_PRECOMPUTED,
+        plants_enabled=True,
+        fspm_receiver_granularity="mesh_patch",
+    )
+    runtime_identity = {"runtime": "meshpatch-playback"}
+    first = allocate_workspace_for_run(session_id, req)
+    _write_minimal_workspace(first.staging_workspace)
+    _write_mesh_patch_surface_flux(first.staging_workspace, valid_detail=True)
+    commit_staged_workspace(first, runtime_identity, req)
+
+    _write_mesh_patch_surface_flux(first.committed_workspace, valid_detail=False)
+    workspace_mod._atomic_write_json(
+        workspace_mod._integrity_path(first.record_root),
+        workspace_mod._workspace_manifest(first.committed_workspace),
+    )
+
+    second = allocate_workspace_for_run(session_id, req)
+    _write_minimal_workspace(second.staging_workspace)
+    _write_mesh_patch_surface_flux(second.staging_workspace, valid_detail=True)
+    commit_staged_workspace(second, runtime_identity, req)
+
+    payload = json.loads(
+        (second.committed_workspace / "runtime_state" / "plant_surface_flux.json")
+        .read_text(encoding="utf-8")
+    )
+    detail = payload["visualization"]["raw_leaf_surface_flux_detail"]
+    assert detail["visual_granularity"] == "mesh_patch"
+    assert detail["sides"] == ["front", "back"]
+    assert isinstance(detail["values_ppfd"], dict)
+
+
+def test_precomputed_mesh_patch_commit_rejects_malformed_staging_detail() -> None:
+    session_id = "assembly-precomputed-meshpatch-bad-stage"
+    req = _smd_req(
+        execution_mode=EXECUTION_MODE_PRECOMPUTED,
+        plants_enabled=True,
+        fspm_receiver_granularity="mesh_patch",
+    )
+    lease = allocate_workspace_for_run(session_id, req)
+    _write_minimal_workspace(lease.staging_workspace)
+    _write_mesh_patch_surface_flux(lease.staging_workspace, valid_detail=False)
+
+    with pytest.raises(RuntimeError, match="mesh_patch plant surface detail"):
+        commit_staged_workspace(lease, {"runtime": "meshpatch-playback"}, req)
 
 
 def test_route_authorizes_plant_enabled_workspace_with_matching_query() -> None:

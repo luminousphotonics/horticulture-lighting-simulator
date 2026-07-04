@@ -165,6 +165,20 @@ def request_runtime_identity(req: RadianceRunRequest) -> dict[str, object]:
         "env": env_clean,
         "backend_version": BACKEND_VERSION,
     }
+    if _request_uses_precomputed(req):
+        identity.update(
+            {
+                "precomputed_playback_sha256": _sha256_file(
+                    ENGINE_PACKAGE_ROOT / "simulation" / "precomputed_playback.py"
+                ),
+                "plant_surface_flux_sha256": _sha256_file(
+                    ENGINE_PACKAGE_ROOT / "plants" / "surface_flux.py"
+                ),
+                "fspm_panel_sha256": _sha256_file(
+                    ENGINE_PACKAGE_ROOT.parent / "assembly" / "fspm_panel.py"
+                ),
+            }
+        )
     if mode == MODE_SMD:
         identity.update(
             {

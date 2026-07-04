@@ -52,7 +52,9 @@ from rad_rebuild.radiance.engine.simulation.precomputed_dataset import (
     PRECOMPUTED_PLANT_RECEIVER_NPZ_ARTIFACT_KEY,
     PRECOMPUTED_PLANT_RECEIVER_NPZ_FILENAME,
     PRECOMPUTED_PLANT_RECEIVER_JSON_FILENAME,
+    PRECOMPUTED_FSPM_RECEIVER_GRANULARITY,
     SCHEMA_VERSION,
+    SUPPORTED_PRECOMPUTED_FSPM_RECEIVER_GRANULARITIES,
     BundleRef,
     bundle_complete,
     bundle_ref,
@@ -63,6 +65,7 @@ from rad_rebuild.radiance.engine.simulation.precomputed_dataset import (
     params_match,
     request_params_for_mode,
     resolve_precomputed_root,
+    validate_mesh_patch_plant_receiver_payload,
     write_precomputed_plant_receiver_npz,
 )
 from rad_rebuild.radiance.engine.simulation.precomputed_integrity import (
@@ -145,6 +148,7 @@ class PrecomputeSweepConfig:
     hps_input_watts: float | None = None
     dialux_sensor_grid: bool = False
     plants_enabled: bool = False
+    fspm_receiver_granularity: str = PRECOMPUTED_FSPM_RECEIVER_GRANULARITY
     force: bool = False
     dry_run: bool = False
 
@@ -180,6 +184,7 @@ class PrecomputeSweepConfig:
             hps_input_watts=args.hps_input_watts,
             dialux_sensor_grid=bool(args.dialux_sensor_grid),
             plants_enabled=bool(args.plants_enabled),
+            fspm_receiver_granularity=str(args.fspm_receiver_granularity),
             force=bool(args.force),
             dry_run=bool(args.dry_run),
         )
@@ -210,6 +215,7 @@ class PrecomputeSweepConfig:
             hps_input_watts=self.hps_input_watts,
             dialux_sensor_grid=self.dialux_sensor_grid,
             plants_enabled=self.plants_enabled,
+            fspm_receiver_granularity=self.fspm_receiver_granularity,
             force=self.force,
             dry_run=self.dry_run,
         )
@@ -374,6 +380,12 @@ def parse_args() -> argparse.Namespace:
             "FSPM plant contract."
         ),
     )
+    ap.add_argument(
+        "--fspm-receiver-granularity",
+        default=PRECOMPUTED_FSPM_RECEIVER_GRANULARITY,
+        choices=list(SUPPORTED_PRECOMPUTED_FSPM_RECEIVER_GRANULARITIES),
+        help="Plant receiver granularity for plant-enabled precomputed bundles.",
+    )
     ap.add_argument("--force", action="store_true", default=False)
     ap.add_argument(
         "--dry-run",
@@ -441,7 +453,10 @@ def _req_for(
         dialux_sensor_grid=args.dialux_sensor_grid,
     )
     if bool(getattr(args, "plants_enabled", False)):
-        req = canonical_plant_enabled_precomputed_request(req)
+        req = canonical_plant_enabled_precomputed_request(
+            req,
+            receiver_granularity=str(getattr(args, "fspm_receiver_granularity", "")),
+        )
     return req
 
 
@@ -815,6 +830,12 @@ def _copy_plant_receiver_npz_artifact(
             f"{PRECOMPUTED_PLANT_RECEIVER_JSON_FILENAME}."
         )
     payload = load_json_object(source)
+    mesh_patch_errors = validate_mesh_patch_plant_receiver_payload(payload)
+    if mesh_patch_errors:
+        raise RuntimeError(
+            "Invalid mesh_patch plant receiver precomputed artifact: "
+            + "; ".join(mesh_patch_errors)
+        )
     write_precomputed_plant_receiver_npz(
         bundle_dir / PRECOMPUTED_PLANT_RECEIVER_NPZ_FILENAME,
         payload,
@@ -846,6 +867,15 @@ def _copy_smd_plant_receiver_artifacts(
         )
     receiver_payload = load_json_object(receiver_json)
     basis_manifest = load_json_object(RADIANCE_BASIS_OUTPUT_ROOT / "basis_manifest.json")
+    mesh_patch_errors = validate_mesh_patch_plant_receiver_payload(
+        receiver_payload,
+        basis_row_count=int(plant_basis.shape[0]),
+    )
+    if mesh_patch_errors:
+        raise RuntimeError(
+            "Invalid mesh_patch plant receiver precomputed artifacts: "
+            + "; ".join(mesh_patch_errors)
+        )
     receiver_basis_meta = receiver_payload.get("basis_metadata")
     if not isinstance(receiver_basis_meta, Mapping):
         raise RuntimeError("plant_receiver.json is missing SMD basis_metadata.")
