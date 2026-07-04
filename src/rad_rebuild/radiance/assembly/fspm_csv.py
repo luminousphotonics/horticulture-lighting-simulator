@@ -10,25 +10,12 @@ from typing import Any, Mapping
 from rad_rebuild.radiance.assembly.fspm_panel import build_fspm_panel_metrics
 from rad_rebuild.radiance.config import MODE_COMPETITOR, MODE_HPS, MODE_SMD
 
-FSPM_CSV_HEADERS = (
+FSPM_CSV_SCALAR_HEADERS = (
     "run_id",
     "mode",
     "system_label",
     "method",
     "artifact_schema",
-    "fspm_spectral_transport_mode",
-    "leaf_radiance_material_mode",
-    "receiver_trace_count",
-    "banded_transport_band_count",
-    "banded_transport_active_trace_count",
-    "band_scaling_basis",
-    "scalar_flux_basis",
-    "source_spectrum_basis",
-    "leaf_material_profile_id",
-    "leaf_material_profile_version",
-    "leaf_material_weighting_basis",
-    "leaf_material_source_spectrum_id",
-    "leaf_material_source_spectrum_source",
     "baseline_ppfd_transport_basis",
     "baseline_ppfd_rgb_decode_method",
     "baseline_source_channel_policy",
@@ -40,8 +27,8 @@ FSPM_CSV_HEADERS = (
     "target_tolerance_umol_m2_s",
     "target_lower_threshold_umol_m2_s",
     "target_upper_threshold_umol_m2_s",
-    "target_classification_basis",
-    "target_classification_source",
+    "coverage_basis_label",
+    "coverage_source_label",
     "plant_count",
     "leaf_count",
     "receiver_sample_count",
@@ -64,22 +51,66 @@ FSPM_CSV_HEADERS = (
     "under_lit_receiver_surface_percent",
     "target_range_receiver_surface_percent",
     "over_lit_receiver_surface_percent",
-    "target_capped_incident_flux_total_umol_s",
-    "target_capacity_incident_flux_umol_s",
+    "plant_location_under_lit_leaves",
+    "plant_location_target_range_leaves",
+    "plant_location_over_lit_leaves",
+    "mean_plant_location_reference_ppfd_umol_m2_s",
+    "lower_tail_plant_location_reference_ppfd_umol_m2_s",
+    "target_capped_plant_location_flux_total_umol_s",
+    "plant_location_target_capacity_flux_umol_s",
     "raw_incident_flux_total_umol_s",
-    "incident_leaf_surface_ppfd_umol_m2_s",
-    "incident_leaf_surface_flux_total_umol_s",
-    "excess_incident_flux_above_target_umol_s",
-    "excess_incident_fraction_of_raw_percent",
-    "deficit_to_target_incident_flux_umol_s",
+    "raw_leaf_surface_incident_flux_total_umol_s",
+    "excess_above_target_plant_location_flux_umol_s",
+    "excess_above_target_fraction_of_raw_percent",
+    "deficit_to_target_plant_location_flux_umol_s",
     "deficit_to_target_capacity_percent",
-    "target_capped_incident_fraction_of_raw_percent",
-    "target_capped_incident_fraction_of_capacity_percent",
-    "target_capped_incident_mean_flux_density_umol_m2_s",
-    "raw_mean_flux_density_umol_m2_s",
-    "lower_tail_target_classification_ppfd_umol_m2_s",
-    "lower_tail_raw_flux_density_umol_m2_s",
-    "target_capped_incident_plant_to_plant_cv_percent",
+    "target_capped_plant_location_fraction_of_raw_percent",
+    "target_capped_plant_location_fraction_of_capacity_percent",
+    "target_capped_plant_location_mean_ppfd_umol_m2_s",
+    "raw_leaf_surface_flux_mean_ppfd_umol_m2_s",
+    "raw_leaf_surface_flux_min_ppfd_umol_m2_s",
+    "raw_leaf_surface_flux_p05_ppfd_umol_m2_s",
+    "raw_leaf_surface_flux_median_ppfd_umol_m2_s",
+    "raw_leaf_surface_flux_p95_ppfd_umol_m2_s",
+    "raw_leaf_surface_flux_max_ppfd_umol_m2_s",
+    "raw_leaf_surface_flux_mean_percent_of_target",
+    "raw_leaf_surface_flux_min_percent_of_target",
+    "raw_leaf_surface_flux_p05_percent_of_target",
+    "raw_leaf_surface_flux_median_percent_of_target",
+    "raw_leaf_surface_flux_p95_percent_of_target",
+    "raw_leaf_surface_flux_max_percent_of_target",
+    "raw_bucket_0_25_leaf_count",
+    "raw_bucket_25_45_leaf_count",
+    "raw_bucket_45_70_leaf_count",
+    "raw_bucket_70_90_leaf_count",
+    "raw_bucket_90_115_leaf_count",
+    "raw_bucket_115_150_leaf_count",
+    "raw_bucket_150_plus_leaf_count",
+    "raw_bucket_0_25_leaf_percent",
+    "raw_bucket_25_45_leaf_percent",
+    "raw_bucket_45_70_leaf_percent",
+    "raw_bucket_70_90_leaf_percent",
+    "raw_bucket_90_115_leaf_percent",
+    "raw_bucket_115_150_leaf_percent",
+    "raw_bucket_150_plus_leaf_percent",
+    "target_capped_plant_location_plant_to_plant_cv_percent",
+    "note",
+)
+
+FSPM_CSV_SPECTRAL_HEADERS = (
+    "fspm_spectral_transport_mode",
+    "leaf_radiance_material_mode",
+    "receiver_trace_count",
+    "banded_transport_band_count",
+    "banded_transport_active_trace_count",
+    "band_scaling_basis",
+    "scalar_flux_basis",
+    "source_spectrum_basis",
+    "leaf_material_profile_id",
+    "leaf_material_profile_version",
+    "leaf_material_weighting_basis",
+    "leaf_material_source_spectrum_id",
+    "leaf_material_source_spectrum_source",
     "spectral_absorption_optical_profile_id",
     "spectral_absorption_source_spectrum_basis",
     "spectral_absorption_scalar_flux_basis",
@@ -125,8 +156,9 @@ FSPM_CSV_HEADERS = (
     "photosynthetic_light_response_cv_percent",
     "nonuniformity_response_retention",
     "calibration_status",
-    "note",
 )
+
+FSPM_CSV_HEADERS = FSPM_CSV_SCALAR_HEADERS[:-1] + FSPM_CSV_SPECTRAL_HEADERS + ("note",)
 
 
 def fspm_system_label(mode: str) -> str:
@@ -156,14 +188,22 @@ def build_fspm_metrics_csv(
     if not panel:
         raise ValueError("FSPM artifact data is unavailable.")
 
+    spectral_active = _panel_spectral_active(panel)
     row = _summary_row(
         panel,
         run_id=run_id,
         mode=mode,
         system_label=system_label or fspm_system_label(mode),
+        spectral_active=spectral_active,
     )
+    headers = _headers_for_export(spectral_active)
     handle = StringIO()
-    writer = csv.DictWriter(handle, fieldnames=FSPM_CSV_HEADERS, lineterminator="\n")
+    writer = csv.DictWriter(
+        handle,
+        fieldnames=headers,
+        extrasaction="ignore",
+        lineterminator="\n",
+    )
     writer.writeheader()
     writer.writerow(row)
     return handle.getvalue()
@@ -175,6 +215,7 @@ def _summary_row(
     run_id: str,
     mode: str,
     system_label: str,
+    spectral_active: bool,
 ) -> dict[str, str]:
     counts = _object(panel.get("counts"))
     absorption = _object(
@@ -184,11 +225,18 @@ def _summary_row(
     spectral = _object(panel.get("spectral_exposure"))
     response = _object(panel.get("photosynthetic_light_response_potential"))
     exposure = _object(panel.get("photoreceptor_exposure"))
+    if not spectral_active:
+        spectral_absorption = {}
+        spectral = {}
+        response = {}
+        exposure = {}
     source = _primary_source(absorption, spectral, response, exposure)
     transport_source = _primary_source(spectral_absorption, absorption)
 
     pss = _object(exposure.get("phytochrome_pss_proxy"))
     dose = _object(exposure.get("blue_photon_dose"))
+    raw_summary = _object(absorption.get("raw_leaf_surface_flux_summary"))
+    raw_buckets = _raw_bucket_counts(absorption, raw_summary)
     note = _text(panel.get("limitations_note")) or (
         "Lighting-analysis input only; unvalidated response-potential scaffold, "
         "not biological-output prediction."
@@ -221,6 +269,8 @@ def _summary_row(
         "deficit_to_target_incident_flux_umol_s",
         "under_target_deficit_umol_s",
     )
+
+    leaf_count = counts.get("leaf_count")
 
     return _format_row(
         {
@@ -293,6 +343,10 @@ def _summary_row(
             ),
             "target_classification_basis": absorption.get("target_classification_basis"),
             "target_classification_source": absorption.get("target_classification_source"),
+            "coverage_basis_label": _coverage_basis_label(absorption),
+            "coverage_source_label": _coverage_source_label(
+                absorption.get("target_classification_source")
+            ),
             "plant_count": counts.get("plant_count"),
             "leaf_count": counts.get("leaf_count"),
             "receiver_sample_count": counts.get("receiver_sample_count"),
@@ -327,46 +381,102 @@ def _summary_row(
             "over_lit_receiver_surface_percent": _percent(
                 absorption.get("over_lit_surface_fraction")
             ),
-            "target_capped_incident_flux_total_umol_s": target_capped_incident,
-            "target_capacity_incident_flux_umol_s": target_capacity,
-            "raw_incident_flux_total_umol_s": raw_incident,
-            "incident_leaf_surface_ppfd_umol_m2_s": absorption.get(
-                "raw_mean_flux_density_umol_m2_s"
+            "plant_location_under_lit_leaves": absorption.get("under_lit_leaf_count"),
+            "plant_location_target_range_leaves": absorption.get("target_range_leaf_count"),
+            "plant_location_over_lit_leaves": absorption.get("over_lit_leaf_count"),
+            "mean_plant_location_reference_ppfd_umol_m2_s": absorption.get(
+                "target_classification_mean_ppfd_umol_m2_s"
             ),
-            "incident_leaf_surface_flux_total_umol_s": raw_incident,
-            "excess_incident_flux_above_target_umol_s": excess_incident,
-            "excess_incident_fraction_of_raw_percent": _ratio_percent(
+            "lower_tail_plant_location_reference_ppfd_umol_m2_s": absorption.get(
+                "lower_tail_target_classification_ppfd_umol_m2_s"
+            ),
+            "target_capped_plant_location_flux_total_umol_s": target_capped_incident,
+            "plant_location_target_capacity_flux_umol_s": target_capacity,
+            "raw_incident_flux_total_umol_s": raw_incident,
+            "raw_leaf_surface_incident_flux_total_umol_s": raw_incident,
+            "excess_above_target_plant_location_flux_umol_s": excess_incident,
+            "excess_above_target_fraction_of_raw_percent": _ratio_percent(
                 excess_incident,
                 raw_incident,
             ),
-            "deficit_to_target_incident_flux_umol_s": deficit_to_target,
+            "deficit_to_target_plant_location_flux_umol_s": deficit_to_target,
             "deficit_to_target_capacity_percent": _ratio_percent(
                 deficit_to_target,
                 target_capacity,
             ),
-            "target_capped_incident_fraction_of_raw_percent": _ratio_percent(
+            "target_capped_plant_location_fraction_of_raw_percent": _ratio_percent(
                 target_capped_incident,
                 raw_incident,
             ),
-            "target_capped_incident_fraction_of_capacity_percent": _ratio_percent(
+            "target_capped_plant_location_fraction_of_capacity_percent": _ratio_percent(
                 target_capped_incident,
                 target_capacity,
             ),
-            "target_capped_incident_mean_flux_density_umol_m2_s": _first(
+            "target_capped_plant_location_mean_ppfd_umol_m2_s": _first(
                 absorption,
                 "target_capped_incident_mean_flux_density_umol_m2_s",
                 "target_capped_mean_flux_density_umol_m2_s",
             ),
-            "raw_mean_flux_density_umol_m2_s": absorption.get(
-                "raw_mean_flux_density_umol_m2_s"
+            "raw_leaf_surface_flux_mean_ppfd_umol_m2_s": raw_summary.get("mean"),
+            "raw_leaf_surface_flux_min_ppfd_umol_m2_s": raw_summary.get("min"),
+            "raw_leaf_surface_flux_p05_ppfd_umol_m2_s": raw_summary.get("p05"),
+            "raw_leaf_surface_flux_median_ppfd_umol_m2_s": raw_summary.get("median"),
+            "raw_leaf_surface_flux_p95_ppfd_umol_m2_s": raw_summary.get("p95"),
+            "raw_leaf_surface_flux_max_ppfd_umol_m2_s": raw_summary.get("max"),
+            "raw_leaf_surface_flux_mean_percent_of_target": raw_summary.get(
+                "mean_percent_of_target"
             ),
-            "lower_tail_target_classification_ppfd_umol_m2_s": absorption.get(
-                "lower_tail_target_classification_ppfd_umol_m2_s"
+            "raw_leaf_surface_flux_min_percent_of_target": raw_summary.get(
+                "min_percent_of_target"
             ),
-            "lower_tail_raw_flux_density_umol_m2_s": absorption.get(
-                "lower_tail_raw_flux_density_umol_m2_s"
+            "raw_leaf_surface_flux_p05_percent_of_target": raw_summary.get(
+                "p05_percent_of_target"
             ),
-            "target_capped_incident_plant_to_plant_cv_percent": _percent(
+            "raw_leaf_surface_flux_median_percent_of_target": raw_summary.get(
+                "median_percent_of_target"
+            ),
+            "raw_leaf_surface_flux_p95_percent_of_target": raw_summary.get(
+                "p95_percent_of_target"
+            ),
+            "raw_leaf_surface_flux_max_percent_of_target": raw_summary.get(
+                "max_percent_of_target"
+            ),
+            "raw_bucket_0_25_leaf_count": raw_buckets.get("0-25%"),
+            "raw_bucket_25_45_leaf_count": raw_buckets.get("25-45%"),
+            "raw_bucket_45_70_leaf_count": raw_buckets.get("45-70%"),
+            "raw_bucket_70_90_leaf_count": raw_buckets.get("70-90%"),
+            "raw_bucket_90_115_leaf_count": raw_buckets.get("90-115%"),
+            "raw_bucket_115_150_leaf_count": raw_buckets.get("115-150%"),
+            "raw_bucket_150_plus_leaf_count": raw_buckets.get("150%+"),
+            "raw_bucket_0_25_leaf_percent": _ratio_percent(
+                raw_buckets.get("0-25%"),
+                leaf_count,
+            ),
+            "raw_bucket_25_45_leaf_percent": _ratio_percent(
+                raw_buckets.get("25-45%"),
+                leaf_count,
+            ),
+            "raw_bucket_45_70_leaf_percent": _ratio_percent(
+                raw_buckets.get("45-70%"),
+                leaf_count,
+            ),
+            "raw_bucket_70_90_leaf_percent": _ratio_percent(
+                raw_buckets.get("70-90%"),
+                leaf_count,
+            ),
+            "raw_bucket_90_115_leaf_percent": _ratio_percent(
+                raw_buckets.get("90-115%"),
+                leaf_count,
+            ),
+            "raw_bucket_115_150_leaf_percent": _ratio_percent(
+                raw_buckets.get("115-150%"),
+                leaf_count,
+            ),
+            "raw_bucket_150_plus_leaf_percent": _ratio_percent(
+                raw_buckets.get("150%+"),
+                leaf_count,
+            ),
+            "target_capped_plant_location_plant_to_plant_cv_percent": _percent(
                 _first(
                     absorption,
                     "plant_to_plant_target_capped_incident_flux_cv",
@@ -501,7 +611,8 @@ def _summary_row(
             ),
             "calibration_status": response.get("calibration_status"),
             "note": note,
-        }
+        },
+        headers=_headers_for_export(spectral_active),
     )
 
 
@@ -580,6 +691,86 @@ def _band_map(value: object) -> dict[str, Mapping[str, Any]]:
     return result
 
 
+def _coverage_basis_label(absorption: Mapping[str, Any]) -> object:
+    basis = _first(
+        absorption,
+        "target_classification_basis_label",
+        "target_classification_basis",
+        "target_basis_label",
+        "target_basis",
+    )
+    if basis in {
+        "canopy_plane_equivalent_incident_ppfd",
+        "canopy-plane equivalent incident PPFD",
+    }:
+        return "plant_location_canopy_reference_ppfd"
+    return basis
+
+
+def _coverage_source_label(source: object) -> str:
+    if source == "interpolated_runtime_ppfd_map":
+        return "baseline PPFD map sampled at leaf XY positions"
+    return str(source).replace("_", " ") if source is not None else ""
+
+
+def _raw_bucket_counts(
+    absorption: Mapping[str, Any],
+    raw_summary: Mapping[str, Any],
+) -> dict[str, object]:
+    buckets = absorption.get("raw_leaf_surface_flux_bucket_counts")
+    if not isinstance(buckets, list):
+        buckets = raw_summary.get("bucket_counts")
+    if not isinstance(buckets, list):
+        return {}
+    counts: dict[str, object] = {}
+    for bucket in buckets:
+        if not isinstance(bucket, Mapping):
+            continue
+        label = bucket.get("label")
+        if label is not None:
+            counts[str(label)] = bucket.get("leaf_count")
+    return counts
+
+
+def _spectral_active(*payloads: Mapping[str, Any]) -> bool:
+    for payload in payloads:
+        mode = str(payload.get("fspm_spectral_transport_mode") or "")
+        if mode.startswith("banded"):
+            return True
+        if _finite(payload.get("banded_transport_band_count")) is not None:
+            return True
+        if _finite(payload.get("banded_transport_active_trace_count")) is not None:
+            return True
+        if isinstance(payload.get("band_summaries"), list) and payload.get(
+            "band_summaries"
+        ):
+            return True
+        if isinstance(payload.get("banded_transport_bands"), list) and payload.get(
+            "banded_transport_bands"
+        ):
+            return True
+        if isinstance(payload.get("band_totals"), Mapping) and payload.get(
+            "band_totals"
+        ):
+            return True
+    return False
+
+
+def _panel_spectral_active(panel: Mapping[str, Any]) -> bool:
+    return _spectral_active(
+        _object(panel.get("modeled_spectral_absorption")),
+        _object(panel.get("spectral_exposure")),
+        _object(panel.get("photosynthetic_light_response_potential")),
+        _object(panel.get("photoreceptor_exposure")),
+    )
+
+
+def _headers_for_export(spectral_active: bool) -> tuple[str, ...]:
+    if spectral_active:
+        return FSPM_CSV_HEADERS
+    return FSPM_CSV_SCALAR_HEADERS
+
+
 def _first_value(*values: object) -> object:
     for value in values:
         if value is not None:
@@ -587,9 +778,13 @@ def _first_value(*values: object) -> object:
     return None
 
 
-def _format_row(values: Mapping[str, object]) -> dict[str, str]:
+def _format_row(
+    values: Mapping[str, object],
+    *,
+    headers: tuple[str, ...],
+) -> dict[str, str]:
     row: dict[str, str] = {}
-    for header in FSPM_CSV_HEADERS:
+    for header in headers:
         value = values.get(header)
         row[header] = _csv_number(value) if _finite(value) is not None else _text(value)
     return row

@@ -173,6 +173,8 @@ def _surface_absorption(payload: Mapping[str, Any] | None) -> dict[str, object] 
         return None
     ppfd_field = payload.get("ppfd_field_summary")
     ppfd_field_summary = ppfd_field if isinstance(ppfd_field, Mapping) else {}
+    raw_summary = payload.get("raw_leaf_surface_flux_summary")
+    raw_summary_mapping = raw_summary if isinstance(raw_summary, Mapping) else {}
     area = _finite(payload.get("one_sided_leaf_area_m2"))
     absorbed = _finite(payload.get("total_absorbed_photon_flux_umol_s"))
     mean_density = absorbed / area if absorbed is not None and area and area > 0.0 else None
@@ -215,7 +217,8 @@ def _surface_absorption(payload: Mapping[str, Any] | None) -> dict[str, object] 
         "normal_generation_basis": payload.get("normal_generation_basis"),
         "receiver_granularity_role": payload.get("receiver_granularity_role"),
         "raw_leaf_surface_flux_scale": payload.get("raw_leaf_surface_flux_scale"),
-        "raw_leaf_surface_flux_summary": payload.get("raw_leaf_surface_flux_summary"),
+        "raw_leaf_surface_flux_summary": raw_summary,
+        "raw_leaf_surface_flux_bucket_counts": raw_summary_mapping.get("bucket_counts"),
         "raw_leaf_surface_flux_legend": payload.get("raw_leaf_surface_flux_legend"),
         "plant_count": payload.get("plant_count"),
         "leaf_count": payload.get("leaf_count"),

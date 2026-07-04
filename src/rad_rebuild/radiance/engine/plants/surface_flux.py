@@ -1184,6 +1184,49 @@ RAW_LEAF_SURFACE_FLUX_RATIO_ANCHORS: tuple[tuple[float, str], ...] = (
 )
 
 
+def _raw_flux_bucket_template() -> list[dict[str, Any]]:
+    buckets: list[dict[str, Any]] = []
+    for index, (ratio, color) in enumerate(RAW_LEAF_SURFACE_FLUX_RATIO_ANCHORS):
+        if index + 1 < len(RAW_LEAF_SURFACE_FLUX_RATIO_ANCHORS):
+            next_ratio = RAW_LEAF_SURFACE_FLUX_RATIO_ANCHORS[index + 1][0]
+            label = f"{ratio * 100:.0f}-{next_ratio * 100:.0f}%"
+        else:
+            next_ratio = None
+            label = f"{ratio * 100:.0f}%+"
+        buckets.append(
+            {
+                "label": label,
+                "min_ratio": ratio,
+                "max_ratio": next_ratio,
+                "min_percent": ratio * 100.0,
+                "max_percent": next_ratio * 100.0 if next_ratio is not None else None,
+                "color": color,
+                "leaf_count": 0,
+            }
+        )
+    return buckets
+
+
+def _raw_flux_bucket_counts(
+    values: list[float],
+    target_ppfd_umol_m2_s: float | None,
+) -> list[dict[str, Any]]:
+    buckets = _raw_flux_bucket_template()
+    if target_ppfd_umol_m2_s is None or target_ppfd_umol_m2_s <= 0.0:
+        return buckets
+    for value in values:
+        ratio = value / target_ppfd_umol_m2_s
+        if ratio < 0.0:
+            buckets[0]["leaf_count"] += 1
+            continue
+        for bucket in buckets:
+            max_ratio = bucket["max_ratio"]
+            if max_ratio is None or ratio < max_ratio:
+                bucket["leaf_count"] += 1
+                break
+    return buckets
+
+
 def _raw_flux_ratio(value: float, target_ppfd_umol_m2_s: float | None) -> float | None:
     if target_ppfd_umol_m2_s is None or target_ppfd_umol_m2_s <= 0.0:
         return None
@@ -1257,6 +1300,7 @@ def _raw_leaf_surface_flux_metadata(
             "p95_percent_of_target": None,
             "max_percent_of_target": None,
             "target_ppfd_umol_m2_s": target_ppfd,
+            "bucket_counts": _raw_flux_bucket_counts(values, target_ppfd),
             "units": "umol/m²/s",
         }
 
@@ -1310,6 +1354,7 @@ def _raw_leaf_surface_flux_metadata(
             else None
         ),
         "target_ppfd_umol_m2_s": target_ppfd,
+        "bucket_counts": _raw_flux_bucket_counts(values, target_ppfd),
         "by_stat": {
             "mean": _raw_flux_summary_stat(mean, target_ppfd),
             "min": _raw_flux_summary_stat(min_value, target_ppfd),

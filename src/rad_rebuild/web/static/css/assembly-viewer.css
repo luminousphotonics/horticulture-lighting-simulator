@@ -190,11 +190,59 @@ select:disabled {
 .assembly-viewer__plant-legend {
     flex-basis: 100%;
     color: var(--assembly-muted);
-    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
-    font-size: 0.72rem;
+    font-size: 0.74rem;
     font-weight: 700;
     line-height: 1.35;
-    text-align: center;
+}
+
+.assembly-viewer__plant-legend-header {
+    align-items: baseline;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem 0.55rem;
+    justify-content: center;
+    margin-bottom: 0.35rem;
+}
+
+.assembly-viewer__plant-legend-header strong {
+    color: var(--assembly-text);
+}
+
+.assembly-viewer__plant-legend-gradient {
+    height: 0.55rem;
+    max-width: 30rem;
+    margin: 0 auto;
+    border: 1px solid rgba(237, 244, 251, 0.18);
+    border-radius: 999px;
+    background: linear-gradient(90deg, #2563eb 0%, #06b6d4 16.666%, #22c55e 30%, #22c55e 46.666%, #eab308 60%, #f97316 76.666%, #dc2626 100%);
+}
+
+.assembly-viewer__plant-legend-ticks,
+.assembly-viewer__plant-legend-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.55rem;
+    justify-content: center;
+    margin-top: 0.35rem;
+}
+
+.assembly-viewer__plant-legend-ticks span {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+    white-space: nowrap;
+}
+
+.assembly-viewer__plant-legend-chips span {
+    align-items: center;
+    display: inline-flex;
+    gap: 0.3rem;
+    white-space: nowrap;
+}
+
+.assembly-viewer__plant-legend-chips i {
+    width: 0.72rem;
+    height: 0.72rem;
+    border: 1px solid rgba(237, 244, 251, 0.24);
+    border-radius: 999px;
 }
 
 .assembly-viewer__heatmap-status[data-state="error"] {

@@ -13,6 +13,7 @@ import { clampHeatmapOpacity, fetchPhotometricLayer, formatPpfdTooltipValue, loo
 import { createPerfOverlay } from "./perf.js";
 import {
   PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX,
+  PLANT_COLOR_MODE_TARGET_RANGE,
   createPlantVisibilityController,
 } from "./plants.js";
 import { buildAssemblyWorld, createAssemblyScene, createPhotometricHeatmapPlane } from "./renderer.js";
@@ -176,11 +177,6 @@ function setPlantControlsEnabled(enabled, colorEnabled = false) {
   }
 }
 
-function formatPlantLegendValue(value) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number.toFixed(1) : "-";
-}
-
 function formatPlantLegendAnchor(anchor) {
   const ratio = Number(anchor?.ratio);
   const percent = Number.isFinite(Number(anchor?.percent))
@@ -193,30 +189,83 @@ function formatPlantLegendAnchor(anchor) {
   return `${percentLabel} ${ppfdLabel}`;
 }
 
+function appendLegendHeader(parent, title, subtitle) {
+  const header = document.createElement("div");
+  header.className = "assembly-viewer__plant-legend-header";
+  const heading = document.createElement("strong");
+  heading.textContent = title;
+  const sub = document.createElement("span");
+  sub.textContent = subtitle;
+  header.append(heading, sub);
+  parent.append(header);
+}
+
+function renderRawPlantLegend(parent, state) {
+  const legend = state.rawLeafSurfaceFluxLegend || {};
+  const scale = state.rawLeafSurfaceFluxScale || {};
+  const anchors = Array.isArray(legend.anchors) && legend.anchors.length > 0
+    ? legend.anchors
+    : scale.anchors;
+  appendLegendHeader(
+    parent,
+    legend.title || "Raw leaf-surface incident PPFD",
+    `${legend.scale || "% of FSPM target"} · ${legend.units || scale.units || "umol/m²/s"}`,
+  );
+  const bar = document.createElement("div");
+  bar.className = "assembly-viewer__plant-legend-gradient";
+  parent.append(bar);
+  const ticks = document.createElement("div");
+  ticks.className = "assembly-viewer__plant-legend-ticks";
+  if (Array.isArray(anchors)) {
+    for (const anchor of anchors) {
+      const tick = document.createElement("span");
+      tick.textContent = formatPlantLegendAnchor(anchor);
+      ticks.append(tick);
+    }
+  }
+  parent.append(ticks);
+}
+
+function renderTargetRangePlantLegend(parent) {
+  appendLegendHeader(
+    parent,
+    "Plant-location target coverage",
+    "Coverage colors use canopy-reference target fit",
+  );
+  const chips = document.createElement("div");
+  chips.className = "assembly-viewer__plant-legend-chips";
+  for (const [label, color] of [
+    ["Under-lit", "#3FA66F"],
+    ["Target-range", "#4BCF6A"],
+    ["Over-lit", "#E26E26"],
+  ]) {
+    const chip = document.createElement("span");
+    const swatch = document.createElement("i");
+    swatch.style.background = color;
+    chip.append(swatch, document.createTextNode(label));
+    chips.append(chip);
+  }
+  parent.append(chips);
+}
+
 function renderPlantLegend(state) {
   if (!(plantsLegendEl instanceof HTMLElement)) {
     return;
   }
-  if (!state || !state.absorptionColor || state.colorMode !== PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX) {
+  if (!state || !state.absorptionColor) {
     plantsLegendEl.hidden = true;
-    plantsLegendEl.textContent = "";
+    clearElement(plantsLegendEl);
     return;
   }
-  const legend = state.rawLeafSurfaceFluxLegend || {};
-  const scale = state.rawLeafSurfaceFluxScale || {};
-  const title = legend.title || "Raw leaf-surface incident PPFD";
-  const units = legend.units || scale.units || "umol/m²/s";
-  const scaleLabel = legend.scale || "% of FSPM target";
-  const anchors = Array.isArray(legend.anchors) && legend.anchors.length > 0
-    ? legend.anchors
-    : scale.anchors;
-  const anchorText = Array.isArray(anchors)
-    ? anchors.map((anchor) => formatPlantLegendAnchor(anchor)).join(" · ")
-    : "";
-  const targetText = Number.isFinite(Number(legend.target_ppfd_umol_m2_s ?? scale.targetPpfd))
-    ? `target ${formatPlantLegendValue(legend.target_ppfd_umol_m2_s ?? scale.targetPpfd)}`
-    : "target -";
-  plantsLegendEl.textContent = `${title} · ${units} · ${scaleLabel} · ${targetText} · ${anchorText}`;
+  clearElement(plantsLegendEl);
+  if (state.colorMode === PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX) {
+    renderRawPlantLegend(plantsLegendEl, state);
+  } else if (state.colorMode === PLANT_COLOR_MODE_TARGET_RANGE) {
+    renderTargetRangePlantLegend(plantsLegendEl);
+  } else {
+    plantsLegendEl.hidden = true;
+    return;
+  }
   plantsLegendEl.hidden = false;
 }
 
@@ -424,7 +473,8 @@ function renderFspmPanel(scene) {
       note.className = "assembly-viewer__fspm-note";
       note.textContent = section.note;
       sectionEl.append(note);
-    } else {
+    }
+    if (section.rows) {
       const list = document.createElement("ul");
       for (const [label, value] of section.rows || []) {
         appendPanelMetric(list, label, value);

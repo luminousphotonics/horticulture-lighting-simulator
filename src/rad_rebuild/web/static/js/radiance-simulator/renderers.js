@@ -571,6 +571,13 @@ function formatNumber(value, digits = 2) {
   return num.toFixed(digits);
 }
 
+function coverageSourceLabel(source) {
+  if (source === "interpolated_runtime_ppfd_map") {
+    return "baseline PPFD map sampled at leaf XY positions";
+  }
+  return String(source || "").replaceAll("_", " ");
+}
+
 function formatPlantPhotonAbsorption(metrics, used) {
   const scaffold = metrics.plant_incident_surface_flux || metrics.plant_photon_absorption;
   if (!scaffold || typeof scaffold !== "object") {
@@ -583,7 +590,7 @@ function formatPlantPhotonAbsorption(metrics, used) {
 
   const hasAbsorbedFlux = Number.isFinite(Number(scaffold.total_absorbed_photon_flux_umol_s));
   const lines = [
-    hasAbsorbedFlux ? "INCIDENT LEAF-SURFACE FLUX" : "PLANT SURFACE REGISTRY",
+    hasAbsorbedFlux ? "FSPM PLANT SUMMARY" : "PLANT SURFACE REGISTRY",
   ];
   const status = String(scaffold.status || "scaffold_only").replaceAll("_", " ");
   const source = scaffold.source_artifact ? ` · ${scaffold.source_artifact}` : "";
@@ -619,12 +626,10 @@ function formatPlantPhotonAbsorption(metrics, used) {
     scaffold.target_basis_label ||
     scaffold.target_basis;
   if (targetBasis) {
-    lines.push(`target_classification_basis: ${String(targetBasis).replaceAll("_", " ")}`);
+    lines.push(`coverage_basis: ${String(targetBasis).replaceAll("_", " ")}`);
   }
   if (scaffold.target_classification_source) {
-    lines.push(
-      `target_classification_source: ${String(scaffold.target_classification_source).replaceAll("_", " ")}`,
-    );
+    lines.push(`coverage_source: ${coverageSourceLabel(scaffold.target_classification_source)}`);
   }
 
   const counts = [];
@@ -662,65 +667,36 @@ function formatPlantPhotonAbsorption(metrics, used) {
       scaffold.target_classification_mean_ppfd_umol_m2_s,
       1,
     );
-    const targetCapped = formatNumber(
-      scaffold.target_capped_incident_flux_total_umol_s ?? scaffold.target_capped_flux_total_umol_s,
-      3,
-    );
-    const excess = formatNumber(
-      scaffold.excess_incident_flux_above_target_umol_s ?? scaffold.excess_flux_above_target_umol_s,
-      3,
-    );
-    const deficit = formatNumber(
-      scaffold.deficit_to_target_incident_flux_umol_s ?? scaffold.under_target_deficit_umol_s,
-      3,
-    );
-    const targetCv = formatPercent(
-      scaffold.plant_to_plant_target_capped_incident_flux_cv ??
-        scaffold.plant_to_plant_target_capped_flux_cv,
-      1,
-    );
-    const rawMean = formatNumber(scaffold.raw_mean_flux_density_umol_m2_s, 1);
     const rawSummary = scaffold.raw_leaf_surface_flux_summary;
-    const cappedMean = formatNumber(
-      scaffold.target_capped_incident_mean_flux_density_umol_m2_s ??
-        scaffold.target_capped_mean_flux_density_umol_m2_s,
-      1,
-    );
-    const incident = formatNumber(scaffold.total_incident_photon_flux_umol_s, 3);
-    lines.push("classification_counts: leaf aggregates");
-    lines.push(`target_range_leaves: ${Number(scaffold.target_range_leaf_count ?? scaffold.target_range_leaves ?? 0)}`);
-    lines.push(`under_lit_leaves: ${Number(scaffold.under_lit_leaf_count ?? scaffold.under_lit_leaves ?? 0)}`);
-    lines.push(`over_lit_leaves: ${Number(scaffold.over_lit_leaf_count ?? scaffold.over_lit_leaves ?? 0)}`);
+    lines.push("plant_location_target_coverage_summary:");
+    lines.push(`Target-range leaves: ${Number(scaffold.target_range_leaf_count ?? scaffold.target_range_leaves ?? 0)}`);
+    lines.push(`Under-lit leaves: ${Number(scaffold.under_lit_leaf_count ?? scaffold.under_lit_leaves ?? 0)}`);
+    lines.push(`Over-lit leaves: ${Number(scaffold.over_lit_leaf_count ?? scaffold.over_lit_leaves ?? 0)}`);
     if (targetClassificationMean) {
-      lines.push(`target_classification_mean_ppfd: ${targetClassificationMean} umol/m2/s`);
+      lines.push(`Mean plant-location reference PPFD: ${targetClassificationMean} umol/m2/s`);
     }
-    if (targetCapped) lines.push(`target_capped_incident_flux_total: ${targetCapped} umol/s`);
-    if (excess) lines.push(`excess_incident_flux_above_target: ${excess} umol/s`);
-    if (deficit) lines.push(`deficit_to_target_incident_flux: ${deficit} umol/s`);
-    if (targetCv) lines.push(`plant_to_plant_target_capped_incident_CV: ${targetCv}`);
-    if (cappedMean) lines.push(`target_capped_incident_mean_density: ${cappedMean} umol/m2/s`);
-    if (rawMean) lines.push(`raw_mean_flux_density: ${rawMean} umol/m2/s`);
+    lines.push("raw_leaf_surface_flux_summary:");
     if (rawSummary && typeof rawSummary === "object") {
-      const rawParts = [
-        ["mean", rawSummary.mean],
-        ["min", rawSummary.min],
-        ["p05", rawSummary.p05],
-        ["median", rawSummary.median],
-        ["p95", rawSummary.p95],
-        ["max", rawSummary.max],
-      ]
-        .map(([label, value]) => {
-          const formatted = formatNumber(value, 1);
-          const percent = Number(rawSummary[`${label}_percent_of_target`]);
-          const suffix = Number.isFinite(percent) ? ` (${percent.toFixed(0)}%)` : "";
-          return formatted ? `${label}=${formatted}${suffix}` : null;
-        })
-        .filter(Boolean);
-      if (rawParts.length) {
-        lines.push(`raw_leaf_surface_flux_ppfd: ${rawParts.join(" · ")} umol/m²/s (% target where shown)`);
+      const mean = formatNumber(rawSummary.mean ?? scaffold.raw_mean_flux_density_umol_m2_s, 1);
+      const meanPercent = Number(rawSummary.mean_percent_of_target);
+      const p05 = formatNumber(rawSummary.p05, 1);
+      const p95 = formatNumber(rawSummary.p95, 1);
+      const max = formatNumber(rawSummary.max, 1);
+      if (mean) {
+        lines.push(
+          `Mean raw PPFD: ${mean} umol/m2/s${Number.isFinite(meanPercent) ? ` (${meanPercent.toFixed(0)}% target)` : ""}`,
+        );
       }
+      if (p05 && p95) {
+        lines.push(`p05-p95 raw PPFD range: ${p05}-${p95} umol/m2/s`);
+      }
+      if (max) {
+        lines.push(`Max raw PPFD: ${max} umol/m2/s`);
+      }
+    } else {
+      const rawMean = formatNumber(scaffold.raw_mean_flux_density_umol_m2_s, 1);
+      if (rawMean) lines.push(`Mean raw PPFD: ${rawMean} umol/m2/s`);
     }
-    if (incident) lines.push(`raw_incident_flux_total: ${incident} umol/s`);
   } else {
     lines.push("incident_leaf_surface_flux: not computed");
   }
@@ -739,109 +715,7 @@ function formatPlantSpectralAbsorption(metrics, used) {
     return [];
   }
   used.add("plant_spectral_absorption");
-
-  const lines = ["MODELED SPECTRAL LEAF ABSORPTION"];
-  const status = String(spectral.status || "computed").replaceAll("_", " ");
-  const source = spectral.source_artifact ? ` · ${spectral.source_artifact}` : "";
-  lines.push(`status: ${status}${source}`);
-  if (spectral.optical_profile_id) {
-    lines.push(`optical_profile: ${spectral.optical_profile_id}`);
-  }
-  if (spectral.source_spectral_basis) {
-    lines.push(`source_spectrum_basis: ${String(spectral.source_spectral_basis).replaceAll("_", " ")}`);
-  }
-  if (spectral.scalar_flux_basis) {
-    lines.push(`scalar_flux_basis: ${String(spectral.scalar_flux_basis).replaceAll("_", " ")}`);
-  }
-
-  const incidentPar = formatNumber(spectral.scalar_incident_par_ppfd_umol_m2_s, 1);
-  const targetCappedPar = formatNumber(
-    spectral.target_capped_absorbed_par_ppfd ??
-      spectral.target_capped_absorbed_par_ppfd_umol_m2_s,
-    1,
-  );
-  const targetCappedEpar = formatNumber(
-    spectral.target_capped_absorbed_epar_ppfd ??
-      spectral.target_capped_absorbed_epar_ppfd_umol_m2_s,
-    1,
-  );
-  const targetCappedParFraction = formatPercent(
-    spectral.target_capped_absorbed_par_fraction_of_raw,
-    1,
-  );
-  const targetCappedEparFraction = formatPercent(
-    spectral.target_capped_absorbed_epar_fraction_of_raw,
-    1,
-  );
-  const targetEffectiveFraction = formatPercent(spectral.target_effective_absorbed_fraction, 1);
-  const overTargetFraction = formatPercent(
-    spectral.over_target_absorbed_par_fraction_of_raw,
-    1,
-  );
-  const underTargetLeafFraction = formatPercent(spectral.under_target_leaf_fraction, 1);
-  const inTargetLeafFraction = formatPercent(spectral.in_target_leaf_fraction, 1);
-  const overTargetLeafFraction = formatPercent(spectral.over_target_leaf_fraction, 1);
-  const absorbedPar = formatNumber(spectral.absorbed_par_ppfd_umol_m2_s, 1);
-  const absorbedEpar = formatNumber(spectral.absorbed_epar_ppfd_umol_m2_s, 1);
-  if (incidentPar) lines.push(`incident_PAR_PPFD: ${incidentPar} umol/m2/s`);
-  if (targetCappedPar) {
-    lines.push(`target_capped_modeled_absorbed_PAR_PPFD: ${targetCappedPar} umol/m2/s`);
-  }
-  if (targetCappedEpar) {
-    lines.push(`target_capped_modeled_absorbed_ePAR_PPFD: ${targetCappedEpar} umol/m2/s`);
-  }
-  if (targetCappedParFraction) {
-    lines.push(`target_capped_absorbed_PAR_fraction_of_raw: ${targetCappedParFraction}`);
-  }
-  if (targetCappedEparFraction) {
-    lines.push(`target_capped_absorbed_ePAR_fraction_of_raw: ${targetCappedEparFraction}`);
-  }
-  if (targetEffectiveFraction) {
-    lines.push(`target_effective_absorbed_fraction: ${targetEffectiveFraction}`);
-  }
-  if (overTargetFraction) {
-    lines.push(`over_target_absorbed_PAR_fraction_of_raw: ${overTargetFraction}`);
-  }
-  const targetFractions = [];
-  if (underTargetLeafFraction) targetFractions.push(`under=${underTargetLeafFraction}`);
-  if (inTargetLeafFraction) targetFractions.push(`in=${inTargetLeafFraction}`);
-  if (overTargetLeafFraction) targetFractions.push(`over=${overTargetLeafFraction}`);
-  if (targetFractions.length) {
-    lines.push(`target_leaf_fractions: ${targetFractions.join(" · ")}`);
-  }
-  if (absorbedPar) lines.push(`raw_modeled_absorbed_PAR_PPFD: ${absorbedPar} umol/m2/s`);
-  if (absorbedEpar) lines.push(`raw_modeled_absorbed_ePAR_PPFD: ${absorbedEpar} umol/m2/s`);
-
-  const bandValues = [
-    ["blue", spectral.absorbed_blue_ppfd_umol_m2_s],
-    ["green", spectral.absorbed_green_ppfd_umol_m2_s],
-    ["orange", spectral.absorbed_orange_ppfd_umol_m2_s],
-    ["red", spectral.absorbed_red_ppfd_umol_m2_s],
-    ["far_red", spectral.absorbed_far_red_ppfd_umol_m2_s],
-  ]
-    .map(([band, value]) => {
-      const formatted = formatNumber(value, 1);
-      return formatted ? `${band}=${formatted}` : null;
-    })
-    .filter(Boolean);
-  if (bandValues.length) {
-    lines.push(`modeled_absorbed_band_PPFD: ${bandValues.join(" · ")} umol/m2/s`);
-  }
-
-  const absorbedFraction = formatPercent(spectral.absorbed_fraction, 1);
-  const reflectedFraction = formatPercent(spectral.reflected_fraction, 1);
-  const transmittedFraction = formatPercent(spectral.transmitted_fraction, 1);
-  const fractions = [];
-  if (absorbedFraction) fractions.push(`absorbed=${absorbedFraction}`);
-  if (reflectedFraction) fractions.push(`reflected=${reflectedFraction}`);
-  if (transmittedFraction) fractions.push(`transmitted=${transmittedFraction}`);
-  if (fractions.length) {
-    lines.push(`modeled_flux_fractions: ${fractions.join(" · ")}`);
-  }
-  if (spectral.note) {
-    lines.push(`note: ${spectral.note}`);
-  }
-  return lines;
+  return [];
 }
 
 

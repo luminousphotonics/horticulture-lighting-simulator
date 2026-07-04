@@ -61,6 +61,69 @@ function bandAbsorbedFlux(bandTotals, bandId) {
   return band?.absorbed_photon_flux_umol_s;
 }
 
+const RAW_FLUX_BUCKETS = [
+  { label: "0-25%", minRatio: 0, maxRatio: 0.25 },
+  { label: "25-45%", minRatio: 0.25, maxRatio: 0.45 },
+  { label: "45-70%", minRatio: 0.45, maxRatio: 0.70 },
+  { label: "70-90%", minRatio: 0.70, maxRatio: 0.90 },
+  { label: "90-115%", minRatio: 0.90, maxRatio: 1.15 },
+  { label: "115-150%", minRatio: 1.15, maxRatio: 1.50 },
+  { label: "150%+", minRatio: 1.50, maxRatio: null },
+];
+
+function coverageSourceLabel(source) {
+  if (source === "interpolated_runtime_ppfd_map") {
+    return "baseline PPFD map sampled at leaf XY positions";
+  }
+  return labelStatus(source);
+}
+
+function rawBucketCountsFromLeafValues(surface) {
+  const values = surface?.visualization?.leaf_values;
+  const target = finiteNumber(surface?.target_ppfd_umol_m2_s);
+  if (!Array.isArray(values) || target === null || target <= 0) {
+    return [];
+  }
+  const buckets = RAW_FLUX_BUCKETS.map((bucket) => ({ ...bucket, leaf_count: 0 }));
+  for (const row of values) {
+    const raw = finiteNumber(row?.incident_photon_flux_density_umol_m2_s);
+    if (raw === null) {
+      continue;
+    }
+    const ratio = raw / target;
+    const match = buckets.find((bucket) => (
+      bucket.maxRatio === null ? ratio >= bucket.minRatio : ratio < bucket.maxRatio
+    ));
+    (match || buckets[0]).leaf_count += 1;
+  }
+  return buckets;
+}
+
+function rawBucketCounts(absorption) {
+  const explicit = absorption?.raw_leaf_surface_flux_bucket_counts
+    || absorption?.raw_leaf_surface_flux_summary?.bucket_counts;
+  if (Array.isArray(explicit) && explicit.length > 0) {
+    return explicit;
+  }
+  return rawBucketCountsFromLeafValues(absorption);
+}
+
+function spectralModeActive(...payloads) {
+  return payloads.some((payload) => {
+    const data = asObject(payload);
+    const mode = String(data?.fspm_spectral_transport_mode || "");
+    const status = String(data?.status || "");
+    return mode.startsWith("banded")
+      || finiteNumber(data?.banded_transport_band_count) !== null
+      || finiteNumber(data?.banded_transport_active_trace_count) !== null
+      || (status === "computed" && (
+        Array.isArray(data?.band_summaries)
+          || Array.isArray(data?.banded_transport_bands)
+          || asObject(data?.band_totals) !== null
+      ));
+  });
+}
+
 function hasAnySection(panel) {
   return Boolean(
     asObject(panel?.incident_leaf_surface_flux)
@@ -143,7 +206,6 @@ export function buildFspmPanelSections(scene) {
         formatCount(counts.receiver_sample_count ?? counts.surface_count, "sample", "samples"),
       ],
       ["Receiver granularity", labelStatus(counts.receiver_granularity)],
-      ["Receiver role", labelStatus(counts.receiver_granularity_role)],
       ["Receiver side policy", labelStatus(counts.receiver_side_policy)],
       ["Mesh surface rows", formatCount(counts.surface_count, "surface", "surfaces")],
       ["One-sided leaf area", formatMetric(counts.one_sided_leaf_area_m2, "m2", 4)],
@@ -154,8 +216,13 @@ export function buildFspmPanelSections(scene) {
   if (absorption) {
     const rawSummary = asObject(absorption.raw_leaf_surface_flux_summary);
     if (rawSummary) {
+      const bucketRows = rawBucketCounts(absorption).map((bucket) => [
+        bucket.label || `${formatNumber(bucket.min_percent, 0)}%`,
+        formatCount(bucket.leaf_count, "leaf", "leaves"),
+      ]);
       sections.push({
-        title: "raw leaf-surface flux",
+        title: "Raw leaf-surface flux",
+        note: "Actual receiver-based incident PPFD at leaf surfaces.",
         rows: [
           ["Mean", formatRawFluxStat(rawSummary, "mean", 1)],
           ["Min", formatRawFluxStat(rawSummary, "min", 1)],
@@ -163,11 +230,17 @@ export function buildFspmPanelSections(scene) {
           ["Median", formatRawFluxStat(rawSummary, "median", 1)],
           ["p95", formatRawFluxStat(rawSummary, "p95", 1)],
           ["Max", formatRawFluxStat(rawSummary, "max", 1)],
+          [
+            "Raw incident flux",
+            formatMetric(absorption.total_incident_photon_flux_umol_s, "umol/s", 2),
+          ],
+          ...bucketRows,
         ],
       });
     }
     sections.push({
-      title: "incident leaf-surface PPFD",
+      title: "Plant-location target coverage",
+      note: "Coverage uses plant-location/canopy-reference PPFD, not raw leaf-surface receiver values.",
       rows: [
         ["Status", labelStatus(absorption.status)],
         ["Method", labelStatus(absorption.method)],
@@ -176,7 +249,7 @@ export function buildFspmPanelSections(scene) {
           formatTarget(absorption.target_ppfd_umol_m2_s, absorption.target_tolerance_umol_m2_s),
         ],
         [
-          "Target classification basis",
+          "Coverage basis",
           labelStatus(
             absorption.target_classification_basis_label ||
               absorption.target_classification_basis ||
@@ -185,18 +258,18 @@ export function buildFspmPanelSections(scene) {
           ),
         ],
         [
-          "Target classification source",
-          labelStatus(absorption.target_classification_source),
+          "Source",
+          coverageSourceLabel(absorption.target_classification_source),
         ],
         ["Target-range leaves", formatCount(absorption.target_range_leaf_count, "leaf", "leaves")],
         ["Under-lit leaves", formatCount(absorption.under_lit_leaf_count, "leaf", "leaves")],
         ["Over-lit leaves", formatCount(absorption.over_lit_leaf_count, "leaf", "leaves")],
         [
-          "Target-classification mean PPFD",
+          "Mean plant-location reference PPFD",
           formatMetric(absorption.target_classification_mean_ppfd_umol_m2_s, "umol/m2/s", 1),
         ],
         [
-          "Target-capped incident flux",
+          "Target-capped plant-location flux",
           formatMetric(
             absorption.target_capped_incident_flux_total_umol_s ??
               absorption.target_capped_flux_total_umol_s,
@@ -205,7 +278,7 @@ export function buildFspmPanelSections(scene) {
           ),
         ],
         [
-          "Excess incident above target",
+          "Excess above target",
           formatMetric(
             absorption.excess_incident_flux_above_target_umol_s ??
               absorption.excess_flux_above_target_umol_s,
@@ -214,7 +287,7 @@ export function buildFspmPanelSections(scene) {
           ),
         ],
         [
-          "Deficit to target incident flux",
+          "Deficit to target",
           formatMetric(
             absorption.deficit_to_target_incident_flux_umol_s ??
               absorption.under_target_deficit_umol_s,
@@ -223,7 +296,7 @@ export function buildFspmPanelSections(scene) {
           ),
         ],
         [
-          "Plant-to-plant target-capped incident CV",
+          "Plant-to-plant target-capped coverage CV",
           formatPercent(
             absorption.plant_to_plant_target_capped_incident_flux_cv ??
               absorption.plant_to_plant_target_capped_flux_cv,
@@ -235,7 +308,7 @@ export function buildFspmPanelSections(scene) {
           formatMetric(absorption.lower_tail_raw_flux_density_umol_m2_s, "umol/m2/s", 1),
         ],
         [
-          "Lower-tail target-classification PPFD",
+          "Lower-tail plant-location reference PPFD",
           formatMetric(
             absorption.lower_tail_target_classification_ppfd_umol_m2_s,
             "umol/m2/s",
@@ -243,7 +316,7 @@ export function buildFspmPanelSections(scene) {
           ),
         ],
         [
-          "Target-capped incident mean density",
+          "Target-capped plant-location mean PPFD",
           formatMetric(
             absorption.target_capped_incident_mean_flux_density_umol_m2_s ??
               absorption.target_capped_mean_flux_density_umol_m2_s,
@@ -251,16 +324,16 @@ export function buildFspmPanelSections(scene) {
             1,
           ),
         ],
-        [
-          "Raw incident flux",
-          formatMetric(absorption.total_incident_photon_flux_umol_s, "umol/s", 2),
-        ],
       ],
     });
   }
 
   const spectralAbsorption = asObject(panel.modeled_spectral_absorption);
-  if (spectralAbsorption) {
+  const spectral = asObject(panel.spectral_exposure);
+  const response = asObject(panel.photosynthetic_light_response_potential);
+  const exposure = asObject(panel.photoreceptor_exposure);
+  const spectralActive = spectralModeActive(spectralAbsorption, spectral, response, exposure);
+  if (spectralAbsorption && spectralActive) {
     sections.push({
       title: "modeled spectral leaf absorption",
       rows: [
@@ -331,8 +404,7 @@ export function buildFspmPanelSections(scene) {
     });
   }
 
-  const spectral = asObject(panel.spectral_exposure);
-  if (spectral) {
+  if (spectral && spectralActive) {
     const bands = asObject(spectral.band_totals);
     sections.push({
       title: "spectral exposure",
@@ -348,8 +420,7 @@ export function buildFspmPanelSections(scene) {
     });
   }
 
-  const response = asObject(panel.photosynthetic_light_response_potential);
-  if (response) {
+  if (response && spectralActive) {
     sections.push({
       title: "photosynthetic light-response potential",
       rows: [
@@ -365,8 +436,7 @@ export function buildFspmPanelSections(scene) {
     });
   }
 
-  const exposure = asObject(panel.photoreceptor_exposure);
-  if (exposure) {
+  if (exposure && spectralActive) {
     const pss = asObject(exposure.phytochrome_pss_proxy);
     const dose = asObject(exposure.blue_photon_dose);
     sections.push({

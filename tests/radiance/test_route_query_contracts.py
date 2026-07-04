@@ -20,7 +20,11 @@ configure_test_runtime()
 
 from rad_rebuild.radiance.backend.routes import artifacts as artifacts_route  # noqa: E402
 from rad_rebuild.radiance.backend.routes import metrics as metrics_route  # noqa: E402
-from rad_rebuild.radiance.assembly.fspm_csv import FSPM_CSV_HEADERS  # noqa: E402
+from rad_rebuild.radiance.assembly.fspm_csv import (  # noqa: E402
+    FSPM_CSV_HEADERS,
+    FSPM_CSV_SCALAR_HEADERS,
+    FSPM_CSV_SPECTRAL_HEADERS,
+)
 from rad_rebuild.radiance.config import EXECUTION_MODE_LIVE_DOCKER, MODE_HPS, MODE_SMD  # noqa: E402
 from rad_rebuild.radiance.engine.plants.photoreceptor import PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA  # noqa: E402
 from rad_rebuild.radiance.engine.plants.photosynthesis import PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA  # noqa: E402
@@ -293,7 +297,32 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
                         "target_capped_incident_flux_total_umol_s": 34.0,
                         "excess_incident_flux_above_target_umol_s": 4.0,
                         "deficit_to_target_incident_flux_umol_s": 7.0,
+                        "target_classification_mean_ppfd_umol_m2_s": 274.2,
                         "raw_mean_flux_density_umol_m2_s": 320.0,
+                        "raw_leaf_surface_flux_summary": {
+                            "mean": 320.0,
+                            "min": 80.0,
+                            "p05": 120.0,
+                            "median": 275.0,
+                            "p95": 420.0,
+                            "max": 500.0,
+                            "mean_percent_of_target": 116.3636363636,
+                            "min_percent_of_target": 29.0909090909,
+                            "p05_percent_of_target": 43.6363636364,
+                            "median_percent_of_target": 100.0,
+                            "p95_percent_of_target": 152.7272727273,
+                            "max_percent_of_target": 181.8181818182,
+                            "bucket_counts": [
+                                {"label": "0-25%", "leaf_count": 0},
+                                {"label": "25-45%", "leaf_count": 2},
+                                {"label": "45-70%", "leaf_count": 1},
+                                {"label": "70-90%", "leaf_count": 1},
+                                {"label": "90-115%", "leaf_count": 2},
+                                {"label": "115-150%", "leaf_count": 1},
+                                {"label": "150%+", "leaf_count": 1},
+                            ],
+                            "units": "umol/m²/s",
+                        },
                         "target_capped_incident_mean_flux_density_umol_m2_s": 274.2,
                         "lower_tail_raw_flux_density_umol_m2_s": 150.0,
                         "lower_tail_target_classification_ppfd_umol_m2_s": 180.0,
@@ -600,14 +629,63 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         self.assertEqual(row["under_lit_receiver_surface_percent"], "25")
         self.assertEqual(row["target_range_receiver_surface_percent"], "62.5")
         self.assertEqual(row["over_lit_receiver_surface_percent"], "12.5")
-        self.assertEqual(row["target_capped_incident_flux_total_umol_s"], "34")
+        self.assertEqual(
+            row["coverage_basis_label"],
+            "plant_location_canopy_reference_ppfd",
+        )
+        self.assertEqual(
+            row["coverage_source_label"],
+            "baseline PPFD map sampled at leaf XY positions",
+        )
+        self.assertEqual(row["plant_location_under_lit_leaves"], "2")
+        self.assertEqual(row["plant_location_target_range_leaves"], "5")
+        self.assertEqual(row["plant_location_over_lit_leaves"], "1")
+        self.assertEqual(row["mean_plant_location_reference_ppfd_umol_m2_s"], "274.2")
+        self.assertEqual(row["lower_tail_plant_location_reference_ppfd_umol_m2_s"], "180")
+        self.assertEqual(row["target_capped_plant_location_flux_total_umol_s"], "34")
         self.assertAlmostEqual(
-            float(row["target_capacity_incident_flux_umol_s"]),
+            float(row["plant_location_target_capacity_flux_umol_s"]),
             34.1,
         )
         self.assertEqual(row["raw_incident_flux_total_umol_s"], "60")
-        self.assertEqual(row["incident_leaf_surface_ppfd_umol_m2_s"], "320")
-        self.assertEqual(row["incident_leaf_surface_flux_total_umol_s"], "60")
+        self.assertEqual(row["raw_leaf_surface_incident_flux_total_umol_s"], "60")
+        self.assertNotIn("incident_leaf_surface_ppfd_umol_m2_s", row)
+        self.assertNotIn("raw_mean_flux_density_umol_m2_s", row)
+        self.assertEqual(row["raw_leaf_surface_flux_mean_ppfd_umol_m2_s"], "320")
+        self.assertEqual(row["raw_leaf_surface_flux_p05_ppfd_umol_m2_s"], "120")
+        self.assertEqual(row["raw_leaf_surface_flux_p95_ppfd_umol_m2_s"], "420")
+        self.assertEqual(row["raw_leaf_surface_flux_mean_percent_of_target"], "116.363636364")
+        self.assertEqual(row["raw_leaf_surface_flux_p05_percent_of_target"], "43.6363636364")
+        self.assertEqual(row["raw_bucket_0_25_leaf_count"], "0")
+        self.assertEqual(row["raw_bucket_25_45_leaf_count"], "2")
+        self.assertEqual(row["raw_bucket_150_plus_leaf_count"], "1")
+        self.assertEqual(row["raw_bucket_0_25_leaf_percent"], "0")
+        self.assertEqual(row["raw_bucket_25_45_leaf_percent"], "25")
+        self.assertEqual(row["raw_bucket_45_70_leaf_percent"], "12.5")
+        self.assertEqual(row["raw_bucket_70_90_leaf_percent"], "12.5")
+        self.assertEqual(row["raw_bucket_90_115_leaf_percent"], "25")
+        self.assertEqual(row["raw_bucket_115_150_leaf_percent"], "12.5")
+        self.assertEqual(row["raw_bucket_150_plus_leaf_percent"], "12.5")
+        bucket_counts = [
+            float(row["raw_bucket_0_25_leaf_count"] or 0),
+            float(row["raw_bucket_25_45_leaf_count"] or 0),
+            float(row["raw_bucket_45_70_leaf_count"] or 0),
+            float(row["raw_bucket_70_90_leaf_count"] or 0),
+            float(row["raw_bucket_90_115_leaf_count"] or 0),
+            float(row["raw_bucket_115_150_leaf_count"] or 0),
+            float(row["raw_bucket_150_plus_leaf_count"] or 0),
+        ]
+        bucket_percents = [
+            float(row["raw_bucket_0_25_leaf_percent"] or 0),
+            float(row["raw_bucket_25_45_leaf_percent"] or 0),
+            float(row["raw_bucket_45_70_leaf_percent"] or 0),
+            float(row["raw_bucket_70_90_leaf_percent"] or 0),
+            float(row["raw_bucket_90_115_leaf_percent"] or 0),
+            float(row["raw_bucket_115_150_leaf_percent"] or 0),
+            float(row["raw_bucket_150_plus_leaf_percent"] or 0),
+        ]
+        self.assertEqual(sum(bucket_counts), float(row["leaf_count"]))
+        self.assertAlmostEqual(sum(bucket_percents), 100.0)
         self.assertNotIn("raw_absorbed_flux_total_umol_s", row)
         self.assertNotIn("legacy_broadband_absorbed_flux_total_umol_s", row)
         self.assertNotIn("absorbed_fraction_percent", row)
@@ -671,15 +749,15 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         self.assertEqual(band_rows[0]["radiance_primitive"], "trans")
         self.assertNotIn("surface_id", row["banded_transport_band_summaries_json"])
         self.assertAlmostEqual(
-            float(row["target_capped_incident_fraction_of_raw_percent"]),
+            float(row["target_capped_plant_location_fraction_of_raw_percent"]),
             34.0 / 60.0 * 100.0,
         )
         self.assertAlmostEqual(
-            float(row["target_capped_incident_fraction_of_capacity_percent"]),
+            float(row["target_capped_plant_location_fraction_of_capacity_percent"]),
             34.0 / 34.1 * 100.0,
         )
         self.assertAlmostEqual(
-            float(row["excess_incident_fraction_of_raw_percent"]),
+            float(row["excess_above_target_fraction_of_raw_percent"]),
             4.0 / 60.0 * 100.0,
         )
         self.assertAlmostEqual(
@@ -687,7 +765,7 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
             7.0 / 34.1 * 100.0,
         )
         self.assertNotIn("raw_plant_to_plant_absorption_cv_percent", row)
-        self.assertEqual(row["target_capped_incident_plant_to_plant_cv_percent"], "6")
+        self.assertEqual(row["target_capped_plant_location_plant_to_plant_cv_percent"], "6")
         self.assertEqual(row["blue_pfd_umol_m2_s"], "83.3")
         self.assertEqual(row["blue_fraction_of_par_percent"], "20")
         self.assertEqual(row["red_to_far_red_diagnostic"], "2.5")
@@ -698,14 +776,8 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         self.assertEqual(row["photosynthetic_light_response_cv_percent"], "4")
         self.assertEqual(row["nonuniformity_response_retention"], "0.97")
         self.assertEqual(row["calibration_status"], "uncalibrated_model_scaffold")
-        self.assertEqual(
-            row["target_classification_basis"],
-            "canopy_plane_equivalent_incident_ppfd",
-        )
-        self.assertEqual(
-            row["target_classification_source"],
-            "interpolated_runtime_ppfd_map",
-        )
+        self.assertNotIn("target_classification_basis", row)
+        self.assertNotIn("target_classification_source", row)
         self.assertIn(
             "Raw receiver incident flux is physical receiver accounting",
             row["note"],
@@ -738,8 +810,8 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
                 "photopic_luminance_weighting_avoided",
                 "uses_179_luminous_efficacy_factor",
                 "uses_falsecolor_or_illuminance_conversion",
-                "target_classification_basis",
-                "target_classification_source",
+                "coverage_basis_label",
+                "coverage_source_label",
                 "spectral_absorption_optical_profile_id",
                 "spectral_absorption_source_spectrum_basis",
                 "spectral_absorption_scalar_flux_basis",
@@ -778,6 +850,29 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
                         "target_range_leaf_fraction": 1.0,
                         "over_lit_leaf_fraction": 0.0,
                         "total_incident_photon_flux_umol_s": 8.0,
+                        "raw_leaf_surface_flux_summary": {
+                            "mean": 320.0,
+                            "min": 240.0,
+                            "p05": 250.0,
+                            "median": 320.0,
+                            "p95": 390.0,
+                            "max": 400.0,
+                            "mean_percent_of_target": 106.6666666667,
+                            "min_percent_of_target": 80.0,
+                            "p05_percent_of_target": 83.3333333333,
+                            "median_percent_of_target": 106.6666666667,
+                            "p95_percent_of_target": 130.0,
+                            "max_percent_of_target": 133.3333333333,
+                            "bucket_counts": [
+                                {"label": "0-25%", "leaf_count": 0},
+                                {"label": "25-45%", "leaf_count": 0},
+                                {"label": "45-70%", "leaf_count": 0},
+                                {"label": "70-90%", "leaf_count": 1},
+                                {"label": "90-115%", "leaf_count": 0},
+                                {"label": "115-150%", "leaf_count": 1},
+                                {"label": "150%+", "leaf_count": 0},
+                            ],
+                        },
                         "total_absorbed_photon_flux_umol_s": 5.6,
                         "mean_absorbed_fraction_of_incident": 0.7,
                     }
@@ -803,21 +898,43 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         rows = list(csv.DictReader(StringIO(response.body.decode("utf-8"))))
         self.assertEqual(len(rows), 1)
         row = rows[0]
+        self.assertEqual(list(row.keys()), list(FSPM_CSV_SCALAR_HEADERS))
         self.assertEqual(row["plant_count"], "1")
         self.assertEqual(row["target_range_leaf_percent"], "100")
-        self.assertEqual(row["target_capacity_incident_flux_umol_s"], "0")
-        self.assertEqual(row["target_capped_incident_fraction_of_capacity_percent"], "")
+        self.assertEqual(row["plant_location_target_capacity_flux_umol_s"], "0")
+        self.assertEqual(
+            row["target_capped_plant_location_fraction_of_capacity_percent"],
+            "",
+        )
         self.assertEqual(row["deficit_to_target_capacity_percent"], "")
-        self.assertEqual(row["spectral_absorption_optical_profile_id"], "")
-        self.assertEqual(row["fspm_spectral_transport_mode"], "")
-        self.assertEqual(row["leaf_material_profile_id"], "")
+        self.assertEqual(row["raw_bucket_70_90_leaf_count"], "1")
+        self.assertEqual(row["raw_bucket_115_150_leaf_count"], "1")
+        self.assertEqual(row["raw_bucket_70_90_leaf_percent"], "50")
+        self.assertEqual(row["raw_bucket_115_150_leaf_percent"], "50")
+        scalar_bucket_counts = [
+            float(row["raw_bucket_0_25_leaf_count"] or 0),
+            float(row["raw_bucket_25_45_leaf_count"] or 0),
+            float(row["raw_bucket_45_70_leaf_count"] or 0),
+            float(row["raw_bucket_70_90_leaf_count"] or 0),
+            float(row["raw_bucket_90_115_leaf_count"] or 0),
+            float(row["raw_bucket_115_150_leaf_count"] or 0),
+            float(row["raw_bucket_150_plus_leaf_count"] or 0),
+        ]
+        scalar_bucket_percents = [
+            float(row["raw_bucket_0_25_leaf_percent"] or 0),
+            float(row["raw_bucket_25_45_leaf_percent"] or 0),
+            float(row["raw_bucket_45_70_leaf_percent"] or 0),
+            float(row["raw_bucket_70_90_leaf_percent"] or 0),
+            float(row["raw_bucket_90_115_leaf_percent"] or 0),
+            float(row["raw_bucket_115_150_leaf_percent"] or 0),
+            float(row["raw_bucket_150_plus_leaf_percent"] or 0),
+        ]
+        self.assertEqual(sum(scalar_bucket_counts), float(row["leaf_count"]))
+        self.assertAlmostEqual(sum(scalar_bucket_percents), 100.0)
+        for spectral_header in FSPM_CSV_SPECTRAL_HEADERS:
+            self.assertNotIn(spectral_header, row)
         self.assertEqual(row["baseline_ppfd_rgb_decode_method"], "")
-        self.assertEqual(row["modeled_incident_par_ppfd_umol_m2_s"], "")
-        self.assertEqual(row["modeled_absorbed_par_ppfd_umol_m2_s"], "")
-        self.assertEqual(row["banded_transport_band_summaries_json"], "")
-        self.assertEqual(row["blue_pfd_umol_m2_s"], "")
-        self.assertEqual(row["photosynthetic_light_response_mean"], "")
-        self.assertEqual(row["calibration_status"], "")
+        self.assertNotIn("calibration_status", row)
 
     def test_fspm_csv_export_has_single_header_for_manual_combining(self) -> None:
         header = ",".join(FSPM_CSV_HEADERS)

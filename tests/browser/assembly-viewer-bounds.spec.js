@@ -355,6 +355,15 @@ test("FSPM panel formatter summarizes available plant metrics", async ({ page })
             median_percent_of_target: 99.6363636364,
             p95_percent_of_target: 120,
             max_percent_of_target: 130.9090909091,
+            bucket_counts: [
+              { label: "0-25%", leaf_count: 0 },
+              { label: "25-45%", leaf_count: 1 },
+              { label: "45-70%", leaf_count: 1 },
+              { label: "70-90%", leaf_count: 0 },
+              { label: "90-115%", leaf_count: 4 },
+              { label: "115-150%", leaf_count: 2 },
+              { label: "150%+", leaf_count: 0 },
+            ],
             units: "umol/m²/s",
           },
           lower_tail_raw_flux_density_umol_m2_s: 150,
@@ -370,6 +379,7 @@ test("FSPM panel formatter summarizes available plant metrics", async ({ page })
         spectral_exposure: {
           status: "computed",
           method: "surface_flux_band_weighted_leaf_absorptance_v1",
+          fspm_spectral_transport_mode: "banded_5",
           total_absorbed_par_photon_flux_umol_s: 35,
           band_totals: {
             blue: { absorbed_photon_flux_umol_s: 8 },
@@ -391,6 +401,7 @@ test("FSPM panel formatter summarizes available plant metrics", async ({ page })
         photoreceptor_exposure: {
           status: "computed",
           method: "spectral_band_exposure_inputs_v1",
+          fspm_spectral_transport_mode: "banded_5",
           mean_absorbed_blue_pfd_umol_m2_s: 64,
           mean_absorbed_green_pfd_umol_m2_s: 72,
           mean_absorbed_red_pfd_umol_m2_s: 145,
@@ -403,7 +414,24 @@ test("FSPM panel formatter summarizes available plant metrics", async ({ page })
         limitations_note: "Lighting-analysis input only; response potentials are unvalidated and are not biological production forecasts.",
       },
     };
+    const staleSpectralScene = {
+      fspm_metrics: {
+        counts: { plant_count: 1, leaf_count: 1 },
+        plant_surface_absorption: {
+          status: "computed",
+          target_ppfd_umol_m2_s: 275,
+          target_range_leaf_count: 1,
+          raw_leaf_surface_flux_summary: { mean: 275, units: "umol/m²/s" },
+        },
+        spectral_exposure: {
+          status: "computed",
+          method: "stale_scalar_payload",
+          total_absorbed_par_photon_flux_umol_s: 35,
+        },
+      },
+    };
     const sections = buildFspmPanelSections(scene);
+    const staleTitles = buildFspmPanelSections(staleSpectralScene).map((section) => section.title);
     const text = sections.map((section) => [
       section.title,
       section.note || "",
@@ -413,24 +441,30 @@ test("FSPM panel formatter summarizes available plant metrics", async ({ page })
       emptyAvailable: hasFspmPanelData(emptyScene),
       available: hasFspmPanelData(scene),
       sectionTitles: sections.map((section) => section.title),
+      staleTitles,
       text,
     };
   });
 
   expect(result.emptyAvailable).toBe(false);
   expect(result.available).toBe(true);
-  expect(result.sectionTitles).toContain("raw leaf-surface flux");
-  expect(result.sectionTitles).toContain("incident leaf-surface PPFD");
+  expect(result.sectionTitles).toContain("Raw leaf-surface flux");
+  expect(result.sectionTitles).toContain("Plant-location target coverage");
   expect(result.sectionTitles).toContain("spectral exposure");
-  expect(result.sectionTitles).toContain("photosynthetic light-response potential");
   expect(result.sectionTitles).toContain("photoreceptor exposure");
+  expect(result.staleTitles).not.toContain("spectral exposure");
   expect(result.text).toContain("Target PPFD");
-  expect(result.text).toContain("Mean 271.5 umol/m²/s");
-  expect(result.text).toContain("p95 330.0 umol/m²/s");
+  expect(result.text).toContain("Mean 271.5 umol/m²/s (99% target)");
+  expect(result.text).toContain("p95 330.0 umol/m²/s (120% target)");
+  expect(result.text).toContain("Actual receiver-based incident PPFD");
+  expect(result.text).toContain("90-115% 4 leaves");
   expect(result.text).toContain("Target-range leaves");
-  expect(result.text).toContain("Target classification basis");
-  expect(result.text).toContain("Excess incident above target");
-  expect(result.text).toContain("Plant-to-plant target-capped incident CV");
+  expect(result.text).toContain("Coverage basis");
+  expect(result.text).toContain("Source baseline PPFD map sampled at leaf XY positions");
+  expect(result.text).toContain("Mean plant-location reference PPFD");
+  expect(result.text).toContain("Plant-to-plant target-capped coverage CV");
+  expect(result.text).not.toContain("Receiver role");
+  expect(result.text).not.toContain("Target-classification mean PPFD");
   expect(result.text).toContain("5 leaves");
   expect(result.text).toContain("6.0%");
   expect(result.text).not.toContain("Legacy broadband absorbed");
@@ -456,4 +490,114 @@ test("FSPM CSV URL is derived from assembly scene identity", async ({ page }) =>
   expect(parsed.searchParams.get("fspm_target_tolerance_umol_m2_s")).toBe("20");
   expect(parsed.searchParams.get("artifact_token")).toBe("abc");
   expect(parsed.searchParams.get("session_id")).toBe("s1");
+});
+
+test("plant surface-flux legends are visual and mode-aware", async ({ page }) => {
+  await page.route("**/radiance-api/radiance/assembly-scene**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        schema_version: 3,
+        mode: "SMD",
+        room: { length_m: 3.048, width_m: 3.048, mount_z_m: 0.4572 },
+        instances: [],
+        plants: {
+          schema: "rad_rebuild.fspm.plants.viewer.v1",
+          units: "meters",
+          material: { id: "plant_leaf_material", reflectance: 0.22, transmittance: 0.08, absorptance: 0.7 },
+          surface_flux: {
+            schema: "rad_rebuild.fspm.plant_surface_flux.v1",
+            target_ppfd_umol_m2_s: 275,
+            target_tolerance_umol_m2_s: 20,
+            visualization: {
+              color_metric: "incident_photon_flux_density_umol_m2_s",
+              raw_leaf_surface_flux_scale: {
+                mode: "raw_leaf_surface_flux",
+                scale_type: "target_normalized_ratio",
+                target_ppfd_umol_m2_s: 275,
+                target_source: "fspm_target_ppfd_umol_m2_s",
+                ratio_min: 0,
+                ratio_max: 1.5,
+                clamp_min_ratio: 0,
+                clamp_max_ratio: 1.5,
+                anchors: [
+                  { ratio: 0, percent: 0, ppfd_umol_m2_s: 0, color: "#2563EB" },
+                  { ratio: 0.25, percent: 25, ppfd_umol_m2_s: 68.75, color: "#06B6D4" },
+                  { ratio: 0.45, percent: 45, ppfd_umol_m2_s: 123.75, color: "#22C55E" },
+                  { ratio: 0.7, percent: 70, ppfd_umol_m2_s: 192.5, color: "#22C55E" },
+                  { ratio: 0.9, percent: 90, ppfd_umol_m2_s: 247.5, color: "#EAB308" },
+                  { ratio: 1.15, percent: 115, ppfd_umol_m2_s: 316.25, color: "#F97316" },
+                  { ratio: 1.5, percent: 150, ppfd_umol_m2_s: 412.5, color: "#DC2626" },
+                ],
+                units: "umol/m²/s",
+              },
+              raw_leaf_surface_flux_legend: {
+                title: "Raw leaf-surface incident PPFD",
+                units: "umol/m²/s",
+                scale: "% of FSPM target",
+                target_ppfd_umol_m2_s: 275,
+                anchors: [
+                  { ratio: 0, percent: 0, ppfd_umol_m2_s: 0, color: "#2563EB" },
+                  { ratio: 0.25, percent: 25, ppfd_umol_m2_s: 68.75, color: "#06B6D4" },
+                  { ratio: 0.45, percent: 45, ppfd_umol_m2_s: 123.75, color: "#22C55E" },
+                  { ratio: 0.7, percent: 70, ppfd_umol_m2_s: 192.5, color: "#22C55E" },
+                  { ratio: 0.9, percent: 90, ppfd_umol_m2_s: 247.5, color: "#EAB308" },
+                  { ratio: 1.15, percent: 115, ppfd_umol_m2_s: 316.25, color: "#F97316" },
+                  { ratio: 1.5, percent: 150, ppfd_umol_m2_s: 412.5, color: "#DC2626" },
+                ],
+              },
+              leaf_values: [
+                {
+                  leaf_id: "plant_r000_c000_leaf_000",
+                  plant_id: "plant_r000_c000",
+                  lighting_region: "target_range",
+                  incident_photon_flux_density_umol_m2_s: 275,
+                  target_classification_ppfd_umol_m2_s: 275,
+                  target_deviation: 0,
+                },
+              ],
+            },
+          },
+          plants: [
+            {
+              plant_id: "plant_r000_c000",
+              row: 0,
+              column: 0,
+              center_m: [0, 0, 0],
+              leaves: [
+                {
+                  plant_id: "plant_r000_c000",
+                  leaf_id: "plant_r000_c000_leaf_000",
+                  radiance_material_id: "plant_leaf_material",
+                  mesh: {
+                    vertices: [[-0.1, -0.05, 0.02], [0.1, -0.05, 0.03], [0, 0.16, 0.06]],
+                    faces: [[0, 1, 2]],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    });
+  });
+
+  const sceneUrl = "/radiance-api/radiance/assembly-scene?mode=SMD&plants_enabled=true";
+  await page.goto(`/viewer/assembly?scene=${encodeURIComponent(sceneUrl)}`);
+  const legend = page.locator("#assembly-plants-legend");
+  await expect(legend).toBeVisible();
+  await expect(legend).toContainText("Plant-location target coverage");
+  await expect(legend).toContainText("Under-lit");
+  await expect(legend.locator(".assembly-viewer__plant-legend-chips")).toBeVisible();
+  await expect(legend).not.toContainText("Raw leaf-surface incident PPFD · umol/m²/s · % of FSPM target");
+
+  await page.locator("#assembly-plants-color-mode").selectOption("raw_leaf_surface_flux");
+  await expect(legend).toContainText("Raw leaf-surface incident PPFD");
+  await expect(legend.locator(".assembly-viewer__plant-legend-gradient")).toBeVisible();
+  await expect(legend).toContainText("25% 69");
+  await expect(legend).toContainText("150%+ 413+");
+  await expect(legend).not.toContainText("Under-lit");
+
+  await page.locator("#assembly-plants-color-toggle").uncheck();
+  await expect(legend).toBeHidden();
 });
