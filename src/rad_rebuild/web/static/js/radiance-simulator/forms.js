@@ -82,8 +82,10 @@ function plantsAvailable(mode, executionMode) {
 export function syncFspmControls() {
   const mode = els.radMode?.value || "";
   const executionMode = (els.radSimMode?.value || defaultExecutionMode || "precomputed").trim();
-  const fspmAvailable = plantsAvailable(mode, executionMode);
-  const fspmControls = [
+  const precomputedMode = executionMode === "precomputed";
+  const liveFspmAvailable = plantsAvailable(mode, executionMode);
+  const panelVisible = precomputedMode || liveFspmAvailable;
+  const liveOnlyControls = [
     els.radPlantsEnabled,
     els.radPlantSeed,
     els.radPlantRows,
@@ -95,29 +97,54 @@ export function syncFspmControls() {
     els.radPlantGrowthStage,
     els.radFspmReceiverGranularity,
     els.radFspmMultispectralMode,
+  ].filter(Boolean);
+  const runtimeTargetControls = [
     els.radFspmTargetPpfd,
     els.radFspmTargetTolerance,
   ].filter(Boolean);
+  const liveOnlyRows = /** @type {NodeListOf<HTMLElement>} */ (
+    document.querySelectorAll("[data-fspm-live-only]")
+  );
 
   if (els.radFspmFieldset) {
-    els.radFspmFieldset.hidden = !fspmAvailable;
+    els.radFspmFieldset.hidden = !panelVisible;
   }
-
-  fspmControls.forEach((control) => {
-    control.disabled = !fspmAvailable;
-    control.title = fspmAvailable
-      ? ""
-      : "FSPM plant geometry is available only for currently live-supported lighting modes.";
+  if (els.radFspmLegend) {
+    els.radFspmLegend.textContent = precomputedMode
+      ? "FSPM Runtime Controls"
+      : "FSPM Plant Geometry";
+  }
+  if (els.radFspmLiveNote) {
+    els.radFspmLiveNote.hidden = !liveFspmAvailable;
+  }
+  if (els.radFspmPrecomputedNote) {
+    els.radFspmPrecomputedNote.hidden = !precomputedMode;
+  }
+  liveOnlyRows.forEach((row) => {
+    row.hidden = !liveFspmAvailable;
   });
 
-  if (!fspmAvailable && els.radPlantsEnabled) {
+  liveOnlyControls.forEach((control) => {
+    control.disabled = !liveFspmAvailable;
+    control.title = liveFspmAvailable
+      ? ""
+      : precomputedMode
+        ? "Precomputed playback uses the installed scalar plant bundle contract."
+        : "FSPM plant geometry is available only for currently live-supported lighting modes.";
+  });
+  runtimeTargetControls.forEach((control) => {
+    control.disabled = !panelVisible;
+    control.title = panelVisible ? "" : "FSPM target controls are unavailable for this mode.";
+  });
+
+  if (!liveFspmAvailable && els.radPlantsEnabled) {
     els.radPlantsEnabled.checked = false;
   }
   if (els.radFspmMultispectralMode?.dataset.fspmMultispectralEdited !== "true") {
     syncFspmMultispectralDefault();
   }
 
-  return fspmAvailable;
+  return panelVisible;
 }
 
 export function syncFspmMultispectralDefault() {
@@ -156,6 +183,15 @@ export function syncFspmTargetDefault() {
 }
 
 function parsePlantPayload(_mode, executionMode) {
+  const fspmTargetPpfdUmolM2S = parsePositive(els.radFspmTargetPpfd, parsePositive(els.radTarget, 275));
+  const fspmTargetToleranceUmolM2S = parsePositive(els.radFspmTargetTolerance, 20);
+  if (executionMode === "precomputed") {
+    return {
+      plantsEnabled: true,
+      fspmTargetPpfdUmolM2S,
+      fspmTargetToleranceUmolM2S,
+    };
+  }
   const enabled = Boolean(
     executionMode !== "precomputed"
       && els.radPlantsEnabled
@@ -183,8 +219,8 @@ function parsePlantPayload(_mode, executionMode) {
     fspmSpectralTransportMode: multispectralMode
       ? DEFAULT_FSPM_SPECTRAL_TRANSPORT_MODE
       : SCALAR_FSPM_SPECTRAL_TRANSPORT_MODE,
-    fspmTargetPpfdUmolM2S: parsePositive(els.radFspmTargetPpfd, parsePositive(els.radTarget, 275)),
-    fspmTargetToleranceUmolM2S: parsePositive(els.radFspmTargetTolerance, 20),
+    fspmTargetPpfdUmolM2S,
+    fspmTargetToleranceUmolM2S,
   };
 }
 
@@ -242,7 +278,9 @@ export function radiancePayload(action) {
     basis_backend: values.basisBackend,
     // Checked by default for architecture/uniformity comparisons. Uncheck in
     // Proposed mode to use the native SMD curve and thermal droop model.
-    match_system_ppe: isOurSystem ? values.matchSystemPpe : false,
+    match_system_ppe: isOurSystem
+      ? (values.executionMode === "precomputed" ? true : values.matchSystemPpe)
+      : false,
     sp_ppf: conventionalFixturePpf,
     sp_z_m: values.mountHeightM,
     sp_ppe: conventionalFixturePpe,
@@ -255,19 +293,23 @@ export function radiancePayload(action) {
     plants_enabled: values.plantsEnabled,
   };
   if (values.plantsEnabled) {
+    if (values.executionMode !== "precomputed") {
+      Object.assign(payload, {
+        plant_seed: values.plantSeed,
+        plant_rows: values.plantRows,
+        plant_columns: values.plantColumns,
+        plant_spacing_m: values.plantSpacingM,
+        plant_height_m: values.plantHeightM,
+        plant_canopy_radius_m: values.plantCanopyRadiusM,
+        plant_leaf_count: values.plantLeafCount,
+        plant_growth_stage: values.plantGrowthStage,
+        fspm_receiver_granularity: values.fspmReceiverGranularity,
+        fspm_leaf_optical_profile_id: values.fspmLeafOpticalProfileId,
+        fspm_leaf_radiance_material_mode: values.fspmLeafRadianceMaterialMode,
+        fspm_spectral_transport_mode: values.fspmSpectralTransportMode,
+      });
+    }
     Object.assign(payload, {
-      plant_seed: values.plantSeed,
-      plant_rows: values.plantRows,
-      plant_columns: values.plantColumns,
-      plant_spacing_m: values.plantSpacingM,
-      plant_height_m: values.plantHeightM,
-      plant_canopy_radius_m: values.plantCanopyRadiusM,
-      plant_leaf_count: values.plantLeafCount,
-      plant_growth_stage: values.plantGrowthStage,
-      fspm_receiver_granularity: values.fspmReceiverGranularity,
-      fspm_leaf_optical_profile_id: values.fspmLeafOpticalProfileId,
-      fspm_leaf_radiance_material_mode: values.fspmLeafRadianceMaterialMode,
-      fspm_spectral_transport_mode: values.fspmSpectralTransportMode,
       fspm_target_ppfd_umol_m2_s: values.fspmTargetPpfdUmolM2S,
       fspm_target_tolerance_umol_m2_s: values.fspmTargetToleranceUmolM2S,
     });
@@ -462,7 +504,9 @@ export function parseElectricalPayload() {
     width_ft: payload.width,
     target_ppfd: payload.target,
     peak_capping_enabled: payload.peakCappingEnabled,
-    match_system_ppe: payload.mode === "SMD" ? payload.matchSystemPpe : false,
+    match_system_ppe: payload.mode === "SMD"
+      ? (payload.executionMode === "precomputed" ? true : payload.matchSystemPpe)
+      : false,
     basis_backend: payload.basisBackend,
     competitor_layout: payload.competitorLayout,
     hps_coverage_ft: payload.hpsCoverage,

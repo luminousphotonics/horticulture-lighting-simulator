@@ -51,6 +51,7 @@ from rad_rebuild.radiance.backend.runner import (
 from rad_rebuild.radiance.backend.runtime import (
     assert_live_execution_allowed,
     maybe_cleanup_runtime_state,
+    precomputed_bundle_diagnostics,
     request_bool_query_param,
     pipeline_command,
     pipeline_shell,
@@ -99,7 +100,7 @@ def _run_job_timeout_s(req: RadianceRunRequest, *, use_precomputed: bool) -> flo
 def _precomputed_bundle_detail(req: RadianceRunRequest, *, reason: str = "missing") -> dict[str, object]:
     ref = bundle_ref(ROOT, req.mode, req.length_ft, req.width_ft, req=req)
     slug = ref.slug if ref is not None else f"{req.length_ft:g}x{req.width_ft:g}"
-    return {
+    detail: dict[str, object] = {
         "error": "precomputed_bundle_missing" if reason == "missing" else "precomputed_dimension_unsupported",
         "title": "Precomputed bundle not installed" if reason == "missing" else "Room size outside public dataset range",
         "message": (
@@ -122,6 +123,9 @@ def _precomputed_bundle_detail(req: RadianceRunRequest, *, reason: str = "missin
             "width_ft": PUBLIC_DEFAULT_WIDTH_FT,
         },
     }
+    if reason == "missing":
+        detail["diagnostics"] = precomputed_bundle_diagnostics(req)
+    return detail
 
 
 def _validate_public_precomputed_dimensions(req: RadianceRunRequest) -> None:

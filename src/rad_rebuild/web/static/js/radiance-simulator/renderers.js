@@ -594,6 +594,25 @@ function formatPlantPhotonAbsorption(metrics, used) {
   if (targetPpfd && targetTolerance) {
     lines.push(`target_ppfd: ${targetPpfd} umol/m2/s +/- ${targetTolerance}`);
   }
+  const targetLowerValue =
+    scaffold.target_lower_threshold_umol_m2_s ??
+    (Number.isFinite(Number(scaffold.target_ppfd_umol_m2_s)) &&
+    Number.isFinite(Number(scaffold.target_tolerance_umol_m2_s))
+      ? Number(scaffold.target_ppfd_umol_m2_s) -
+        Number(scaffold.target_tolerance_umol_m2_s)
+      : undefined);
+  const targetUpperValue =
+    scaffold.target_upper_threshold_umol_m2_s ??
+    (Number.isFinite(Number(scaffold.target_ppfd_umol_m2_s)) &&
+    Number.isFinite(Number(scaffold.target_tolerance_umol_m2_s))
+      ? Number(scaffold.target_ppfd_umol_m2_s) +
+        Number(scaffold.target_tolerance_umol_m2_s)
+      : undefined);
+  const targetLower = formatNumber(targetLowerValue, 0);
+  const targetUpper = formatNumber(targetUpperValue, 0);
+  if (targetLower && targetUpper) {
+    lines.push(`target_range: ${targetLower}-${targetUpper} umol/m2/s`);
+  }
   const targetBasis =
     scaffold.target_classification_basis_label ||
     scaffold.target_classification_basis ||
@@ -667,6 +686,7 @@ function formatPlantPhotonAbsorption(metrics, used) {
       1,
     );
     const incident = formatNumber(scaffold.total_incident_photon_flux_umol_s, 3);
+    lines.push("classification_counts: leaf aggregates");
     lines.push(`target_range_leaves: ${Number(scaffold.target_range_leaf_count ?? scaffold.target_range_leaves ?? 0)}`);
     lines.push(`under_lit_leaves: ${Number(scaffold.under_lit_leaf_count ?? scaffold.under_lit_leaves ?? 0)}`);
     lines.push(`over_lit_leaves: ${Number(scaffold.over_lit_leaf_count ?? scaffold.over_lit_leaves ?? 0)}`);

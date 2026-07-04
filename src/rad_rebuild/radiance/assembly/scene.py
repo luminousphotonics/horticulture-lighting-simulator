@@ -607,6 +607,7 @@ def _optional_plant_surface_flux_payload(workspace_root: Path) -> dict[str, Any]
         "target_lower_threshold_umol_m2_s",
         "target_upper_threshold_umol_m2_s",
         "target_capping_enabled",
+        "runtime_source",
     )
     compact = {
         "schema": payload.get("schema"),

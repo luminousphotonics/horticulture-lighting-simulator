@@ -716,6 +716,150 @@ def test_smd_simulation_includes_plants_only_when_gate_enabled(
     assert not (runtime / "plants_fspm_receiver_material.rad").exists()
 
 
+def test_smd_scalar_precompute_skips_spectral_biology_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    env = _base_env(tmp_path)
+    env.update(
+        {
+            "FSPM_PLANTS_ENABLED": "1",
+            "FSPM_PRECOMPUTED_SCALAR_ONLY": "1",
+            "FSPM_SPECTRAL_TRANSPORT_MODE": "scalar_source_weighted",
+            "FSPM_PLANT_SEED": "99",
+            "FSPM_PLANT_ROWS": "1",
+            "FSPM_PLANT_COLUMNS": "1",
+            "MODE": "standard",
+            "NTHREADS": "1",
+        }
+    )
+
+    def fail_spectral_writer(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError(
+            "scalar precompute must not write spectral/biology artifacts"
+        )
+
+    def fake_python_module(
+        config: scripts.RuntimeConfig,
+        module: str,
+        args: Sequence[str] = (),
+        extra_env: Mapping[str, str] | None = None,
+    ) -> int:
+        assert module == "rad_rebuild.radiance.engine.emitters.generate_emitters_smd"
+        assert args == ()
+        assert extra_env is not None
+        (config.runtime_state_root / "emitters_smd_ALL_umol.rad").write_text(
+            "# emitters\n", encoding="utf-8"
+        )
+        return int(scripts.RadianceScriptExit.OK)
+
+    def fake_prepare_static_scene(
+        _config: scripts.RuntimeConfig,
+        *,
+        room: Path,
+        sensors: Path,
+        reuse: bool,
+    ) -> int:
+        assert reuse is False
+        room.write_text("# room\n", encoding="utf-8")
+        sensors.write_text("0 0 0\n", encoding="utf-8")
+        return int(scripts.RadianceScriptExit.OK)
+
+    def fake_build_octree(
+        _config: scripts.RuntimeConfig,
+        argv: Sequence[str],
+        out_path: Path,
+    ) -> int:
+        if out_path.name == "smd_scene.oct":
+            assert all("plants_fspm_receiver" not in part for part in argv)
+        if out_path.name == "smd_fspm_receiver.oct":
+            assert any("plants_fspm_receiver" in part for part in argv)
+        out_path.write_text("octree\n", encoding="utf-8")
+        return int(scripts.RadianceScriptExit.OK)
+
+    def fake_trace_ppfd(
+        _config: scripts.RuntimeConfig,
+        *,
+        octree: Path,
+        dirs: Path,
+        snake_os: Path,
+        out_map: Path,
+        oversample: int,
+        nthreads: int,
+        options: Sequence[str],
+        tag: str,
+    ) -> int:
+        del octree, dirs, snake_os, oversample, nthreads, options, tag
+        _write_ppfd(out_map)
+        return int(scripts.RadianceScriptExit.OK)
+
+    def fake_trace_plant_receivers(
+        _config: scripts.RuntimeConfig,
+        *,
+        receiver_input_path: Path,
+        receiver_rgb_path: Path,
+        octree: Path,
+        options: Sequence[str],
+        nthreads: int,
+    ) -> int:
+        assert octree.name == "smd_fspm_receiver.oct"
+        assert options
+        assert nthreads == 1
+        sample_count = len(receiver_input_path.read_text(encoding="utf-8").splitlines())
+        receiver_rgb_path.write_text(
+            "".join("1 1 1\n" for _ in range(sample_count)),
+            encoding="utf-8",
+        )
+        return int(scripts.RadianceScriptExit.OK)
+
+    def fake_symmetrize(
+        _config: scripts.RuntimeConfig,
+        *,
+        in_map: Path,
+        out_map: Path,
+        enabled: bool,
+        axes_only: bool,
+    ) -> int:
+        assert in_map == out_map
+        assert enabled is True
+        assert axes_only is False
+        return int(scripts.RadianceScriptExit.OK)
+
+    monkeypatch.setattr(scripts, "_run_python_module", fake_python_module)
+    monkeypatch.setattr(scripts, "_prepare_static_scene", fake_prepare_static_scene)
+    monkeypatch.setattr(scripts, "_build_octree", fake_build_octree)
+    monkeypatch.setattr(scripts, "_trace_ppfd", fake_trace_ppfd)
+    monkeypatch.setattr(
+        scripts, "_trace_plant_surface_receivers", fake_trace_plant_receivers
+    )
+    monkeypatch.setattr(scripts, "_symmetrize_if_requested", fake_symmetrize)
+    monkeypatch.setattr(
+        scripts, "_write_optional_spectral_absorption_artifact", fail_spectral_writer
+    )
+    monkeypatch.setattr(
+        scripts, "write_plant_spectral_response_artifact", fail_spectral_writer
+    )
+    monkeypatch.setattr(
+        scripts, "write_plant_photosynthesis_response_artifact", fail_spectral_writer
+    )
+    monkeypatch.setattr(
+        scripts, "write_plant_photoreceptor_exposure_artifact", fail_spectral_writer
+    )
+    monkeypatch.setattr(
+        scripts,
+        "write_plant_photomorphogenesis_response_artifact",
+        fail_spectral_writer,
+    )
+
+    assert scripts.run_simulation_smd(env) == int(scripts.RadianceScriptExit.OK)
+
+    runtime = tmp_path / "runtime_state"
+    assert (runtime / "plant_surface_flux.json").is_file()
+    assert (runtime / "plant_receiver.json").is_file()
+    for name in scripts.PLANT_SPECTRAL_BIOLOGY_ARTIFACT_NAMES:
+        assert not (runtime / name).exists()
+
+
 def test_fspm_rtrace_controls_default_preserves_existing_receiver_args(
     tmp_path: Path,
 ) -> None:
@@ -1072,7 +1216,7 @@ def test_static_room_octree_keeps_baseline_and_fspm_receiver_inputs_separate(
         emitter_file=emitter,
         plant_rad=plant,
         static_room_oct=static_room_oct,
-    ) == ["-f", "-i", str(static_room_oct), str(emitter), str(plant)]
+    ) == ["-f", str(room), str(emitter), str(plant)]
 
 
 def test_rex_source_weighted_leaf_material_is_receiver_scene_only(

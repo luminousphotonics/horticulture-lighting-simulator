@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import math
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -12,9 +14,25 @@ from rad_rebuild.radiance.config import (
 )
 from rad_rebuild.radiance.paths import RADIANCE_DATA_ROOT
 from rad_rebuild.radiance.domain import (
+    RadianceRunRequest,
     canonicalize_competitor_layout as _domain_competitor_layout,
+    canonicalize_system_mode,
+    plant_geometry_config_from_request,
+    request_with_updates,
 )
-from rad_rebuild.radiance.domain import canonicalize_system_mode
+from rad_rebuild.radiance.engine.plants.leaf_materials import (
+    DEFAULT_FSPM_LEAF_RADIANCE_MATERIAL_MODE,
+    SPECTRAL_TRANSPORT_MODE_SCALAR_SOURCE_WEIGHTED,
+    normalize_fspm_spectral_transport_mode,
+    normalize_leaf_radiance_material_mode,
+)
+from rad_rebuild.radiance.engine.plants.optical_profiles import (
+    REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
+)
+from rad_rebuild.radiance.engine.plants.surface_flux import (
+    RECEIVER_GRANULARITY_LEAF_QUADRATURE_4,
+    normalize_receiver_granularity,
+)
 from rad_rebuild.radiance.settings import load_settings
 from rad_rebuild.radiance.engine.emitters.hps_generation.profile import (
     DEFAULT_IES_VARIANT as DEFAULT_HPS_IES_VARIANT,
@@ -49,6 +67,24 @@ SMD_LAYOUT_FAMILY = "horticultural_tiled_v1"
 SMD_MODULE_PROFILE = MODULE_PROFILE_VERSION
 DEFAULT_SENSOR_GRID_PROFILE = "adaptive_centered_v1"
 DEFAULT_SENSOR_GRID_SPACING_M = 0.25
+FEET_TO_METERS = 0.3048
+PRECOMPUTED_PLANT_SPACING_M = 0.40
+PRECOMPUTED_FSPM_RECEIVER_GRANULARITY = RECEIVER_GRANULARITY_LEAF_QUADRATURE_4
+PRECOMPUTED_FSPM_SPECTRAL_TRANSPORT_MODE = normalize_fspm_spectral_transport_mode(
+    SPECTRAL_TRANSPORT_MODE_SCALAR_SOURCE_WEIGHTED
+)
+PRECOMPUTED_PLANT_RECEIVER_SCHEMA = "rad_rebuild.precomputed.plant_receiver.v1"
+PRECOMPUTED_PLANT_RECEIVER_SCHEMA_VERSION = 1
+PRECOMPUTED_PLANT_RECEIVER_JSON_ARTIFACT_KEY = "plant_receiver_json"
+PRECOMPUTED_PLANT_RECEIVER_BASIS_NPY_ARTIFACT_KEY = "plant_receiver_basis_A_npy"
+PRECOMPUTED_PLANT_RECEIVER_JSON_GZ_ARTIFACT_KEY = "plant_receiver_json_gz"
+PRECOMPUTED_PLANT_RECEIVER_BASIS_NPZ_ARTIFACT_KEY = "plant_receiver_basis_A_npz"
+PRECOMPUTED_PLANT_RECEIVER_NPZ_ARTIFACT_KEY = "plant_receiver_npz"
+PRECOMPUTED_PLANT_RECEIVER_JSON_FILENAME = "plant_receiver.json"
+PRECOMPUTED_PLANT_RECEIVER_BASIS_NPY_FILENAME = "plant_receiver_basis_A.npy"
+PRECOMPUTED_PLANT_RECEIVER_JSON_GZ_FILENAME = "plant_receiver.json.gz"
+PRECOMPUTED_PLANT_RECEIVER_BASIS_NPZ_FILENAME = "plant_receiver_basis_A.npz"
+PRECOMPUTED_PLANT_RECEIVER_NPZ_FILENAME = "plant_receiver.npz"
 DIALUX_SENSOR_GRID_PROFILE = "dialux_15x15_edge_v1"
 COMPETITOR_FIXTURE_INPUT_W = 800.0
 COMPETITOR_FIXTURE_PPE_UMOL_PER_J = 2.8
@@ -62,6 +98,9 @@ PRECOMPUTED_MODE_ENV = "RADIANCE_PRECOMPUTED_MODE"
 PRECOMPUTED_ROOT_ENV = "RADIANCE_PRECOMPUTED_ROOT"
 DEFAULT_ROOT_NAME = "precomputed"
 JsonObject = dict[str, Any]
+_PLANT_GRID_SURFACE_ID_RE = re.compile(
+    r"^plant_r(?P<row>\d+)_c(?P<column>\d+)_leaf_(?P<leaf>\d+)_face_(?P<face>\d+)$"
+)
 
 
 def canonical_mode(mode: str) -> str:
@@ -142,6 +181,410 @@ def canonical_dims_ft(length_ft: float, width_ft: float) -> tuple[int, int] | No
     if abs(long_side - long_int) > 1e-6 or abs(short_side - short_int) > 1e-6:
         return None
     return long_int, short_int
+
+
+def precomputed_plant_density(
+    length_ft: float | int,
+    width_ft: float | int,
+    *,
+    spacing_m: float = PRECOMPUTED_PLANT_SPACING_M,
+) -> tuple[int, int]:
+    length_m = float(length_ft) * FEET_TO_METERS
+    width_m = float(width_ft) * FEET_TO_METERS
+    spacing = float(spacing_m)
+    if not math.isfinite(length_m) or length_m <= 0.0:
+        raise ValueError("length_ft must be a positive finite value.")
+    if not math.isfinite(width_m) or width_m <= 0.0:
+        raise ValueError("width_ft must be a positive finite value.")
+    if not math.isfinite(spacing) or spacing <= 0.0:
+        raise ValueError("spacing_m must be a positive finite value.")
+    return (
+        math.floor(length_m / spacing) + 1,
+        math.floor(width_m / spacing) + 1,
+    )
+
+
+def canonical_plant_enabled_precomputed_request(
+    req: RadianceRunRequest,
+) -> RadianceRunRequest:
+    canonical_dims = canonical_dims_ft(req.length_ft, req.width_ft)
+    density_length_ft, density_width_ft = (
+        canonical_dims if canonical_dims is not None else (req.length_ft, req.width_ft)
+    )
+    plant_rows, plant_columns = precomputed_plant_density(
+        density_length_ft,
+        density_width_ft,
+    )
+    return request_with_updates(
+        req,
+        plants_enabled=True,
+        plant_rows=plant_rows,
+        plant_columns=plant_columns,
+        plant_spacing_m=PRECOMPUTED_PLANT_SPACING_M,
+        sim_mode="standard",
+        match_system_ppe=(canonical_mode(req.mode) == MODE_SMD),
+        fspm_receiver_granularity=PRECOMPUTED_FSPM_RECEIVER_GRANULARITY,
+        fspm_spectral_transport_mode=PRECOMPUTED_FSPM_SPECTRAL_TRANSPORT_MODE,
+    )
+
+
+def _json_number(value: object, *, default: float = 0.0) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return float(default)
+    number = float(value)
+    return number if math.isfinite(number) else float(default)
+
+
+def _plant_receiver_row_from_surface_summary(row: Mapping[str, Any]) -> JsonObject:
+    surface_id = row.get("surface_id")
+    if not isinstance(surface_id, str) or not surface_id:
+        raise ValueError("Plant receiver surface row is missing surface_id.")
+    stored_ppfd = _json_number(
+        row.get("incident_photon_flux_density_umol_m2_s"),
+        default=-1.0,
+    )
+    if stored_ppfd < 0.0:
+        raise ValueError(
+            f"Plant receiver surface row {surface_id!r} is missing incident PPFD."
+        )
+    out: JsonObject = {
+        "surface_id": surface_id,
+        "stored_ppfd_umol_m2_s": stored_ppfd,
+    }
+    for key in ("plant_id", "leaf_id", "leaf_index", "face_index"):
+        if key in row:
+            out[key] = row[key]
+    if "area_m2" in row:
+        out["area_m2"] = _json_number(row.get("area_m2"))
+    for key in ("centroid_m", "normal"):
+        value = row.get(key)
+        if isinstance(value, list):
+            out[key] = list(value)
+    return out
+
+
+def build_precomputed_plant_receiver_payload(
+    surface_flux_payload: Mapping[str, Any],
+    *,
+    value_semantics: str,
+    basis_metadata: Mapping[str, Any] | None = None,
+) -> JsonObject:
+    raw_rows = surface_flux_payload.get("surface_summaries")
+    if not isinstance(raw_rows, list) or not raw_rows:
+        raise ValueError(
+            "Plant surface-flux payload must include surface_summaries for "
+            "precomputed receiver emission."
+        )
+    receiver_rows = [
+        _plant_receiver_row_from_surface_summary(row)
+        for row in raw_rows
+        if isinstance(row, Mapping)
+    ]
+    if len(receiver_rows) != len(raw_rows):
+        raise ValueError("Plant receiver surface_summaries must be objects.")
+    payload: JsonObject = {
+        "schema": PRECOMPUTED_PLANT_RECEIVER_SCHEMA,
+        "schema_version": PRECOMPUTED_PLANT_RECEIVER_SCHEMA_VERSION,
+        "value_semantics": str(value_semantics),
+        "receiver_granularity": surface_flux_payload.get("receiver_granularity"),
+        "receiver_generation_basis": surface_flux_payload.get(
+            "receiver_generation_basis"
+        ),
+        "receiver_area_basis": surface_flux_payload.get("receiver_area_basis"),
+        "receiver_side_policy": surface_flux_payload.get("receiver_side_policy"),
+        "normal_generation_basis": surface_flux_payload.get("normal_generation_basis"),
+        "receiver_granularity_role": surface_flux_payload.get(
+            "receiver_granularity_role"
+        ),
+        "leaf_material_profile_id": surface_flux_payload.get(
+            "leaf_material_profile_id"
+        ),
+        "leaf_radiance_material_mode": surface_flux_payload.get(
+            "leaf_radiance_material_mode"
+        ),
+        "fspm_spectral_transport_mode": surface_flux_payload.get(
+            "fspm_spectral_transport_mode"
+        ),
+        "plant_count": surface_flux_payload.get("plant_count"),
+        "leaf_count": surface_flux_payload.get("leaf_count"),
+        "surface_count": surface_flux_payload.get("surface_count"),
+        "surface_receivers": receiver_rows,
+    }
+    if basis_metadata:
+        payload["basis_metadata"] = dict(basis_metadata)
+    return payload
+
+
+def write_precomputed_plant_receiver_payload(
+    path: str | Path,
+    payload: Mapping[str, Any],
+) -> Path:
+    out = Path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(dict(payload), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return out
+
+
+def _metadata_without_receiver_rows(payload: Mapping[str, Any]) -> JsonObject:
+    return {
+        str(key): value
+        for key, value in payload.items()
+        if key != "surface_receivers"
+    }
+
+
+def _plant_grid_indices_from_surface_id(
+    surface_id: str,
+) -> tuple[int, int, int, int] | None:
+    match = _PLANT_GRID_SURFACE_ID_RE.fullmatch(surface_id)
+    if match is None:
+        return None
+    return (
+        int(match.group("row")),
+        int(match.group("column")),
+        int(match.group("leaf")),
+        int(match.group("face")),
+    )
+
+
+def _plant_receiver_npz_grid_columns(
+    rows: list[Mapping[str, Any]],
+) -> dict[str, Any] | None:
+    import numpy as np
+
+    plant_rows: list[int] = []
+    plant_columns: list[int] = []
+    leaf_indices: list[int] = []
+    face_indices: list[int] = []
+    stored_values: list[float] = []
+    for row in rows:
+        parsed = _plant_grid_indices_from_surface_id(str(row["surface_id"]))
+        if parsed is None:
+            return None
+        plant_row, plant_column, leaf_index, face_index = parsed
+        plant_rows.append(plant_row)
+        plant_columns.append(plant_column)
+        leaf_indices.append(leaf_index)
+        face_indices.append(face_index)
+        stored_values.append(_json_number(row.get("stored_ppfd_umol_m2_s")))
+    return {
+        "plant_row": np.asarray(plant_rows, dtype=np.uint16),
+        "plant_column": np.asarray(plant_columns, dtype=np.uint16),
+        "leaf_index": np.asarray(leaf_indices, dtype=np.uint16),
+        "face_index": np.asarray(face_indices, dtype=np.uint16),
+        "stored_ppfd_umol_m2_s": np.asarray(stored_values, dtype=np.float64),
+    }
+
+
+def _plant_receiver_npz_string_columns(
+    rows: list[Mapping[str, Any]],
+) -> dict[str, Any]:
+    import numpy as np
+
+    return {
+        "surface_id": np.asarray([str(row["surface_id"]) for row in rows]),
+        "plant_id": np.asarray([str(row.get("plant_id", "")) for row in rows]),
+        "leaf_id": np.asarray([str(row.get("leaf_id", "")) for row in rows]),
+        "leaf_index": np.asarray(
+            [int(row.get("leaf_index", -1) or -1) for row in rows],
+            dtype=np.int32,
+        ),
+        "face_index": np.asarray(
+            [int(row.get("face_index", -1) or -1) for row in rows],
+            dtype=np.int32,
+        ),
+        "stored_ppfd_umol_m2_s": np.asarray(
+            [_json_number(row.get("stored_ppfd_umol_m2_s")) for row in rows],
+            dtype=np.float64,
+        ),
+    }
+
+
+def write_precomputed_plant_receiver_npz(
+    path: str | Path,
+    payload: Mapping[str, Any],
+) -> Path:
+    import numpy as np
+
+    rows = _plant_receiver_payload_rows(payload)
+    metadata = _metadata_without_receiver_rows(payload)
+    columns = _plant_receiver_npz_grid_columns(rows)
+    if columns is None:
+        metadata["surface_receiver_encoding"] = "surface_id_strings_v1"
+        columns = _plant_receiver_npz_string_columns(rows)
+    else:
+        metadata["surface_receiver_encoding"] = "plant_grid_indices_v1"
+    columns["metadata_json"] = np.frombuffer(
+        json.dumps(metadata, sort_keys=True, separators=(",", ":")).encode("utf-8"),
+        dtype=np.uint8,
+    )
+    out = Path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(out, **columns)
+    return out
+
+
+def _npz_metadata_json(archive: Any, path: Path) -> JsonObject:
+    if "metadata_json" not in archive:
+        raise ValueError(f"Plant receiver NPZ {path} is missing metadata_json.")
+    raw = archive["metadata_json"]
+    metadata = json.loads(bytes(raw.tolist()).decode("utf-8"))
+    if not isinstance(metadata, dict):
+        raise ValueError(f"Plant receiver NPZ {path} metadata_json must be an object.")
+    return metadata
+
+
+def _npz_array_length(archive: Any, key: str, path: Path) -> int:
+    if key not in archive:
+        raise ValueError(f"Plant receiver NPZ {path} is missing {key}.")
+    return int(len(archive[key]))
+
+
+def _plant_receiver_rows_from_grid_npz(archive: Any, path: Path) -> list[JsonObject]:
+    import numpy as np
+
+    count = _npz_array_length(archive, "stored_ppfd_umol_m2_s", path)
+    for key in ("plant_row", "plant_column", "leaf_index", "face_index"):
+        if _npz_array_length(archive, key, path) != count:
+            raise ValueError(f"Plant receiver NPZ {path} column {key} length mismatch.")
+    stored = np.asarray(archive["stored_ppfd_umol_m2_s"], dtype=np.float64)
+    rows: list[JsonObject] = []
+    for index in range(count):
+        plant_row = int(archive["plant_row"][index])
+        plant_column = int(archive["plant_column"][index])
+        leaf_index = int(archive["leaf_index"][index])
+        face_index = int(archive["face_index"][index])
+        plant_id = f"plant_r{plant_row:03d}_c{plant_column:03d}"
+        leaf_id = f"{plant_id}_leaf_{leaf_index:03d}"
+        rows.append(
+            {
+                "surface_id": f"{leaf_id}_face_{face_index:04d}",
+                "plant_id": plant_id,
+                "leaf_id": leaf_id,
+                "leaf_index": leaf_index,
+                "face_index": face_index,
+                "stored_ppfd_umol_m2_s": float(stored[index]),
+            }
+        )
+    return rows
+
+
+def _plant_receiver_rows_from_string_npz(archive: Any, path: Path) -> list[JsonObject]:
+    import numpy as np
+
+    count = _npz_array_length(archive, "stored_ppfd_umol_m2_s", path)
+    surface_ids = archive["surface_id"] if "surface_id" in archive else None
+    if surface_ids is None or len(surface_ids) != count:
+        raise ValueError(f"Plant receiver NPZ {path} surface_id length mismatch.")
+    stored = np.asarray(archive["stored_ppfd_umol_m2_s"], dtype=np.float64)
+    rows: list[JsonObject] = []
+    for index in range(count):
+        row: JsonObject = {
+            "surface_id": str(surface_ids[index]),
+            "stored_ppfd_umol_m2_s": float(stored[index]),
+        }
+        for key in ("plant_id", "leaf_id"):
+            if key in archive:
+                value = str(archive[key][index])
+                if value:
+                    row[key] = value
+        for key in ("leaf_index", "face_index"):
+            if key in archive:
+                row[key] = int(archive[key][index])
+        rows.append(row)
+    return rows
+
+
+def load_precomputed_plant_receiver_npz(path: str | Path) -> JsonObject:
+    import numpy as np
+
+    npz_path = Path(path)
+    with np.load(npz_path, allow_pickle=False) as archive:
+        metadata = _npz_metadata_json(archive, npz_path)
+        encoding = str(metadata.get("surface_receiver_encoding") or "")
+        if encoding == "plant_grid_indices_v1":
+            rows = _plant_receiver_rows_from_grid_npz(archive, npz_path)
+        elif encoding == "surface_id_strings_v1":
+            rows = _plant_receiver_rows_from_string_npz(archive, npz_path)
+        else:
+            raise ValueError(
+                f"Unsupported plant receiver NPZ surface_receiver_encoding "
+                f"{encoding!r} in {npz_path}."
+            )
+    metadata.pop("surface_receiver_encoding", None)
+    metadata["surface_receivers"] = rows
+    return metadata
+
+
+def _plant_receiver_payload_rows(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    rows = payload.get("surface_receivers")
+    if not isinstance(rows, list) or not rows:
+        raise ValueError("Plant receiver payload must include surface_receivers.")
+    out: list[Mapping[str, Any]] = []
+    for index, row in enumerate(rows):
+        if not isinstance(row, Mapping):
+            raise ValueError(f"Plant receiver row {index} must be an object.")
+        surface_id = row.get("surface_id")
+        if not isinstance(surface_id, str) or not surface_id:
+            raise ValueError(f"Plant receiver row {index} is missing surface_id.")
+        out.append(row)
+    return out
+
+
+def build_smd_precomputed_plant_receiver_basis_payload(
+    column_payloads: list[Mapping[str, Any]],
+    *,
+    basis_metadata: Mapping[str, Any] | None = None,
+) -> tuple[JsonObject, Any]:
+    if not column_payloads:
+        raise ValueError("At least one plant receiver basis column is required.")
+    first_rows = _plant_receiver_payload_rows(column_payloads[0])
+    surface_order = [str(row["surface_id"]) for row in first_rows]
+    columns: list[list[float]] = []
+    for column_index, payload in enumerate(column_payloads):
+        rows = _plant_receiver_payload_rows(payload)
+        column_order = [str(row["surface_id"]) for row in rows]
+        if column_order != surface_order:
+            raise ValueError(
+                "Plant receiver basis column surface order mismatch at "
+                f"column {column_index}."
+            )
+        columns.append(
+            [
+                _json_number(row.get("stored_ppfd_umol_m2_s"), default=-1.0)
+                for row in rows
+            ]
+        )
+        if any(value < 0.0 for value in columns[-1]):
+            raise ValueError(
+                f"Plant receiver basis column {column_index} has invalid PPFD values."
+            )
+
+    import numpy as np
+
+    matrix = np.asarray(columns, dtype=np.float64).T
+    receiver_rows: list[JsonObject] = []
+    for row in first_rows:
+        receiver = dict(row)
+        receiver["stored_ppfd_umol_m2_s"] = 0.0
+        receiver_rows.append(receiver)
+    payload = dict(column_payloads[0])
+    payload.update(
+        {
+            "schema": PRECOMPUTED_PLANT_RECEIVER_SCHEMA,
+            "schema_version": PRECOMPUTED_PLANT_RECEIVER_SCHEMA_VERSION,
+            "value_semantics": "smd_receiver_basis",
+            "surface_receivers": receiver_rows,
+            "basis_metadata": {
+                "plant_receiver_basis_shape": [
+                    int(matrix.shape[0]),
+                    int(matrix.shape[1]),
+                ],
+                **dict(basis_metadata or {}),
+            },
+        }
+    )
+    return payload, matrix
 
 
 def bundle_slug(length_ft: int, width_ft: int) -> str:
@@ -272,6 +715,56 @@ def params_match(manifest: dict[str, Any], expected: dict[str, Any]) -> bool:
     return True
 
 
+def _round_optional_float(value: Any) -> float:
+    return round(float(value), 6)
+
+
+def _plant_request_params(req: Any) -> JsonObject:
+    if not bool(getattr(req, "plants_enabled", False)):
+        return {}
+    geometry = plant_geometry_config_from_request(req)
+    return {
+        "plants_enabled": True,
+        "plant_seed": int(geometry.seed),
+        "plant_rows": int(geometry.plant_grid_rows),
+        "plant_columns": int(geometry.plant_grid_columns),
+        "plant_spacing_m": _round_optional_float(geometry.plant_spacing_m),
+        "plant_height_m": _round_optional_float(geometry.plant_height_m),
+        "plant_canopy_radius_m": _round_optional_float(geometry.canopy_radius_m),
+        "plant_leaf_count": int(geometry.leaf_count_per_plant),
+        "plant_growth_stage": _round_optional_float(geometry.growth_stage),
+        "fspm_receiver_granularity": normalize_receiver_granularity(
+            getattr(
+                req,
+                "fspm_receiver_granularity",
+                PRECOMPUTED_FSPM_RECEIVER_GRANULARITY,
+            )
+        ),
+        "fspm_spectral_transport_mode": normalize_fspm_spectral_transport_mode(
+            getattr(
+                req,
+                "fspm_spectral_transport_mode",
+                PRECOMPUTED_FSPM_SPECTRAL_TRANSPORT_MODE,
+            )
+        ),
+        "fspm_leaf_optical_profile_id": str(
+            getattr(
+                req,
+                "fspm_leaf_optical_profile_id",
+                REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
+            )
+            or REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1
+        ),
+        "fspm_leaf_radiance_material_mode": normalize_leaf_radiance_material_mode(
+            getattr(
+                req,
+                "fspm_leaf_radiance_material_mode",
+                DEFAULT_FSPM_LEAF_RADIANCE_MATERIAL_MODE,
+            )
+        ),
+    }
+
+
 def request_params_for_mode(
     req: Any, env: Mapping[str, Any] | None = None
 ) -> JsonObject:
@@ -286,6 +779,7 @@ def request_params_for_mode(
     else:
         base["sensor_grid_profile"] = DEFAULT_SENSOR_GRID_PROFILE
         base["sensor_grid_spacing_m"] = round(DEFAULT_SENSOR_GRID_SPACING_M, 6)
+    base.update(_plant_request_params(req))
     if mode == MODE_COMPETITOR:
         layout = canonical_competitor_layout(getattr(req, "competitor_layout", "full"))
         base.update(

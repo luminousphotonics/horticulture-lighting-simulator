@@ -24,7 +24,7 @@ from rad_rebuild.radiance.engine.simulation import precomputed_playback  # noqa:
 from rad_rebuild.radiance.engine.simulation import precompute_sweep  # noqa: E402
 from rad_rebuild.radiance.backend import env as backend_env  # noqa: E402
 from rad_rebuild.radiance.backend import runtime as backend_runtime  # noqa: E402
-from rad_rebuild.radiance.backend.models import RadianceRunRequest  # noqa: E402
+from rad_rebuild.radiance.backend.models import RadianceRunRequest, request_with_updates  # noqa: E402
 from rad_rebuild.radiance.config import MODE_COMPETITOR, MODE_HPS, MODE_SMD  # noqa: E402
 from rad_rebuild.radiance.paths import RADIANCE_DATA_ROOT  # noqa: E402
 from rad_rebuild.radiance.engine.emitters.hps_generation.profile import (  # noqa: E402
@@ -34,14 +34,19 @@ from rad_rebuild.radiance.engine.emitters.hps_generation.profile import (  # noq
     NOMINAL_INPUT_WATTS as DEFAULT_HPS_INPUT_WATTS,
 )
 from rad_rebuild.radiance.engine.simulation.precomputed_dataset import (  # noqa: E402
+    PRECOMPUTED_FSPM_RECEIVER_GRANULARITY,
+    PRECOMPUTED_FSPM_SPECTRAL_TRANSPORT_MODE,
+    PRECOMPUTED_PLANT_SPACING_M,
     SCHEMA_VERSION,
     bundle_complete,
     bundle_ref,
+    canonical_plant_enabled_precomputed_request,
     canonical_competitor_layout,
     default_precomputed_root,
     load_manifest,
     PRECOMPUTED_ROOT_ENV,
     params_match,
+    precomputed_plant_density,
     request_params_for_mode,
     resolve_precomputed_root,
 )
@@ -80,6 +85,174 @@ class PrecomputedBoundaryTests(unittest.TestCase):
                 env = backend_env._base_env()
 
             self.assertEqual(env[PRECOMPUTED_ROOT_ENV], tmp)
+
+    def test_precomputed_plant_density_uses_40cm_grid(self) -> None:
+        self.assertEqual(precomputed_plant_density(10, 10), (8, 8))
+        self.assertEqual(precomputed_plant_density(30, 30), (23, 23))
+
+    def test_canonical_plant_enabled_precomputed_request_contract(self) -> None:
+        req = RadianceRunRequest(
+            action="uniformity",
+            mode=MODE_SMD,
+            length_ft=10.0,
+            width_ft=10.0,
+            target_ppfd=750.0,
+            fspm_target_ppfd_umol_m2_s=275.0,
+            fspm_target_tolerance_umol_m2_s=25.0,
+        )
+
+        plant_req = canonical_plant_enabled_precomputed_request(req)
+
+        self.assertTrue(plant_req.plants_enabled)
+        self.assertEqual(plant_req.plant_rows, 8)
+        self.assertEqual(plant_req.plant_columns, 8)
+        self.assertEqual(plant_req.plant_spacing_m, PRECOMPUTED_PLANT_SPACING_M)
+        self.assertEqual(plant_req.sim_mode, "standard")
+        self.assertTrue(plant_req.match_system_ppe)
+        self.assertEqual(
+            plant_req.fspm_receiver_granularity,
+            PRECOMPUTED_FSPM_RECEIVER_GRANULARITY,
+        )
+        self.assertEqual(
+            plant_req.fspm_spectral_transport_mode,
+            PRECOMPUTED_FSPM_SPECTRAL_TRANSPORT_MODE,
+        )
+        self.assertEqual(plant_req.plant_seed, req.plant_seed)
+        self.assertEqual(plant_req.plant_height_m, req.plant_height_m)
+        self.assertEqual(plant_req.plant_canopy_radius_m, req.plant_canopy_radius_m)
+        self.assertEqual(plant_req.plant_leaf_count, req.plant_leaf_count)
+        self.assertEqual(plant_req.plant_growth_stage, req.plant_growth_stage)
+
+    def test_canonical_plant_request_uses_unique_rectangle_orientation(self) -> None:
+        req = RadianceRunRequest(
+            action="uniformity",
+            mode=MODE_SMD,
+            length_ft=10.0,
+            width_ft=11.0,
+        )
+
+        plant_req = canonical_plant_enabled_precomputed_request(req)
+
+        self.assertEqual((plant_req.length_ft, plant_req.width_ft), (10.0, 11.0))
+        self.assertEqual(plant_req.plant_rows, 9)
+        self.assertEqual(plant_req.plant_columns, 8)
+        self.assertEqual(
+            request_params_for_mode(plant_req)["plant_rows"],
+            9,
+        )
+        self.assertEqual(
+            request_params_for_mode(plant_req)["plant_columns"],
+            8,
+        )
+
+    def test_request_params_include_plant_identity_fields_when_enabled(self) -> None:
+        req = canonical_plant_enabled_precomputed_request(
+            RadianceRunRequest(
+                action="uniformity",
+                mode=MODE_SMD,
+                length_ft=10.0,
+                width_ft=10.0,
+                target_ppfd=800.0,
+                fspm_target_ppfd_umol_m2_s=250.0,
+                fspm_target_tolerance_umol_m2_s=15.0,
+            )
+        )
+
+        params = request_params_for_mode(req)
+
+        self.assertEqual(params["plants_enabled"], True)
+        self.assertEqual(params["plant_seed"], 1)
+        self.assertEqual(params["plant_rows"], 8)
+        self.assertEqual(params["plant_columns"], 8)
+        self.assertEqual(params["plant_spacing_m"], 0.4)
+        self.assertEqual(params["plant_height_m"], 0.16)
+        self.assertEqual(params["plant_canopy_radius_m"], 0.18)
+        self.assertEqual(params["plant_leaf_count"], 12)
+        self.assertEqual(params["plant_growth_stage"], 1.0)
+        self.assertEqual(params["match_system_ppe"], True)
+        self.assertEqual(params["smd_model"], "legacy")
+        self.assertEqual(params["fspm_receiver_granularity"], "leaf_quadrature_4")
+        self.assertEqual(
+            params["fspm_spectral_transport_mode"],
+            "scalar_source_weighted",
+        )
+        self.assertEqual(
+            params["fspm_leaf_radiance_material_mode"],
+            "rex_source_weighted_trans",
+        )
+        self.assertNotIn("target_ppfd", params)
+        self.assertNotIn("fspm_target_ppfd_umol_m2_s", params)
+        self.assertNotIn("fspm_target_tolerance_umol_m2_s", params)
+
+    def test_bundle_identity_excludes_runtime_targets_for_plant_contract(self) -> None:
+        base = canonical_plant_enabled_precomputed_request(
+            RadianceRunRequest(
+                action="uniformity",
+                mode=MODE_SMD,
+                length_ft=10.0,
+                width_ft=10.0,
+                target_ppfd=700.0,
+                fspm_target_ppfd_umol_m2_s=240.0,
+                fspm_target_tolerance_umol_m2_s=10.0,
+            )
+        )
+        changed_targets = canonical_plant_enabled_precomputed_request(
+            RadianceRunRequest(
+                action="uniformity",
+                mode=MODE_SMD,
+                length_ft=10.0,
+                width_ft=10.0,
+                target_ppfd=1200.0,
+                fspm_target_ppfd_umol_m2_s=320.0,
+                fspm_target_tolerance_umol_m2_s=35.0,
+            )
+        )
+        changed_geometry = canonical_plant_enabled_precomputed_request(
+            RadianceRunRequest(
+                action="uniformity",
+                mode=MODE_SMD,
+                length_ft=10.0,
+                width_ft=10.0,
+                plant_seed=2,
+            )
+        )
+        manifest = {"request_params": request_params_for_mode(base)}
+
+        self.assertTrue(params_match(manifest, request_params_for_mode(changed_targets)))
+        self.assertFalse(params_match(manifest, request_params_for_mode(changed_geometry)))
+
+    def test_proposed_precomputed_contract_forces_matched_ppe_smd_identity(
+        self,
+    ) -> None:
+        req = RadianceRunRequest(
+            action="all",
+            mode=MODE_SMD,
+            execution_mode="precomputed",
+            length_ft=10.0,
+            width_ft=10.0,
+            target_ppfd=750.0,
+            match_system_ppe=True,
+            plants_enabled=True,
+            fspm_target_ppfd_umol_m2_s=275.0,
+            fspm_target_tolerance_umol_m2_s=20.0,
+        )
+
+        params = request_params_for_mode(
+            canonical_plant_enabled_precomputed_request(req)
+        )
+
+        self.assertEqual(params["match_system_ppe"], True)
+        self.assertEqual(params["smd_model"], "legacy")
+        self.assertEqual(params["plants_enabled"], True)
+        self.assertEqual(params["plant_rows"], 8)
+        self.assertEqual(params["plant_columns"], 8)
+        self.assertEqual(
+            params["fspm_spectral_transport_mode"],
+            PRECOMPUTED_FSPM_SPECTRAL_TRANSPORT_MODE,
+        )
+        self.assertNotIn("target_ppfd", params)
+        self.assertNotIn("fspm_target_ppfd_umol_m2_s", params)
+        self.assertNotIn("fspm_target_tolerance_umol_m2_s", params)
 
     def test_manifest_schema_loading_for_tiny_temp_bundle(self) -> None:
         with tempfile.TemporaryDirectory(prefix="rad_rebuild_manifest_fixture_") as tmp:
@@ -254,6 +427,130 @@ class PrecomputedBoundaryTests(unittest.TestCase):
             self.assertEqual(matched.hps_z_m, DEFAULT_HPS_MOUNT_Z_M)
             self.assertEqual(matched.hps_fixture_ppf, DEFAULT_HPS_FIXTURE_PPF)
             self.assertEqual(matched.hps_input_watts, DEFAULT_HPS_INPUT_WATTS)
+            self.assertIsNotNone(bundle)
+            assert bundle is not None
+            self.assertEqual(bundle[0], ref.path)
+
+    def test_precomputed_lookup_normalizes_disabled_plants_to_bundle_contract(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory(
+            prefix="rad_rebuild_plant_contract_lookup_"
+        ) as tmp:
+            dataset_root = Path(tmp)
+            user_req = RadianceRunRequest(
+                action="all",
+                mode=MODE_SMD,
+                execution_mode="precomputed",
+                length_ft=10.0,
+                width_ft=10.0,
+                plants_enabled=False,
+                fspm_target_ppfd_umol_m2_s=250.0,
+                fspm_target_tolerance_umol_m2_s=15.0,
+            )
+            bundle_req = canonical_plant_enabled_precomputed_request(user_req)
+            ref = bundle_ref(
+                Path("/unused-engine-root"),
+                bundle_req.mode,
+                bundle_req.length_ft,
+                bundle_req.width_ft,
+                dataset_root,
+                req=bundle_req,
+            )
+            self.assertIsNotNone(ref)
+            assert ref is not None
+            ref.path.mkdir(parents=True)
+            basis = np.array([[100.0]], dtype=float)
+            np.save(ref.path / "basis_A.npy", basis)
+            (ref.path / "basis_manifest.json").write_text(
+                json.dumps(
+                    {
+                        "n_points": 1,
+                        "n_vars": 1,
+                        "n_rings": 1,
+                        "layout_modules": 1,
+                        "basis_unit_w_per_module": 1.0,
+                        "variables": "rings",
+                        "ring_indices": [0],
+                        "matrix_sha256": _basis_sha256(basis),
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (ref.path / "smd_layout.json").write_text(
+                '{"version": 2, "units": "meters", "positions": []}',
+                encoding="utf-8",
+            )
+            np.savez_compressed(
+                ref.path / "plant_receiver.npz",
+                plant_row=np.array([0], dtype=np.uint16),
+                plant_column=np.array([0], dtype=np.uint16),
+                leaf_index=np.array([0], dtype=np.uint16),
+                face_index=np.array([0], dtype=np.uint16),
+                stored_ppfd_umol_m2_s=np.array([0.0], dtype=np.float64),
+                metadata_json=np.frombuffer(
+                    json.dumps(
+                        {
+                            "schema": "rad_rebuild.precomputed.plant_receiver.v1",
+                            "schema_version": 1,
+                            "value_semantics": "smd_receiver_basis",
+                            "surface_receiver_encoding": "plant_grid_indices_v1",
+                        },
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode("utf-8"),
+                    dtype=np.uint8,
+                ),
+            )
+            np.savez_compressed(
+                ref.path / "plant_receiver_basis_A.npz",
+                plant_receiver_basis_A=np.array([[0.0]], dtype=np.float64),
+            )
+            ref.manifest_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": SCHEMA_VERSION,
+                        "mode": bundle_req.mode,
+                        "dims_ft": {"length_ft": 10, "width_ft": 10},
+                        "request_params": request_params_for_mode(bundle_req),
+                        "artifacts": {
+                            "basis_A_npy": "basis_A.npy",
+                            "basis_manifest_json": "basis_manifest.json",
+                            "layout_json": "smd_layout.json",
+                            "plant_receiver_npz": "plant_receiver.npz",
+                            "plant_receiver_basis_A_npz": "plant_receiver_basis_A.npz",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with patch.dict(
+                os.environ, {"RADIANCE_PRECOMPUTED_ROOT": str(dataset_root)}
+            ):
+                matched = backend_runtime.precomputed_request_for_available_bundle(
+                    user_req
+                )
+                bundle = backend_runtime.precomputed_bundle(user_req)
+
+            self.assertIsNotNone(matched)
+            assert matched is not None
+            self.assertTrue(matched.plants_enabled)
+            self.assertEqual(matched.plant_rows, 8)
+            self.assertEqual(matched.plant_columns, 8)
+            self.assertEqual(matched.plant_spacing_m, PRECOMPUTED_PLANT_SPACING_M)
+            self.assertEqual(
+                request_params_for_mode(matched),
+                request_params_for_mode(
+                    canonical_plant_enabled_precomputed_request(
+                        request_with_updates(
+                            user_req,
+                            fspm_target_ppfd_umol_m2_s=100.0,
+                            fspm_target_tolerance_umol_m2_s=40.0,
+                        )
+                    )
+                ),
+            )
             self.assertIsNotNone(bundle)
             assert bundle is not None
             self.assertEqual(bundle[0], ref.path)
@@ -460,6 +757,7 @@ class PrecomputedBoundaryTests(unittest.TestCase):
 
         dims = precompute_sweep._sweep_dims(args)
 
+        self.assertFalse(args.plants_enabled)
         self.assertEqual(args.length_min, 10)
         self.assertEqual(args.width_min, 10)
         self.assertEqual(args.length_max, 30)
@@ -468,6 +766,83 @@ class PrecomputedBoundaryTests(unittest.TestCase):
         self.assertEqual(dims[-1], (30, 30))
         self.assertEqual(len(dims), 231)
         self.assertTrue(all(10 <= width <= length <= 30 for length, width in dims))
+        self.assertIn((20, 10), dims)
+        self.assertNotIn((10, 20), dims)
+        self.assertEqual(len({frozenset(dim) for dim in dims}), len(dims))
+
+    def test_precompute_sweep_dry_run_excludes_mirrored_rectangles(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="rad_rebuild_unique_rect_plan_") as tmp:
+            dataset_root = Path(tmp) / "planned-precomputed"
+            argv = [
+                "precompute_sweep.py",
+                "--dry-run",
+                "--dataset-root",
+                str(dataset_root),
+                "--length-min",
+                "10",
+                "--length-max",
+                "20",
+                "--width-min",
+                "10",
+                "--width-max",
+                "20",
+                "--modes",
+                "SMD",
+            ]
+            output = io.StringIO()
+            with patch.object(sys, "argv", argv), redirect_stdout(output):
+                precompute_sweep.main()
+
+            text = output.getvalue()
+            self.assertIn("DRY-RUN SMD 20x10", text)
+            self.assertNotIn("DRY-RUN SMD 10x20", text)
+            self.assertFalse(dataset_root.exists())
+
+    def test_precompute_sweep_plant_dry_run_shows_density(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="rad_rebuild_plant_sweep_plan_") as tmp:
+            dataset_root = Path(tmp) / "planned-precomputed"
+            argv = [
+                "precompute_sweep.py",
+                "--dry-run",
+                "--plants-enabled",
+                "--dataset-root",
+                str(dataset_root),
+                "--length-min",
+                "10",
+                "--length-max",
+                "30",
+                "--width-min",
+                "10",
+                "--width-max",
+                "30",
+                "--step",
+                "20",
+                "--square-only",
+                "--modes",
+                "SMD",
+            ]
+            output = io.StringIO()
+            with patch.object(sys, "argv", argv), redirect_stdout(output):
+                precompute_sweep.main()
+
+            text = output.getvalue()
+            self.assertIn("Planned bundles: 2", text)
+            self.assertIn("DRY-RUN SMD 10x10 plants=8x8 spacing=0.4m", text)
+            self.assertIn("DRY-RUN SMD 30x30 plants=23x23 spacing=0.4m", text)
+            self.assertFalse(dataset_root.exists())
+
+    def test_precompute_sweep_plant_smd_request_uses_matched_ppe_contract(self) -> None:
+        args = precompute_sweep.PrecomputeSweepConfig(
+            modes=(MODE_SMD,),
+            plants_enabled=True,
+        ).to_namespace()
+
+        req = precompute_sweep._req_for(MODE_SMD, 10, 10, args)
+        params = request_params_for_mode(req)
+
+        self.assertTrue(req.match_system_ppe)
+        self.assertEqual(params["match_system_ppe"], True)
+        self.assertEqual(params["smd_model"], "legacy")
 
     def _run_generation_profile(self, profile: str, *extra_args: str) -> str:
         with tempfile.TemporaryDirectory(prefix="rad_rebuild_profile_plan_") as tmp:

@@ -39,6 +39,40 @@ behavior.
   environment, layout, curve model, sensor grid, basis manifest, and basis hash
   provenance before reusing solved powers.
 
+## Precomputed Bundle Storage
+
+- The repository should only track the small public demo bundle set. Expanded
+  precomputed sweeps, including plant-enabled sweeps, must be generated into an
+  external dataset root with `--dataset-root`.
+- Plant-enabled precomputed sweep planning uses a canonical plant contract for
+  rows, columns, spacing, receiver granularity, and scalar FSPM spectral
+  transport identity. Lighting target PPFD, FSPM target PPFD, and FSPM target
+  tolerance are runtime controls and are not bundle identity fields.
+- Plant-enabled bundles may carry compact plant receiver artifacts using
+  `rad_rebuild.precomputed.plant_receiver.v1`. New scalar precomputed bundles
+  store receiver rows as columnar `plant_receiver.npz`; SMD bundles store the plant
+  receiver basis as `plant_receiver_basis_A.npz`. Conventional artifacts store
+  full-output raw plant PPFD values that playback scales with the lighting
+  target; HPS artifacts store fixed-output plant PPFD values; SMD artifacts align
+  the plant receiver basis with the SMD canopy basis columns so playback reuses
+  the solved basis coefficients. The receiver NPZ keeps only stored scalar PPFD
+  values, compact receiver-to-surface identity columns, and small JSON metadata
+  needed for playback; runtime target-capped metrics are recomputed during
+  playback and are not the source of truth. Older `plant_receiver.json.gz` and
+  `plant_receiver.json` bundle artifacts remain playback-compatible fallbacks.
+- Current plant-enabled precomputed bundles are scalar-only. They intentionally
+  include scalar receiver/surface-flux data for playback, target/tolerance
+  metrics, coloring, and 3D mapping, but exclude modeled spectral absorption,
+  spectral response, photosynthesis, photoreceptor, and photomorphogenesis
+  artifacts. Multispectral precomputed bundles will need a separate artifact
+  contract later. The columnar receiver artifact is the canonical scalar bundle
+  source; playback expands it to runtime `plant_receiver.json` and derives
+  the runtime `plant_surface_flux.json` used by 3D surface-flux coloring without
+  requiring a `plant_surface_flux_json` bundle manifest key. Target PPFD and
+  tolerance remain runtime controls.
+- Full sweep commands should be handed to the local operator to run later. Codex
+  should not run real full-sweep generation or commit generated bundles.
+
 ## Provenance Fields
 
 - File entries use `path`, `sha256`, and `bytes` to bind JSON responses to exact

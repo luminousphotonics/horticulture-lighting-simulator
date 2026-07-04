@@ -113,6 +113,9 @@ export const appState = {
  * @property {HTMLElement} radMatchSystemPpeField
  * @property {HTMLInputElement} radMatchSystemPpe
  * @property {HTMLFieldSetElement} radFspmFieldset
+ * @property {HTMLElement} radFspmLegend
+ * @property {HTMLElement} radFspmLiveNote
+ * @property {HTMLElement} radFspmPrecomputedNote
  * @property {HTMLInputElement} radPlantsEnabled
  * @property {HTMLInputElement} radPlantSeed
  * @property {HTMLInputElement} radPlantRows
@@ -233,6 +236,9 @@ export const els = /** @type {Els} */ ({
   radMatchSystemPpeField: byId("rad-match-system-ppe-field"),
   radMatchSystemPpe: byId("rad-match-system-ppe"),
   radFspmFieldset: byId("rad-fspm-fieldset"),
+  radFspmLegend: byId("rad-fspm-legend"),
+  radFspmLiveNote: byId("rad-fspm-live-note"),
+  radFspmPrecomputedNote: byId("rad-fspm-precomputed-note"),
   radPlantsEnabled: byId("rad-plants-enabled"),
   radPlantSeed: byId("rad-plant-seed"),
   radPlantRows: byId("rad-plant-rows"),

@@ -383,7 +383,36 @@ test("live-supported FSPM controls feed plant fields through payload and artifac
 
   await page.goto("/radiance-simulator");
 
-  await expect(page.locator("#rad-fspm-fieldset")).toBeHidden();
+  await expect(page.locator("#rad-fspm-fieldset")).toBeVisible();
+  await expect(page.locator("#rad-fspm-legend")).toHaveText("FSPM Runtime Controls");
+  await expect(page.locator("#rad-fspm-precomputed-note")).toBeVisible();
+  await expect(page.locator("#rad-plants-enabled-field")).toBeHidden();
+  await expect(page.locator("#rad-plant-rows")).toBeHidden();
+  await expect(page.locator("#rad-fspm-receiver-granularity")).toBeHidden();
+  await expect(page.locator("#rad-fspm-target-ppfd")).toBeEnabled();
+  await expect(page.locator("#rad-fspm-target-tolerance")).toBeEnabled();
+
+  await page.locator("#rad-fspm-target-ppfd").fill("275");
+  await page.locator("#rad-fspm-target-tolerance").fill("20");
+  const precomputedResult = await page.evaluate(async () => {
+    const forms = await import("/static/js/radiance-simulator/forms.js");
+    const parsed = forms.parsePayload();
+    const runPayload = forms.radiancePayload("all");
+    return { parsed, runPayload };
+  });
+
+  expect(precomputedResult.parsed.executionMode).toBe("precomputed");
+  expect(precomputedResult.parsed.plantsEnabled).toBe(true);
+  expect(precomputedResult.parsed.fspmTargetPpfdUmolM2S).toBe(275);
+  expect(precomputedResult.parsed.fspmTargetToleranceUmolM2S).toBe(20);
+  expect(precomputedResult.runPayload.plants_enabled).toBe(true);
+  expect(precomputedResult.runPayload.fspm_target_ppfd_umol_m2_s).toBe(275);
+  expect(precomputedResult.runPayload.fspm_target_tolerance_umol_m2_s).toBe(20);
+  expect(precomputedResult.runPayload.match_system_ppe).toBe(true);
+  expect(precomputedResult.runPayload.sim_mode).toBe("standard");
+  expect(precomputedResult.runPayload.plant_rows).toBeUndefined();
+  expect(precomputedResult.runPayload.plant_spacing_m).toBeUndefined();
+  expect(precomputedResult.runPayload.fspm_receiver_granularity).toBeUndefined();
 
   await page.evaluate(async () => {
     const forms = await import("/static/js/radiance-simulator/forms.js");
@@ -404,6 +433,10 @@ test("live-supported FSPM controls feed plant fields through payload and artifac
   await expect(page.locator("#rad-mode")).toHaveValue("Competitor");
   await expect(page.locator("#rad-sim-mode")).toHaveValue("live_local");
   await expect(page.locator("#rad-fspm-fieldset")).toBeVisible();
+  await expect(page.locator("#rad-fspm-legend")).toHaveText("FSPM Plant Geometry");
+  await expect(page.locator("#rad-fspm-live-note")).toBeVisible();
+  await expect(page.locator("#rad-fspm-precomputed-note")).toBeHidden();
+  await expect(page.locator("#rad-plants-enabled-field")).toBeVisible();
   await expect(page.locator("#rad-plants-enabled")).toBeEnabled();
 
   await page.locator("#rad-plants-enabled").setChecked(true);
@@ -691,8 +724,10 @@ test("metrics formatter prioritizes target-aware plant absorption fields", async
   expect(text).toContain("modeled_absorbed_band_PPFD: blue=42.0");
   expect(text).not.toContain("wavelength_nm");
   expect(text).toContain("target_ppfd: 275 umol/m2/s +/- 20");
+  expect(text).toContain("target_range: 255-295 umol/m2/s");
   expect(text).toContain("target_classification_basis: canopy-plane equivalent incident PPFD");
   expect(text).toContain("target_classification_source: interpolated runtime ppfd map");
+  expect(text).toContain("classification_counts: leaf aggregates");
   expect(text).toContain("target_range_leaves: 2");
   expect(text).toContain("under_lit_leaves: 1");
   expect(text).toContain("over_lit_leaves: 1");
@@ -720,6 +755,25 @@ test("precomputed stays quiet and ready Proposed live mode is allowed", async ({
   await page.locator("#rad-sim-mode").selectOption("live_local");
   await expect(page.locator("#live-runtime-modal")).toBeHidden();
   await expect(page.locator("#rad-sim-mode")).toHaveValue("live_local");
+});
+
+test("precomputed run log reports bundle-contract FSPM plants", async ({ page }) => {
+  await routeCompletedAssemblyRun(
+    page,
+    directFixtureScene({
+      mode: "SMD",
+      modeLabel: "Proposed LED System",
+      system: "proposed_led_system",
+      assetRoot: "proposed_led_system",
+    }),
+  );
+
+  await page.goto("/radiance-simulator");
+  await page.getByRole("button", { name: "Run + Visualize" }).click();
+
+  const log = page.locator("#rad-log");
+  await expect(log).toContainText("Precomputed scalar FSPM plants enabled from installed bundle contract.");
+  await expect(log).not.toContainText("FSPM plants disabled for this run.");
 });
 
 test("root opens simulator and retired layout page redirects", async ({ page }) => {
