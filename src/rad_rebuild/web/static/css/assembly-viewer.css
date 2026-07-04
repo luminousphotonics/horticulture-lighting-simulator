@@ -226,6 +226,25 @@ select:disabled {
     font: inherit;
 }
 
+.assembly-viewer__plant-legend-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.7rem;
+    justify-content: center;
+    margin-bottom: 0.35rem;
+}
+
+.assembly-viewer__plant-legend-meta span {
+    align-items: baseline;
+    display: inline-flex;
+    gap: 0.25rem;
+    white-space: nowrap;
+}
+
+.assembly-viewer__plant-legend-meta b {
+    color: var(--assembly-text);
+}
+
 .assembly-viewer__plant-legend-gradient {
     height: 0.55rem;
     max-width: 30rem;

@@ -704,8 +704,20 @@ test("plant surface-flux legends are visual and mode-aware", async ({ page }) =>
   const legend = page.locator("#assembly-plants-legend");
   await expect(legend).toBeVisible();
   await expect(legend).toContainText("Plant-location target coverage");
-  await expect(legend).toContainText("Under-lit");
-  await expect(legend.locator(".assembly-viewer__plant-legend-chips")).toBeVisible();
+  await expect(legend).toContainText("Canopy-reference PPFD fit");
+  await expect(legend).toContainText("Target275 umol/m²/s");
+  await expect(legend).toContainText("Tolerance20 umol/m²/s");
+  await expect(legend.locator(".assembly-viewer__plant-legend-gradient")).toBeVisible();
+  await expect(legend.locator(".assembly-viewer__plant-legend-ticks")).toBeVisible();
+  await expect(legend).toContainText("-4σ 195");
+  await expect(legend).toContainText("-2σ 235");
+  await expect(legend).toContainText("-1σ 255");
+  await expect(legend).toContainText("0 275");
+  await expect(legend).toContainText("+1σ 295");
+  await expect(legend).toContainText("+2σ 315");
+  await expect(legend).toContainText("+4σ 355");
+  await expect(legend).toContainText("+6σ 395");
+  await expect(legend.locator(".assembly-viewer__plant-legend-chips")).toHaveCount(0);
   await expect(legend).not.toContainText("Raw leaf-surface incident PPFD · umol/m²/s · % of FSPM target");
 
   await page.locator("#assembly-plants-color-mode").selectOption("raw_leaf_surface_flux");

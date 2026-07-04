@@ -15,6 +15,7 @@ import {
   PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX,
   PLANT_COLOR_MODE_TARGET_RANGE,
   createPlantVisibilityController,
+  targetRangeLegendForSurfaceFlux,
 } from "./plants.js";
 import { buildAssemblyWorld, createAssemblyScene, createPhotometricHeatmapPlane } from "./renderer.js";
 import {
@@ -265,26 +266,46 @@ function renderRawPlantLegend(parent, state) {
   parent.append(ticks);
 }
 
-function renderTargetRangePlantLegend(parent) {
-  appendLegendHeader(
-    parent,
-    "Plant-location target coverage",
-    "Coverage colors use canopy-reference target fit",
-  );
-  const chips = document.createElement("div");
-  chips.className = "assembly-viewer__plant-legend-chips";
-  for (const [label, color] of [
-    ["Under-lit", "#3FA66F"],
-    ["Target-range", "#4BCF6A"],
-    ["Over-lit", "#E26E26"],
+function renderTargetRangePlantLegend(parent, state) {
+  const legend = state?.targetRangeLegend || targetRangeLegendForSurfaceFlux();
+  appendLegendHeader(parent, legend.title, legend.subtitle);
+  const meta = document.createElement("div");
+  meta.className = "assembly-viewer__plant-legend-meta";
+  for (const [label, value] of [
+    ["Target", legend.target_ppfd_umol_m2_s],
+    ["Tolerance", legend.target_tolerance_umol_m2_s],
   ]) {
-    const chip = document.createElement("span");
-    const swatch = document.createElement("i");
-    swatch.style.background = color;
-    chip.append(swatch, document.createTextNode(label));
-    chips.append(chip);
+    const item = document.createElement("span");
+    const name = document.createElement("b");
+    name.textContent = label;
+    const number = Number(value);
+    item.append(
+      name,
+      document.createTextNode(
+        Number.isFinite(number)
+          ? `${Math.round(number)} ${legend.units || "umol/m²/s"}`
+          : "-",
+      ),
+    );
+    meta.append(item);
   }
-  parent.append(chips);
+  parent.append(meta);
+  const bar = document.createElement("div");
+  bar.className = "assembly-viewer__plant-legend-gradient";
+  if (legend.gradient) {
+    bar.style.background = legend.gradient;
+  }
+  parent.append(bar);
+  const ticks = document.createElement("div");
+  ticks.className = "assembly-viewer__plant-legend-ticks";
+  if (Array.isArray(legend.anchors)) {
+    for (const anchor of legend.anchors) {
+      const tick = document.createElement("span");
+      tick.textContent = anchor.label || "";
+      ticks.append(tick);
+    }
+  }
+  parent.append(ticks);
 }
 
 function renderPlantLegend(state) {
@@ -300,7 +321,7 @@ function renderPlantLegend(state) {
   if (state.colorMode === PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX) {
     renderRawPlantLegend(plantsLegendEl, state);
   } else if (state.colorMode === PLANT_COLOR_MODE_TARGET_RANGE) {
-    renderTargetRangePlantLegend(plantsLegendEl);
+    renderTargetRangePlantLegend(plantsLegendEl, state);
   } else {
     plantsLegendEl.hidden = true;
     return;

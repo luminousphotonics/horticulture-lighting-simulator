@@ -11,33 +11,35 @@ const SURFACE_FLUX_METRIC = "incident_photon_flux_density_umol_m2_s";
 const TARGET_CLASSIFICATION_METRIC = "target_classification_ppfd_umol_m2_s";
 export const PLANT_COLOR_MODE_TARGET_RANGE = "target_range";
 export const PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX = "raw_leaf_surface_flux";
-const UNDER_TARGET_FLOOR_DEFICIT_UMOL_M2_S = 200;
-const FALLBACK_UNDER_TARGET_FLOOR_DEVIATION = -10;
-const DISPLAY_DEVIATION_K = 0.45;
-const DISPLAY_DEVIATION_MAX_TAIL = 20;
-const UNDER_TARGET_RAMP_ANCHORS = [
-  { position: 0, color: "#3FA66F" },
-  { position: 0.1388888889, color: "#41AA70" },
-  { position: 0.2777777778, color: "#43AE71" },
-  { position: 0.4166666667, color: "#43B670" },
-  { position: 0.5555555556, color: "#43BE6E" },
-  { position: 0.6944444444, color: "#44C66C" },
-  { position: 0.8333333333, color: "#44C66C" },
-  { position: 1, color: "#46CB6A" },
+export const SURFACE_FLUX_COLOR_PALETTE = Object.freeze({
+  blue: "#2563EB",
+  cyan: "#06B6D4",
+  teal: "#14B8A6",
+  green: "#22C55E",
+  yellowGreen: "#A3E635",
+  yellowOrange: "#F59E0B",
+  red: "#DC2626",
+});
+const TARGET_RANGE_COLOR_ANCHORS = [
+  { deviation: -4, color: SURFACE_FLUX_COLOR_PALETTE.blue },
+  { deviation: -2, color: SURFACE_FLUX_COLOR_PALETTE.cyan },
+  { deviation: -1.5, color: SURFACE_FLUX_COLOR_PALETTE.teal },
+  { deviation: -1, color: SURFACE_FLUX_COLOR_PALETTE.green },
+  { deviation: 1, color: SURFACE_FLUX_COLOR_PALETTE.green },
+  { deviation: 2, color: SURFACE_FLUX_COLOR_PALETTE.yellowGreen },
+  { deviation: 4, color: SURFACE_FLUX_COLOR_PALETTE.yellowOrange },
+  { deviation: 6, color: SURFACE_FLUX_COLOR_PALETTE.red },
 ];
-const ABOVE_TARGET_COLOR_ANCHORS = [
-  { deviation: 0, color: "#4BCF6A" },
-  { deviation: 0.1, color: "#59D16A" },
-  { deviation: 0.25, color: "#6ED866" },
-  { deviation: 0.5, color: "#90DD58" },
-  { deviation: 0.75, color: "#AAE14E" },
-  { deviation: 1, color: "#B7E455" },
-  { deviation: 1.5, color: "#C9DF4F" },
-  { deviation: 2, color: "#D8D747" },
-  { deviation: 4, color: "#E6C33F" },
-  { deviation: 8, color: "#F0A63A" },
-  { deviation: 20, color: "#E26E26" },
-];
+export const TARGET_RANGE_DEVIATION_ANCHORS = Object.freeze([
+  { deviation: -4, color: SURFACE_FLUX_COLOR_PALETTE.blue },
+  { deviation: -2, color: SURFACE_FLUX_COLOR_PALETTE.cyan },
+  { deviation: -1, color: SURFACE_FLUX_COLOR_PALETTE.green },
+  { deviation: 0, color: SURFACE_FLUX_COLOR_PALETTE.green },
+  { deviation: 1, color: SURFACE_FLUX_COLOR_PALETTE.green },
+  { deviation: 2, color: SURFACE_FLUX_COLOR_PALETTE.yellowGreen },
+  { deviation: 4, color: SURFACE_FLUX_COLOR_PALETTE.yellowOrange },
+  { deviation: 6, color: SURFACE_FLUX_COLOR_PALETTE.red },
+]);
 
 function finiteNumber(value) {
   if (value === null || value === undefined || value === "") {
@@ -130,37 +132,6 @@ function interpolatedColor(startColor, endColor, value) {
   return new THREE.Color().lerpColors(startColor, endColor, clamp01(value, 0));
 }
 
-function colorInterpolationPosition(value) {
-  const number = finiteNumber(value);
-  if (number === null || number === 0) {
-    return 0;
-  }
-  const magnitude = Math.abs(number);
-  if (magnitude <= 1) {
-    return number;
-  }
-  const tailMagnitude = Math.asinh(DISPLAY_DEVIATION_K * (magnitude - 1))
-    / Math.asinh(DISPLAY_DEVIATION_K * (DISPLAY_DEVIATION_MAX_TAIL - 1));
-  return Math.sign(number) * (1 + (DISPLAY_DEVIATION_MAX_TAIL - 1) * clamp(tailMagnitude, 0, 1));
-}
-
-function underTargetFloorDeviation(surfaceFlux = {}) {
-  const target = surfaceFluxTarget(surfaceFlux);
-  const tolerance = target?.tolerance;
-  if (tolerance && tolerance > 0) {
-    return -UNDER_TARGET_FLOOR_DEFICIT_UMOL_M2_S / tolerance;
-  }
-  return FALLBACK_UNDER_TARGET_FLOOR_DEVIATION;
-}
-
-function anchorInterpolationPosition(anchor) {
-  const displayDeviation = finiteNumber(anchor?.displayDeviation);
-  if (displayDeviation !== null) {
-    return displayDeviation;
-  }
-  return colorInterpolationPosition(anchor?.deviation);
-}
-
 function hexToRgb(hex) {
   const value = typeof hex === "string" ? hex.replace("#", "") : "";
   if (!/^[0-9a-fA-F]{6}$/.test(value)) {
@@ -193,56 +164,29 @@ function interpolatedHexColor(startHex, endHex, value) {
   });
 }
 
-function underTargetColorHex(value, surfaceFlux = {}) {
-  const deviation = finiteNumber(value);
-  const floorDeviation = underTargetFloorDeviation(surfaceFlux);
-  if (deviation === null || deviation <= floorDeviation) {
-    return UNDER_TARGET_RAMP_ANCHORS[0].color;
-  }
-  if (deviation >= -1) {
-    return interpolatedHexColor("#46CB6A", "#4BCF6A", deviation + 1);
-  }
-
-  const rampPosition = clamp((deviation - floorDeviation) / (-1 - floorDeviation), 0, 1);
-  for (let index = 1; index < UNDER_TARGET_RAMP_ANCHORS.length; index += 1) {
-    const previous = UNDER_TARGET_RAMP_ANCHORS[index - 1];
-    const next = UNDER_TARGET_RAMP_ANCHORS[index];
-    if (rampPosition <= next.position) {
-      return interpolatedHexColor(
-        previous.color,
-        next.color,
-        (rampPosition - previous.position) / (next.position - previous.position),
-      );
-    }
-  }
-  return UNDER_TARGET_RAMP_ANCHORS[UNDER_TARGET_RAMP_ANCHORS.length - 1].color;
-}
-
 export function surfaceFluxColorHexForTargetDeviation(value, surfaceFlux = {}) {
   const deviation = finiteNumber(value);
   if (deviation === null) {
-    return "#4BCF6A";
+    return SURFACE_FLUX_COLOR_PALETTE.green;
   }
-  if (deviation < 0) {
-    return underTargetColorHex(deviation, surfaceFlux);
+  if (deviation >= -1 && deviation <= 1) {
+    return SURFACE_FLUX_COLOR_PALETTE.green;
   }
 
-  const displayDeviation = colorInterpolationPosition(deviation);
-  const firstAnchor = ABOVE_TARGET_COLOR_ANCHORS[0];
-  const lastAnchor = ABOVE_TARGET_COLOR_ANCHORS[ABOVE_TARGET_COLOR_ANCHORS.length - 1];
-  if (displayDeviation <= anchorInterpolationPosition(firstAnchor)) {
+  const firstAnchor = TARGET_RANGE_COLOR_ANCHORS[0];
+  const lastAnchor = TARGET_RANGE_COLOR_ANCHORS[TARGET_RANGE_COLOR_ANCHORS.length - 1];
+  if (deviation <= firstAnchor.deviation) {
     return firstAnchor.color;
   }
-  for (let index = 1; index < ABOVE_TARGET_COLOR_ANCHORS.length; index += 1) {
-    const previous = ABOVE_TARGET_COLOR_ANCHORS[index - 1];
-    const next = ABOVE_TARGET_COLOR_ANCHORS[index];
-    const previousPosition = anchorInterpolationPosition(previous);
-    const nextPosition = anchorInterpolationPosition(next);
-    if (displayDeviation <= nextPosition) {
+  for (let index = 1; index < TARGET_RANGE_COLOR_ANCHORS.length; index += 1) {
+    const previous = TARGET_RANGE_COLOR_ANCHORS[index - 1];
+    const next = TARGET_RANGE_COLOR_ANCHORS[index];
+    if (deviation <= next.deviation) {
+      const span = next.deviation - previous.deviation;
       return interpolatedHexColor(
         previous.color,
         next.color,
-        (displayDeviation - previousPosition) / (nextPosition - previousPosition),
+        span > 0 ? (deviation - previous.deviation) / span : 0,
       );
     }
   }
@@ -468,19 +412,49 @@ function surfaceFluxTarget(surfaceFlux) {
   return null;
 }
 
-function surfaceFluxLeafMetric(row, colorMetric) {
-  const classificationValue = finiteNumber(row?.[TARGET_CLASSIFICATION_METRIC]);
-  if (classificationValue !== null) {
-    return classificationValue;
-  }
-  const incidentValue = finiteNumber(row?.[SURFACE_FLUX_METRIC]);
-  if (incidentValue !== null) {
-    return incidentValue;
-  }
-  const metricValue = typeof colorMetric === "string" && colorMetric
-    ? finiteNumber(row?.[colorMetric])
-    : null;
-  return metricValue;
+function targetRangeGradient() {
+  const minDeviation = TARGET_RANGE_COLOR_ANCHORS[0].deviation;
+  const maxDeviation = TARGET_RANGE_COLOR_ANCHORS[TARGET_RANGE_COLOR_ANCHORS.length - 1].deviation;
+  const span = maxDeviation - minDeviation;
+  const stops = TARGET_RANGE_COLOR_ANCHORS.map((anchor) => {
+    const position = span > 0 ? ((anchor.deviation - minDeviation) / span) * 100 : 0;
+    return `${anchor.color} ${position.toFixed(3)}%`;
+  });
+  return `linear-gradient(90deg, ${stops.join(", ")})`;
+}
+
+function targetRangeAnchorLabel(deviation, ppfd) {
+  const toleranceLabel = deviation === 0
+    ? "0"
+    : `${deviation > 0 ? "+" : ""}${deviation}\u03c3`;
+  const ppfdLabel = ppfd === null ? "-" : String(Math.round(ppfd));
+  return `${toleranceLabel} ${ppfdLabel}`;
+}
+
+export function targetRangeLegendForSurfaceFlux(surfaceFlux = {}) {
+  const target = surfaceFluxTarget(surfaceFlux);
+  const anchors = TARGET_RANGE_DEVIATION_ANCHORS.map((anchor) => {
+    const ppfd = target ? target.target + anchor.deviation * target.tolerance : null;
+    return {
+      ...anchor,
+      tolerance_units: anchor.deviation,
+      ppfd_umol_m2_s: ppfd,
+      label: targetRangeAnchorLabel(anchor.deviation, ppfd),
+    };
+  });
+  return {
+    title: "Plant-location target coverage",
+    subtitle: "Canopy-reference PPFD fit",
+    units: "umol/m²/s",
+    target_ppfd_umol_m2_s: target?.target ?? null,
+    target_tolerance_umol_m2_s: target?.tolerance ?? null,
+    gradient: targetRangeGradient(),
+    anchors,
+  };
+}
+
+function targetCoveragePpfdForLeaf(row) {
+  return finiteNumber(row?.[TARGET_CLASSIFICATION_METRIC]);
 }
 
 export function surfaceFluxTargetDeviationForLeafValue(row, surfaceFlux = {}, colorMetric = "") {
@@ -490,7 +464,7 @@ export function surfaceFluxTargetDeviationForLeafValue(row, surfaceFlux = {}, co
   }
 
   const target = surfaceFluxTarget(surfaceFlux);
-  const value = surfaceFluxLeafMetric(row, colorMetric);
+  const value = targetCoveragePpfdForLeaf(row);
   if (!target || value === null) {
     return null;
   }
@@ -895,6 +869,7 @@ export function createPlantVisibilityController(plantGroup) {
       rawLeafSurfaceFluxSideScales: plantGroup.userData?.rawLeafSurfaceFluxSideScales || null,
       rawLeafSurfaceFluxLegend: plantGroup.userData?.rawLeafSurfaceFluxLegend || null,
       rawLeafSurfaceFluxSideLegends: plantGroup.userData?.rawLeafSurfaceFluxSideLegends || null,
+      targetRangeLegend: plantGroup.userData?.targetRangeLegend || null,
       hasSurfaceDetail,
       surfaceDetail,
       surfaceDetailMode: surfaceDetail && hasSurfaceDetail
@@ -1247,6 +1222,7 @@ export function createPlantGroup(scenePayload) {
     rawLeafSurfaceFluxSideLegends: hasRawSideLegends
       ? { front: rawLegend, back: rawBackLegend }
       : { front: rawLegend },
+    targetRangeLegend: targetRangeLegendForSurfaceFlux(surfaceFlux),
     rawSurfaceDetail: rawDetail,
     hasSurfaceDetail: rawDetailPositions.length > 0,
     surfaceDetail: rawDetailPositions.length > 0,
