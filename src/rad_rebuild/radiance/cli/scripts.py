@@ -44,7 +44,10 @@ from rad_rebuild.radiance.engine.plants.config import (
     PlantGeometryConfig,
     PlantOpticalAssumptions,
 )
-from rad_rebuild.radiance.engine.plants.generator import generate_plant_scene
+from rad_rebuild.radiance.engine.plants.generator import (
+    fit_plant_geometry_config_to_room,
+    generate_plant_scene,
+)
 from rad_rebuild.radiance.engine.plants.leaf_materials import (
     FSPM_LEAF_RADIANCE_MATERIAL_MODE_ENV,
     FSPM_SPECTRAL_TRANSPORT_MODE_ENV,
@@ -1073,19 +1076,32 @@ def _fspm_plants_enabled(env: Mapping[str, str]) -> bool:
 def _fspm_plant_config_from_env(env: Mapping[str, str]) -> PlantGeometryConfig:
     defaults = PlantGeometryConfig()
     optical_defaults = defaults.optical
-    return PlantGeometryConfig(
+    target_spacing_m = _float_env(
+        env,
+        "FSPM_PLANT_SPACING_M",
+        str(defaults.plant_spacing_m),
+    )
+    rows = _int_env(env, "FSPM_PLANT_ROWS", defaults.plant_grid_rows)
+    columns = _int_env(
+        env,
+        "FSPM_PLANT_COLUMNS",
+        defaults.plant_grid_columns,
+    )
+    length_ft = _float_env(
+        env,
+        "FSPM_PLANT_ROOM_LENGTH_FT",
+        env.get("LENGTH_FT", "0"),
+    )
+    width_ft = _float_env(
+        env,
+        "FSPM_PLANT_ROOM_WIDTH_FT",
+        env.get("WIDTH_FT", "0"),
+    )
+    config = PlantGeometryConfig(
         seed=_int_env(env, "FSPM_PLANT_SEED", defaults.seed),
-        plant_grid_rows=_int_env(env, "FSPM_PLANT_ROWS", defaults.plant_grid_rows),
-        plant_grid_columns=_int_env(
-            env,
-            "FSPM_PLANT_COLUMNS",
-            defaults.plant_grid_columns,
-        ),
-        plant_spacing_m=_float_env(
-            env,
-            "FSPM_PLANT_SPACING_M",
-            str(defaults.plant_spacing_m),
-        ),
+        plant_grid_rows=rows,
+        plant_grid_columns=columns,
+        plant_spacing_m=target_spacing_m,
         plant_height_m=_float_env(
             env,
             "FSPM_PLANT_HEIGHT_M",
@@ -1146,6 +1162,15 @@ def _fspm_plant_config_from_env(env: Mapping[str, str]) -> PlantGeometryConfig:
                 str(optical_defaults.absorptance),
             ),
         ),
+    )
+    if length_ft <= 0.0 or width_ft <= 0.0:
+        return config
+    return fit_plant_geometry_config_to_room(
+        config,
+        length_ft=length_ft,
+        width_ft=width_ft,
+        rows=rows,
+        columns=columns,
     )
 
 

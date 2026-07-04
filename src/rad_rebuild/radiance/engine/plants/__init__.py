@@ -20,7 +20,22 @@ from rad_rebuild.radiance.engine.plants.config import (
     PlantGeometryConfig,
     PlantOpticalAssumptions,
 )
-from rad_rebuild.radiance.engine.plants.generator import generate_plant_scene
+from rad_rebuild.radiance.engine.plants.generator import (
+    PlantLocalXYFootprint,
+    fit_plant_geometry_config_to_room,
+    generate_plant_scene,
+    measure_plant_local_xy_footprint,
+)
+from rad_rebuild.radiance.engine.plants.layout import (
+    CALIBRATED_PLANT_EDGE_CENTER_MARGIN_M,
+    DEFAULT_PLANT_CLEARANCE_M,
+    DEFAULT_PLANT_TARGET_SPACING_M,
+    PlantGridAxisLayout,
+    PlantGridLayout,
+    canonical_room_dimensions_ft,
+    fit_plant_grid,
+    fit_plant_grid_axis,
+)
 from rad_rebuild.radiance.engine.plants.leaf_materials import (
     BAND_SCALING_BASIS_SOURCE_BAND_FRACTION_RELATIVE_TO_PAR,
     DEFAULT_FSPM_LEAF_RADIANCE_MATERIAL_MODE,
@@ -195,6 +210,13 @@ __all__ = [
     "shade_avoidance_response_index",
     "write_plant_photomorphogenesis_response_artifact",
     "PlantArtifactPaths",
+    "CALIBRATED_PLANT_EDGE_CENTER_MARGIN_M",
+    "DEFAULT_PLANT_CLEARANCE_M",
+    "DEFAULT_PLANT_TARGET_SPACING_M",
+    "PlantLocalXYFootprint",
+    "PlantGridAxisLayout",
+    "PlantGridLayout",
+    "canonical_room_dimensions_ft",
     "PlantGeometry",
     "PlantGeometryConfig",
     "PlantOpticalAssumptions",
@@ -294,8 +316,12 @@ __all__ = [
     "compute_photon_absorption_metrics",
     "export_scene_to_radiance",
     "export_scene_to_viewer",
+    "fit_plant_grid",
+    "fit_plant_grid_axis",
+    "fit_plant_geometry_config_to_room",
     "generate_plant_scene",
     "leaf_absorption_surfaces",
+    "measure_plant_local_xy_footprint",
     "write_baseline_proxy_plant_surface_flux_artifact",
     "write_spatial_proxy_plant_surface_flux_artifact",
     "write_radiance_receiver_plant_surface_flux_artifact",

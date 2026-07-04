@@ -35,7 +35,11 @@ from rad_rebuild.radiance.config import (  # noqa: E402
     MODE_HPS,
     MODE_SMD,
 )
-from rad_rebuild.radiance.engine.plants import PlantGeometryConfig, write_plant_artifacts  # noqa: E402
+from rad_rebuild.radiance.engine.plants import (  # noqa: E402
+    PlantGeometryConfig,
+    fit_plant_geometry_config_to_room,
+    write_plant_artifacts,
+)
 from rad_rebuild.radiance.engine.plants.photoreceptor import PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA  # noqa: E402
 from rad_rebuild.radiance.engine.plants.photosynthesis import PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA  # noqa: E402
 from rad_rebuild.radiance.engine.plants.spectral import PLANT_SPECTRAL_RESPONSE_SCHEMA  # noqa: E402
@@ -533,6 +537,62 @@ def test_builder_attaches_optional_plant_viewer_payload(tmp_path: Path) -> None:
     assert scene["fspm_metrics"]["counts"]["plant_count"] == 1
     assert scene["fspm_metrics"]["counts"]["leaf_count"] == 4
     assert str(tmp_path) not in json.dumps(scene)
+
+
+@pytest.mark.parametrize(("length_ft", "width_ft"), [(10, 12), (12, 10)])
+def test_builder_uses_same_rectangular_footprint_for_plants_and_room(
+    tmp_path: Path,
+    length_ft: int,
+    width_ft: int,
+) -> None:
+    canonical_length_ft = max(length_ft, width_ft)
+    canonical_width_ft = min(length_ft, width_ft)
+    _write_layout(
+        tmp_path,
+        {
+            **_layout_payload(),
+            "room": {
+                "L": canonical_length_ft * 0.3048,
+                "W": canonical_width_ft * 0.3048,
+            },
+        },
+    )
+    plant_config = fit_plant_geometry_config_to_room(
+        PlantGeometryConfig(seed=1, plant_spacing_m=0.40),
+        length_ft=length_ft,
+        width_ft=width_ft,
+    )
+    write_plant_artifacts(tmp_path / "runtime_state", plant_config)
+
+    scene = build_assembly_scene(
+        tmp_path,
+        _smd_req(
+            length_ft=length_ft,
+            width_ft=width_ft,
+            plants_enabled=True,
+        ),
+    )
+
+    room = scene["room"]
+    assert room["length_m"] == pytest.approx(canonical_length_ft * 0.3048)
+    assert room["width_m"] == pytest.approx(canonical_width_ft * 0.3048)
+    assert scene["plants"]["config"]["plant_grid_rows"] == 9
+    assert scene["plants"]["config"]["plant_grid_columns"] == 8
+    x_min = -room["length_m"] / 2.0
+    x_max = room["length_m"] / 2.0
+    y_min = -room["width_m"] / 2.0
+    y_max = room["width_m"] / 2.0
+    epsilon_m = 1e-9
+    vertices = [
+        vertex
+        for plant in scene["plants"]["plants"]
+        for leaf in plant["leaves"]
+        for vertex in leaf["mesh"]["vertices"]
+    ]
+    assert min(vertex[0] for vertex in vertices) >= x_min - epsilon_m
+    assert max(vertex[0] for vertex in vertices) <= x_max + epsilon_m
+    assert min(vertex[1] for vertex in vertices) >= y_min - epsilon_m
+    assert max(vertex[1] for vertex in vertices) <= y_max + epsilon_m
 
 
 def test_large_fspm_scene_embeds_compact_leaf_visualization_under_proxy_limit(tmp_path: Path) -> None:

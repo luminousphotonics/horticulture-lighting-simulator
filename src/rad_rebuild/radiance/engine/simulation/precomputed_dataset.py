@@ -26,6 +26,10 @@ from rad_rebuild.radiance.engine.plants.leaf_materials import (
     normalize_fspm_spectral_transport_mode,
     normalize_leaf_radiance_material_mode,
 )
+from rad_rebuild.radiance.engine.plants.layout import (
+    canonical_room_dimensions_ft,
+    fit_plant_grid,
+)
 from rad_rebuild.radiance.engine.plants.optical_profiles import (
     REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
 )
@@ -194,19 +198,16 @@ def precomputed_plant_density(
     *,
     spacing_m: float = PRECOMPUTED_PLANT_SPACING_M,
 ) -> tuple[int, int]:
-    length_m = float(length_ft) * FEET_TO_METERS
-    width_m = float(width_ft) * FEET_TO_METERS
-    spacing = float(spacing_m)
-    if not math.isfinite(length_m) or length_m <= 0.0:
-        raise ValueError("length_ft must be a positive finite value.")
-    if not math.isfinite(width_m) or width_m <= 0.0:
-        raise ValueError("width_ft must be a positive finite value.")
-    if not math.isfinite(spacing) or spacing <= 0.0:
-        raise ValueError("spacing_m must be a positive finite value.")
-    return (
-        math.floor(length_m / spacing) + 1,
-        math.floor(width_m / spacing) + 1,
+    canonical_length_ft, canonical_width_ft = canonical_room_dimensions_ft(
+        length_ft,
+        width_ft,
     )
+    layout = fit_plant_grid(
+        canonical_length_ft,
+        canonical_width_ft,
+        target_spacing_m=spacing_m,
+    )
+    return (layout.length.count, layout.width.count)
 
 
 def canonical_plant_enabled_precomputed_request(
@@ -214,16 +215,18 @@ def canonical_plant_enabled_precomputed_request(
     *,
     receiver_granularity: str | None = None,
 ) -> RadianceRunRequest:
-    canonical_dims = canonical_dims_ft(req.length_ft, req.width_ft)
-    density_length_ft, density_width_ft = (
-        canonical_dims if canonical_dims is not None else (req.length_ft, req.width_ft)
-    )
     plant_rows, plant_columns = precomputed_plant_density(
-        density_length_ft,
-        density_width_ft,
+        req.length_ft,
+        req.width_ft,
+    )
+    canonical_length_ft, canonical_width_ft = canonical_room_dimensions_ft(
+        req.length_ft,
+        req.width_ft,
     )
     return request_with_updates(
         req,
+        length_ft=canonical_length_ft,
+        width_ft=canonical_width_ft,
         plants_enabled=True,
         plant_rows=plant_rows,
         plant_columns=plant_columns,

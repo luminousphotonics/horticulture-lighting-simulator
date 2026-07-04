@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 import math
 from typing import TypeAlias
 
+from rad_rebuild.radiance.engine.plants.layout import CALIBRATED_PLANT_EDGE_CENTER_MARGIN_M
+
 Range: TypeAlias = tuple[float, float]
 
 _OPTICAL_TOLERANCE = 1e-9
@@ -97,6 +99,13 @@ class PlantGeometryConfig:
     plant_grid_rows: int = 2
     plant_grid_columns: int = 2
     plant_spacing_m: float = 0.30
+    plant_row_spacing_m: float | None = None
+    plant_column_spacing_m: float | None = None
+    plant_row_margin_m: float | None = None
+    plant_column_margin_m: float | None = None
+    room_length_m: float | None = None
+    room_width_m: float | None = None
+    plant_edge_center_margin_m: float = CALIBRATED_PLANT_EDGE_CENTER_MARGIN_M
     plant_height_m: float = 0.16
     canopy_radius_m: float = 0.18
     leaf_count_per_plant: int = 12
@@ -124,6 +133,62 @@ class PlantGeometryConfig:
         object.__setattr__(self, "leaf_count_per_plant", leaf_count)
         object.__setattr__(
             self, "plant_spacing_m", _require_positive("plant_spacing_m", self.plant_spacing_m)
+        )
+        object.__setattr__(
+            self,
+            "plant_row_spacing_m",
+            None
+            if self.plant_row_spacing_m is None
+            else _require_non_negative("plant_row_spacing_m", self.plant_row_spacing_m),
+        )
+        object.__setattr__(
+            self,
+            "plant_column_spacing_m",
+            None
+            if self.plant_column_spacing_m is None
+            else _require_non_negative(
+                "plant_column_spacing_m",
+                self.plant_column_spacing_m,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "plant_row_margin_m",
+            None
+            if self.plant_row_margin_m is None
+            else _require_non_negative("plant_row_margin_m", self.plant_row_margin_m),
+        )
+        object.__setattr__(
+            self,
+            "plant_column_margin_m",
+            None
+            if self.plant_column_margin_m is None
+            else _require_non_negative(
+                "plant_column_margin_m",
+                self.plant_column_margin_m,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "room_length_m",
+            None
+            if self.room_length_m is None
+            else _require_positive("room_length_m", self.room_length_m),
+        )
+        object.__setattr__(
+            self,
+            "room_width_m",
+            None
+            if self.room_width_m is None
+            else _require_positive("room_width_m", self.room_width_m),
+        )
+        object.__setattr__(
+            self,
+            "plant_edge_center_margin_m",
+            _require_non_negative(
+                "plant_edge_center_margin_m",
+                self.plant_edge_center_margin_m,
+            ),
         )
         object.__setattr__(
             self, "plant_height_m", _require_positive("plant_height_m", self.plant_height_m)

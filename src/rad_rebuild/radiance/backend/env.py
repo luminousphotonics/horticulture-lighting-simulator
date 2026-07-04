@@ -102,6 +102,8 @@ PLANT_ENV_KEYS = (
     "FSPM_PLANT_ROWS",
     "FSPM_PLANT_COLUMNS",
     "FSPM_PLANT_SPACING_M",
+    "FSPM_PLANT_ROOM_LENGTH_FT",
+    "FSPM_PLANT_ROOM_WIDTH_FT",
     "FSPM_PLANT_HEIGHT_M",
     "FSPM_PLANT_CANOPY_RADIUS_M",
     "FSPM_PLANT_LEAF_COUNT",
@@ -435,6 +437,16 @@ def _apply_plant_request_env(env: dict[str, str], req: Any) -> None:
     target_tolerance = resolve_fspm_target_tolerance(
         getattr(req, "fspm_target_tolerance_umol_m2_s", None)
     )
+    plant_room_length_ft = (
+        config.room_length_m / 0.3048
+        if config.room_length_m is not None
+        else max(float(req.length_ft), float(req.width_ft))
+    )
+    plant_room_width_ft = (
+        config.room_width_m / 0.3048
+        if config.room_width_m is not None
+        else min(float(req.length_ft), float(req.width_ft))
+    )
     env.update(
         {
             "FSPM_PLANTS_ENABLED": "1",
@@ -442,6 +454,8 @@ def _apply_plant_request_env(env: dict[str, str], req: Any) -> None:
             "FSPM_PLANT_ROWS": str(config.plant_grid_rows),
             "FSPM_PLANT_COLUMNS": str(config.plant_grid_columns),
             "FSPM_PLANT_SPACING_M": f"{config.plant_spacing_m:g}",
+            "FSPM_PLANT_ROOM_LENGTH_FT": f"{plant_room_length_ft:g}",
+            "FSPM_PLANT_ROOM_WIDTH_FT": f"{plant_room_width_ft:g}",
             "FSPM_PLANT_HEIGHT_M": f"{config.plant_height_m:g}",
             "FSPM_PLANT_CANOPY_RADIUS_M": f"{config.canopy_radius_m:g}",
             "FSPM_PLANT_LEAF_COUNT": str(config.leaf_count_per_plant),

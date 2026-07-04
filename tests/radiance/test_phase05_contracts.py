@@ -157,6 +157,8 @@ class Phase05DomainContractTests(unittest.TestCase):
         self.assertEqual(env["FSPM_PLANT_ROWS"], "1")
         self.assertEqual(env["FSPM_PLANT_COLUMNS"], "3")
         self.assertEqual(env["FSPM_PLANT_SPACING_M"], "0.42")
+        self.assertEqual(env["FSPM_PLANT_ROOM_LENGTH_FT"], f"{req.length_ft:g}")
+        self.assertEqual(env["FSPM_PLANT_ROOM_WIDTH_FT"], f"{req.width_ft:g}")
         self.assertEqual(env["FSPM_PLANT_HEIGHT_M"], "0.2")
         self.assertEqual(env["FSPM_PLANT_CANOPY_RADIUS_M"], "0.22")
         self.assertEqual(env["FSPM_PLANT_LEAF_COUNT"], "9")

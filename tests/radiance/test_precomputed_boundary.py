@@ -212,6 +212,11 @@ class PrecomputedBoundaryTests(unittest.TestCase):
 
     def test_precomputed_plant_density_uses_40cm_grid(self) -> None:
         self.assertEqual(precomputed_plant_density(10, 10), (8, 8))
+        self.assertEqual(precomputed_plant_density(10, 11), (8, 8))
+        self.assertEqual(precomputed_plant_density(10, 12), (9, 8))
+        self.assertEqual(precomputed_plant_density(12, 10), (9, 8))
+        self.assertEqual(precomputed_plant_density(12, 12), (9, 9))
+        self.assertEqual(precomputed_plant_density(20, 20), (15, 15))
         self.assertEqual(precomputed_plant_density(30, 30), (23, 23))
 
     def test_canonical_plant_enabled_precomputed_request_contract(self) -> None:
@@ -257,12 +262,12 @@ class PrecomputedBoundaryTests(unittest.TestCase):
 
         plant_req = canonical_plant_enabled_precomputed_request(req)
 
-        self.assertEqual((plant_req.length_ft, plant_req.width_ft), (10.0, 11.0))
-        self.assertEqual(plant_req.plant_rows, 9)
+        self.assertEqual((plant_req.length_ft, plant_req.width_ft), (11.0, 10.0))
+        self.assertEqual(plant_req.plant_rows, 8)
         self.assertEqual(plant_req.plant_columns, 8)
         self.assertEqual(
             request_params_for_mode(plant_req)["plant_rows"],
-            9,
+            8,
         )
         self.assertEqual(
             request_params_for_mode(plant_req)["plant_columns"],

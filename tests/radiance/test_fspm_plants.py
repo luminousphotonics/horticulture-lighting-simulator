@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 import json
 import math
 import pkgutil
@@ -10,13 +11,19 @@ from typing import Any
 import pytest
 
 from rad_rebuild.radiance.engine.plants import (
+    CALIBRATED_PLANT_EDGE_CENTER_MARGIN_M,
     PlantGeometryConfig,
     PlantOpticalAssumptions,
+    canonical_room_dimensions_ft,
     export_scene_to_radiance,
     export_scene_to_viewer,
+    fit_plant_geometry_config_to_room,
+    fit_plant_grid_axis,
     generate_plant_scene,
+    measure_plant_local_xy_footprint,
     write_plant_artifacts,
 )
+from rad_rebuild.radiance.engine.plants import generator as plant_generator
 from rad_rebuild.radiance.engine.plants.artifacts import (
     PLANT_ARTIFACT_SCHEMA,
     PLANT_ARTIFACT_SCHEMA_VERSION,
@@ -156,6 +163,243 @@ def test_all_coordinates_are_finite() -> None:
         for leaf in plant.leaves:
             for vertex in leaf.mesh.vertices:
                 assert all(math.isfinite(value) for value in vertex)
+
+
+def _room_fit_config(length_ft: int, width_ft: int) -> PlantGeometryConfig:
+    return fit_plant_geometry_config_to_room(
+        PlantGeometryConfig(seed=1, plant_spacing_m=0.40),
+        length_ft=length_ft,
+        width_ft=width_ft,
+    )
+
+
+def _forced_room_fit_config(
+    length_ft: int,
+    width_ft: int,
+    *,
+    rows: int,
+    columns: int,
+) -> PlantGeometryConfig:
+    return fit_plant_geometry_config_to_room(
+        PlantGeometryConfig(
+            seed=1,
+            plant_grid_rows=rows,
+            plant_grid_columns=columns,
+            plant_spacing_m=0.40,
+        ),
+        length_ft=length_ft,
+        width_ft=width_ft,
+        rows=rows,
+        columns=columns,
+    )
+
+
+def _local_vertices(
+    scene,
+) -> dict[tuple[str, str], tuple[tuple[float, float, float], ...]]:
+    local: dict[tuple[str, str], tuple[tuple[float, float, float], ...]] = {}
+    for plant in scene.plants:
+        center_x, center_y, center_z = plant.center_m
+        for leaf in plant.leaves:
+            local[(plant.plant_id, leaf.leaf_id)] = tuple(
+                (
+                    vertex_x - center_x,
+                    vertex_y - center_y,
+                    vertex_z - center_z,
+                )
+                for vertex_x, vertex_y, vertex_z in leaf.mesh.vertices
+            )
+    return local
+
+
+def _one_sided_leaf_area(scene) -> float:
+    return sum(surface.area_m2 for surface in leaf_absorption_surfaces(scene))
+
+
+def _assert_local_vertices_equal(
+    first: dict[tuple[str, str], tuple[tuple[float, float, float], ...]],
+    second: dict[tuple[str, str], tuple[tuple[float, float, float], ...]],
+) -> None:
+    assert first.keys() == second.keys()
+    for key, first_vertices in first.items():
+        second_vertices = second[key]
+        assert len(first_vertices) == len(second_vertices)
+        for first_vertex, second_vertex in zip(
+            first_vertices,
+            second_vertices,
+            strict=True,
+        ):
+            assert first_vertex == pytest.approx(second_vertex, abs=1e-12)
+
+
+def _assert_scene_inside_room(scene, *, epsilon_m: float = 1e-9) -> None:
+    assert scene.config.room_length_m is not None
+    assert scene.config.room_width_m is not None
+    x_min = -scene.config.room_length_m / 2.0 - epsilon_m
+    x_max = scene.config.room_length_m / 2.0 + epsilon_m
+    y_min = -scene.config.room_width_m / 2.0 - epsilon_m
+    y_max = scene.config.room_width_m / 2.0 + epsilon_m
+    for plant in scene.plants:
+        center_x, center_y, _center_z = plant.center_m
+        assert x_min <= center_x <= x_max
+        assert y_min <= center_y <= y_max
+        for leaf in plant.leaves:
+            for vertex_x, vertex_y, _vertex_z in leaf.mesh.vertices:
+                assert x_min <= vertex_x <= x_max
+                assert y_min <= vertex_y <= y_max
+
+
+def _assert_plant_bbox_inside_room(scene, *, epsilon_m: float = 1e-9) -> None:
+    assert scene.config.room_length_m is not None
+    assert scene.config.room_width_m is not None
+    xs = [
+        vertex_x
+        for plant in scene.plants
+        for leaf in plant.leaves
+        for vertex_x, _vertex_y, _vertex_z in leaf.mesh.vertices
+    ]
+    ys = [
+        vertex_y
+        for plant in scene.plants
+        for leaf in plant.leaves
+        for _vertex_x, vertex_y, _vertex_z in leaf.mesh.vertices
+    ]
+    assert min(xs) >= -scene.config.room_length_m / 2.0 - epsilon_m
+    assert max(xs) <= scene.config.room_length_m / 2.0 + epsilon_m
+    assert min(ys) >= -scene.config.room_width_m / 2.0 - epsilon_m
+    assert max(ys) <= scene.config.room_width_m / 2.0 + epsilon_m
+
+
+def test_room_fit_generator_has_no_leaf_vertex_clipping_path() -> None:
+    source = inspect.getsource(plant_generator)
+
+    assert "clip" not in source.lower()
+    assert "clamp" not in source.lower()
+    assert "min(max(vertex" not in source
+
+
+def test_room_fit_measures_unmodified_local_plant_footprint() -> None:
+    config = PlantGeometryConfig(seed=1, plant_grid_rows=8, plant_grid_columns=8)
+    scene = generate_plant_scene(config)
+    footprint = measure_plant_local_xy_footprint(config)
+    expected_half_x = max(
+        abs(vertex_x - plant.center_m[0])
+        for plant in scene.plants
+        for leaf in plant.leaves
+        for vertex_x, _vertex_y, _vertex_z in leaf.mesh.vertices
+    )
+    expected_half_y = max(
+        abs(vertex_y - plant.center_m[1])
+        for plant in scene.plants
+        for leaf in plant.leaves
+        for _vertex_x, vertex_y, _vertex_z in leaf.mesh.vertices
+    )
+
+    assert footprint.half_extent_x_m == pytest.approx(expected_half_x)
+    assert footprint.half_extent_y_m == pytest.approx(expected_half_y)
+
+
+def test_fit_room_plant_geometry_stays_inside_unique_10_to_20_rooms() -> None:
+    for length_ft in range(10, 21):
+        for width_ft in range(length_ft, 21):
+            scene = generate_plant_scene(_room_fit_config(length_ft, width_ft))
+            _assert_scene_inside_room(scene)
+
+
+def test_fit_room_plant_grid_preserves_10x10_calibration() -> None:
+    config = _room_fit_config(10, 10)
+    scene = generate_plant_scene(config)
+    first_row = [plant for plant in scene.plants if plant.row == 0]
+    first_column = [plant for plant in scene.plants if plant.column == 0]
+
+    assert config.plant_grid_rows == 8
+    assert config.plant_grid_columns == 8
+    assert config.plant_row_margin_m is not None
+    assert config.plant_column_margin_m is not None
+    assert config.plant_row_margin_m >= CALIBRATED_PLANT_EDGE_CENTER_MARGIN_M
+    assert config.plant_column_margin_m >= CALIBRATED_PLANT_EDGE_CENTER_MARGIN_M
+    assert config.plant_row_spacing_m == pytest.approx(0.40, abs=0.02)
+    assert config.plant_column_spacing_m == pytest.approx(0.40, abs=0.02)
+    assert first_row[1].center_m[1] - first_row[0].center_m[1] == pytest.approx(
+        config.plant_column_spacing_m
+    )
+    assert first_column[1].center_m[0] - first_column[0].center_m[0] == pytest.approx(
+        config.plant_row_spacing_m
+    )
+
+
+def test_fit_room_plant_grid_maps_canonical_rectangular_axes_without_transpose() -> None:
+    assert canonical_room_dimensions_ft(10, 12) == (12.0, 10.0)
+    assert canonical_room_dimensions_ft(12, 10) == (12.0, 10.0)
+
+    config = _room_fit_config(10, 12)
+    scene = generate_plant_scene(config)
+    row_indexes = {plant.row for plant in scene.plants}
+    column_indexes = {plant.column for plant in scene.plants}
+
+    assert config.room_length_m == pytest.approx(12 * 0.3048)
+    assert config.room_width_m == pytest.approx(10 * 0.3048)
+    assert config.plant_grid_rows == 9
+    assert config.plant_grid_columns == 8
+    assert row_indexes == set(range(9))
+    assert column_indexes == set(range(8))
+    assert config.plant_column_margin_m is not None
+    assert config.plant_row_margin_m is not None
+    assert max(plant.center_m[0] for plant in scene.plants) == pytest.approx(
+        config.room_length_m / 2.0 - config.plant_row_margin_m
+    )
+    assert max(plant.center_m[1] for plant in scene.plants) == pytest.approx(
+        config.room_width_m / 2.0 - config.plant_column_margin_m
+    )
+
+    transposed_config = _room_fit_config(12, 10)
+    transposed_scene = generate_plant_scene(transposed_config)
+    assert transposed_config.plant_grid_rows == 9
+    assert transposed_config.plant_grid_columns == 8
+    assert transposed_config.room_length_m == pytest.approx(config.room_length_m)
+    assert transposed_config.room_width_m == pytest.approx(config.room_width_m)
+    assert {plant.row for plant in transposed_scene.plants} == set(range(9))
+    assert {plant.column for plant in transposed_scene.plants} == set(range(8))
+    _assert_plant_bbox_inside_room(scene)
+    _assert_plant_bbox_inside_room(transposed_scene)
+
+
+@pytest.mark.parametrize(("length_ft", "width_ft"), [(10, 11), (10, 12), (12, 12)])
+def test_fit_room_perimeter_cases_do_not_hang_outside(
+    length_ft: int,
+    width_ft: int,
+) -> None:
+    scene = generate_plant_scene(_room_fit_config(length_ft, width_ft))
+
+    _assert_scene_inside_room(scene)
+
+
+def test_room_fit_preserves_local_leaf_geometry_across_room_sizes() -> None:
+    ten_by_ten = generate_plant_scene(
+        _forced_room_fit_config(10, 10, rows=8, columns=8)
+    )
+    twelve_by_twelve = generate_plant_scene(
+        _forced_room_fit_config(12, 12, rows=8, columns=8)
+    )
+
+    _assert_local_vertices_equal(
+        _local_vertices(ten_by_ten),
+        _local_vertices(twelve_by_twelve),
+    )
+    assert _one_sided_leaf_area(ten_by_ten) == pytest.approx(
+        _one_sided_leaf_area(twelve_by_twelve)
+    )
+
+
+def test_room_fit_lowers_count_instead_of_crowding_or_clipping() -> None:
+    layout = fit_plant_grid_axis(
+        10,
+        count=50,
+        local_half_extent_m=0.17,
+    )
+
+    assert layout.count < 50
+    assert layout.count == 8
 
 
 def test_radiance_export_is_deterministic() -> None:

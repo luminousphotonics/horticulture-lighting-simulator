@@ -21,6 +21,7 @@ from rad_rebuild.radiance.engine.plants.leaf_materials import (
     normalize_fspm_spectral_transport_mode,
     normalize_leaf_radiance_material_mode,
 )
+from rad_rebuild.radiance.engine.plants.generator import fit_plant_geometry_config_to_room
 from rad_rebuild.radiance.engine.plants.optical_profiles import (
     REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
     list_leaf_optical_profiles,
@@ -627,7 +628,12 @@ def plant_geometry_config_from_request(source: Any) -> PlantGeometryConfig:
     """Resolve optional backend request plant fields into the Phase 01 config."""
 
     defaults = PlantGeometryConfig()
-    return PlantGeometryConfig(
+    target_spacing_m = _request_value(source, "plant_spacing_m", defaults.plant_spacing_m)
+    length_ft = _request_value(source, "length_ft", None)
+    width_ft = _request_value(source, "width_ft", None)
+    explicit_rows = _request_value(source, "plant_rows", None)
+    explicit_columns = _request_value(source, "plant_columns", None)
+    config = PlantGeometryConfig(
         seed=_request_value(source, "plant_seed", defaults.seed),
         plant_grid_rows=_request_value(source, "plant_rows", defaults.plant_grid_rows),
         plant_grid_columns=_request_value(
@@ -635,7 +641,7 @@ def plant_geometry_config_from_request(source: Any) -> PlantGeometryConfig:
             "plant_columns",
             defaults.plant_grid_columns,
         ),
-        plant_spacing_m=_request_value(source, "plant_spacing_m", defaults.plant_spacing_m),
+        plant_spacing_m=target_spacing_m,
         plant_height_m=_request_value(source, "plant_height_m", defaults.plant_height_m),
         canopy_radius_m=_request_value(
             source,
@@ -649,6 +655,15 @@ def plant_geometry_config_from_request(source: Any) -> PlantGeometryConfig:
         ),
         growth_stage=_request_value(source, "plant_growth_stage", defaults.growth_stage),
         optical=defaults.optical,
+    )
+    if length_ft is None or width_ft is None:
+        return config
+    return fit_plant_geometry_config_to_room(
+        config,
+        length_ft=length_ft,
+        width_ft=width_ft,
+        rows=explicit_rows,
+        columns=explicit_columns,
     )
 
 
