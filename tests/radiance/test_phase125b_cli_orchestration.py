@@ -1336,7 +1336,7 @@ def test_banded_transport_requires_rex_material_and_profile(tmp_path: Path) -> N
 def test_live_workspace_sync_shell_optionally_copies_plant_artifacts(
     tmp_path: Path,
 ) -> None:
-    req = RadianceRunRequest(
+    disabled_req = RadianceRunRequest(
         action="all",
         mode=MODE_SMD,
         execution_mode="live_local",
@@ -1344,14 +1344,32 @@ def test_live_workspace_sync_shell_optionally_copies_plant_artifacts(
         width_ft=10,
         target_ppfd=1000,
     )
-    command = _live_workspace_sync_shell(
-        req,
+    disabled_command = _live_workspace_sync_shell(
+        disabled_req,
+        tmp_path / "workspace-disabled",
+        include_visuals=False,
+    )
+
+    for filename in PLANT_ARTIFACT_FILENAMES:
+        assert f"runtime_state/{filename}" not in disabled_command
+
+    enabled_req = RadianceRunRequest(
+        action="all",
+        mode=MODE_SMD,
+        execution_mode="live_local",
+        length_ft=10,
+        width_ft=10,
+        target_ppfd=1000,
+        plants_enabled=True,
+    )
+    enabled_command = _live_workspace_sync_shell(
+        enabled_req,
         tmp_path / "workspace",
         include_visuals=False,
     )
 
     for filename in PLANT_ARTIFACT_FILENAMES:
-        assert f"runtime_state/{filename}" in command
+        assert f"runtime_state/{filename}" in enabled_command
 
 
 def test_hps_simulation_orchestration_succeeds_with_stubbed_tools(

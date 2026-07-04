@@ -231,19 +231,20 @@ def _live_workspace_sync_shell(req: RadianceRunRequest, workspace_root: Path, *,
         copy_pairs.append((ROOT / "runtime_state" / "smd_summary.txt", workspace_root / "runtime_state" / "smd_summary.txt"))
         copy_pairs.append((ROOT / "ring_powers_optimized.json", workspace_root / "ring_powers_optimized.json"))
 
-    for filename in PLANT_ARTIFACT_FILENAMES:
+    if req.plants_enabled:
+        for filename in PLANT_ARTIFACT_FILENAMES:
+            copy_pairs.append(
+                (
+                    ROOT / "runtime_state" / filename,
+                    workspace_root / "runtime_state" / filename,
+                )
+            )
         copy_pairs.append(
             (
-                ROOT / "runtime_state" / filename,
-                workspace_root / "runtime_state" / filename,
+                ROOT / "runtime_state" / PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME,
+                workspace_root / "runtime_state" / PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME,
             )
         )
-    copy_pairs.append(
-        (
-            ROOT / "runtime_state" / PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME,
-            workspace_root / "runtime_state" / PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME,
-        )
-    )
 
     for src, dst in copy_pairs:
         commands.append(

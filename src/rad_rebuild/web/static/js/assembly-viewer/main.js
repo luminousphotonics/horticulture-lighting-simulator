@@ -11,7 +11,10 @@ import {
 import { buildFspmPanelSections, hasFspmPanelData } from "./fspm-panel.js";
 import { clampHeatmapOpacity, fetchPhotometricLayer, formatPpfdTooltipValue, lookupPpfdAtUv } from "./heatmap.js";
 import { createPerfOverlay } from "./perf.js";
-import { createPlantVisibilityController } from "./plants.js";
+import {
+  PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX,
+  createPlantVisibilityController,
+} from "./plants.js";
 import { buildAssemblyWorld, createAssemblyScene, createPhotometricHeatmapPlane } from "./renderer.js";
 import {
   fspmCsvUrlFromSceneUrl,
@@ -40,7 +43,9 @@ const fixtureHeightResetButton = document.getElementById("assembly-fixture-heigh
 const plantsControlEl = document.getElementById("assembly-plants-control");
 const plantsToggle = document.getElementById("assembly-plants-toggle");
 const plantsColorToggle = document.getElementById("assembly-plants-color-toggle");
+const plantsColorModeSelect = document.getElementById("assembly-plants-color-mode");
 const plantsStatusEl = document.getElementById("assembly-plants-status");
+const plantsLegendEl = document.getElementById("assembly-plants-legend");
 const perfEl = document.getElementById("assembly-perf");
 const fspmPanelEl = document.getElementById("assembly-fspm-panel");
 const fspmContentEl = document.getElementById("assembly-fspm-content");
@@ -166,6 +171,53 @@ function setPlantControlsEnabled(enabled, colorEnabled = false) {
   if (plantsColorToggle instanceof window.HTMLInputElement) {
     plantsColorToggle.disabled = !(enabled && colorEnabled);
   }
+  if (plantsColorModeSelect instanceof window.HTMLSelectElement) {
+    plantsColorModeSelect.disabled = !(enabled && colorEnabled);
+  }
+}
+
+function formatPlantLegendValue(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toFixed(1) : "-";
+}
+
+function formatPlantLegendAnchor(anchor) {
+  const ratio = Number(anchor?.ratio);
+  const percent = Number.isFinite(Number(anchor?.percent))
+    ? Number(anchor.percent)
+    : ratio * 100;
+  const ppfd = Number(anchor?.ppfd_umol_m2_s);
+  const suffix = Number.isFinite(ratio) && ratio >= 1.5 ? "+" : "";
+  const percentLabel = Number.isFinite(percent) ? `${Math.round(percent)}%${suffix}` : "-";
+  const ppfdLabel = Number.isFinite(ppfd) ? `${Math.round(ppfd)}${suffix}` : "-";
+  return `${percentLabel} ${ppfdLabel}`;
+}
+
+function renderPlantLegend(state) {
+  if (!(plantsLegendEl instanceof HTMLElement)) {
+    return;
+  }
+  if (!state || !state.absorptionColor || state.colorMode !== PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX) {
+    plantsLegendEl.hidden = true;
+    plantsLegendEl.textContent = "";
+    return;
+  }
+  const legend = state.rawLeafSurfaceFluxLegend || {};
+  const scale = state.rawLeafSurfaceFluxScale || {};
+  const title = legend.title || "Raw leaf-surface incident PPFD";
+  const units = legend.units || scale.units || "umol/m²/s";
+  const scaleLabel = legend.scale || "% of FSPM target";
+  const anchors = Array.isArray(legend.anchors) && legend.anchors.length > 0
+    ? legend.anchors
+    : scale.anchors;
+  const anchorText = Array.isArray(anchors)
+    ? anchors.map((anchor) => formatPlantLegendAnchor(anchor)).join(" · ")
+    : "";
+  const targetText = Number.isFinite(Number(legend.target_ppfd_umol_m2_s ?? scale.targetPpfd))
+    ? `target ${formatPlantLegendValue(legend.target_ppfd_umol_m2_s ?? scale.targetPpfd)}`
+    : "target -";
+  plantsLegendEl.textContent = `${title} · ${units} · ${scaleLabel} · ${targetText} · ${anchorText}`;
+  plantsLegendEl.hidden = false;
 }
 
 function renderPlantStatus(controller) {
@@ -174,14 +226,23 @@ function renderPlantStatus(controller) {
   }
   if (!controller) {
     plantsStatusEl.textContent = "0 leaves";
+    renderPlantLegend(null);
     return;
   }
   const state = controller.getState();
   const leafText = `${state.leafCount} ${state.leafCount === 1 ? "leaf" : "leaves"}`;
   const colorText = state.hasAbsorptionColor
-    ? (state.absorptionColor ? " · surface-flux color" : " · geometry color")
-    : "";
+    ? (state.absorptionColor
+      ? ` · ${state.colorMode === PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX ? "raw flux color" : "target color"}`
+      : " · geometry color")
+    : (state.surfaceFluxUnavailableReason ? " · surface flux unavailable" : "");
   plantsStatusEl.textContent = `${leafText}${colorText}`;
+  if (state.surfaceFluxUnavailableReason) {
+    plantsStatusEl.title = state.surfaceFluxUnavailableReason;
+  } else {
+    plantsStatusEl.removeAttribute("title");
+  }
+  renderPlantLegend(state);
 }
 
 function wirePlantControls(plantGroup) {
@@ -204,7 +265,18 @@ function wirePlantControls(plantGroup) {
     plantsColorToggle.checked = Boolean(state.hasAbsorptionColor && state.absorptionColor);
     plantsColorToggle.disabled = !state.hasAbsorptionColor;
     plantsColorToggle.addEventListener("change", () => {
-      controller.setAbsorptionColor(plantsColorToggle.checked);
+      const nextState = controller.setAbsorptionColor(plantsColorToggle.checked);
+      if (plantsColorModeSelect instanceof window.HTMLSelectElement) {
+        plantsColorModeSelect.disabled = !(nextState.hasAbsorptionColor && nextState.absorptionColor);
+      }
+      renderPlantStatus(controller);
+    });
+  }
+  if (plantsColorModeSelect instanceof window.HTMLSelectElement) {
+    plantsColorModeSelect.value = state.colorMode;
+    plantsColorModeSelect.disabled = !state.hasAbsorptionColor;
+    plantsColorModeSelect.addEventListener("change", () => {
+      controller.setColorMode(plantsColorModeSelect.value);
       renderPlantStatus(controller);
     });
   }

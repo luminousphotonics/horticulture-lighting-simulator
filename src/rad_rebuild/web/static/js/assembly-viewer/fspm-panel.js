@@ -30,6 +30,12 @@ function formatMetric(value, unit = "", digits = 2) {
   return formatted === UNAVAILABLE ? UNAVAILABLE : `${formatted}${unit ? ` ${unit}` : ""}`;
 }
 
+function formatRawFluxStat(summary, key, digits = 1) {
+  const formatted = formatMetric(summary?.[key], "umol/m²/s", digits);
+  const percent = finiteNumber(summary?.[`${key}_percent_of_target`]);
+  return percent === null ? formatted : `${formatted} (${percent.toFixed(0)}% target)`;
+}
+
 function formatPercent(value, digits = 1) {
   const number = finiteNumber(value);
   return number === null ? UNAVAILABLE : `${(number * 100).toFixed(digits)}%`;
@@ -146,6 +152,20 @@ export function buildFspmPanelSections(scene) {
 
   const absorption = asObject(panel.incident_leaf_surface_flux) || asObject(panel.plant_surface_absorption);
   if (absorption) {
+    const rawSummary = asObject(absorption.raw_leaf_surface_flux_summary);
+    if (rawSummary) {
+      sections.push({
+        title: "raw leaf-surface flux",
+        rows: [
+          ["Mean", formatRawFluxStat(rawSummary, "mean", 1)],
+          ["Min", formatRawFluxStat(rawSummary, "min", 1)],
+          ["p05", formatRawFluxStat(rawSummary, "p05", 1)],
+          ["Median", formatRawFluxStat(rawSummary, "median", 1)],
+          ["p95", formatRawFluxStat(rawSummary, "p95", 1)],
+          ["Max", formatRawFluxStat(rawSummary, "max", 1)],
+        ],
+      });
+    }
     sections.push({
       title: "incident leaf-surface PPFD",
       rows: [

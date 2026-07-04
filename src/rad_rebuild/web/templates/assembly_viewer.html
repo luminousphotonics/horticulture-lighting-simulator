@@ -50,7 +50,15 @@
             <input id="assembly-plants-color-toggle" type="checkbox" checked disabled>
             <span>Surface-flux color</span>
           </label>
+          <label class="assembly-viewer__select">
+            <span>Plant color</span>
+            <select id="assembly-plants-color-mode" disabled>
+              <option value="target_range">Target range</option>
+              <option value="raw_leaf_surface_flux">Raw leaf-surface flux</option>
+            </select>
+          </label>
           <span id="assembly-plants-status" class="assembly-viewer__plant-status">0 leaves</span>
+          <span id="assembly-plants-legend" class="assembly-viewer__plant-legend" hidden></span>
         </div>
         <div class="assembly-viewer__actions">
           <button id="assembly-fspm-toggle" type="button" aria-controls="assembly-fspm-panel" aria-expanded="false" hidden>

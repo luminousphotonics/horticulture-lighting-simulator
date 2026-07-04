@@ -189,6 +189,76 @@ def test_surface_flux_leaf_classification_uses_area_weighted_ppfd() -> None:
     assert payload["under_lit_leaf_count"] == 1
 
 
+def test_surface_flux_raw_leaf_mode_metadata_uses_raw_incident_values() -> None:
+    scene = _single_plant_scene(leaf_count=20)
+    raw_by_leaf = {index: float(index * 100) for index in range(20)}
+    rows = _rows_for_leaf_densities(scene, raw_by_leaf)
+    classification_by_surface_id = {str(row["surface_id"]): 275.0 for row in rows}
+
+    payload = build_plant_surface_flux_payload(
+        scene,
+        rows,
+        method=RADIANCE_RECEIVER_METHOD,
+        target_ppfd_umol_m2_s=275.0,
+        target_tolerance_umol_m2_s=20.0,
+        target_classification_ppfd_by_surface_id=classification_by_surface_id,
+    )
+
+    visualization = payload["visualization"]
+    raw_scale = visualization["raw_leaf_surface_flux_scale"]
+    raw_summary = visualization["raw_leaf_surface_flux_summary"]
+    raw_mode = next(
+        mode for mode in visualization["color_modes"]
+        if mode["mode"] == "raw_leaf_surface_flux"
+    )
+    leaf_values = {
+        int(row["leaf_id"].rsplit("_", 1)[1]): row
+        for row in visualization["leaf_values"]
+    }
+
+    assert raw_mode["label"] == "Raw leaf-surface flux"
+    assert raw_mode["meaning"] == "Actual leaf-surface incident PPFD, descriptive only."
+    assert raw_mode["color_metric"] == "incident_photon_flux_density_umol_m2_s"
+    assert raw_scale["mode"] == "raw_leaf_surface_flux"
+    assert raw_scale["scale_type"] == "target_normalized_ratio"
+    assert raw_scale["target_ppfd_umol_m2_s"] == pytest.approx(275.0)
+    assert raw_scale["target_source"] == "fspm_target_ppfd_umol_m2_s"
+    assert raw_scale["clamp_min_ratio"] == pytest.approx(0.0)
+    assert raw_scale["clamp_max_ratio"] == pytest.approx(1.5)
+    assert [anchor["ratio"] for anchor in raw_scale["anchors"]] == pytest.approx(
+        [0.0, 0.25, 0.45, 0.70, 0.90, 1.15, 1.50]
+    )
+    assert [anchor["ppfd_umol_m2_s"] for anchor in raw_scale["anchors"]] == pytest.approx(
+        [0.0, 68.75, 123.75, 192.5, 247.5, 316.25, 412.5]
+    )
+    assert raw_summary["mean"] == pytest.approx(950.0)
+    assert raw_summary["min"] == pytest.approx(0.0)
+    assert raw_summary["p05"] == pytest.approx(95.0)
+    assert raw_summary["median"] == pytest.approx(950.0)
+    assert raw_summary["p95"] == pytest.approx(1805.0)
+    assert raw_summary["max"] == pytest.approx(1900.0)
+    assert raw_summary["mean_percent_of_target"] == pytest.approx(345.4545454545)
+    assert raw_summary["p05_percent_of_target"] == pytest.approx(34.5454545455)
+    assert raw_summary["p95_percent_of_target"] == pytest.approx(656.3636363636)
+    assert raw_summary["units"] == "umol/m²/s"
+    assert raw_mode["scale"] == raw_scale
+    assert "p05" not in raw_scale
+    assert payload["raw_leaf_surface_flux_legend"]["scale"] == "% of FSPM target"
+    assert payload["raw_leaf_surface_flux_legend"]["anchors"] == raw_scale["anchors"]
+    assert payload["raw_leaf_surface_flux_scale"] == raw_scale
+    assert payload["raw_leaf_surface_flux_summary"] == raw_summary
+    assert leaf_values[0]["incident_photon_flux_density_umol_m2_s"] == pytest.approx(0.0)
+    assert leaf_values[19]["incident_photon_flux_density_umol_m2_s"] == pytest.approx(1900.0)
+    assert all(
+        row["target_classification_ppfd_umol_m2_s"] == pytest.approx(275.0)
+        for row in leaf_values.values()
+    )
+    assert all(
+        row["target_deviation"] == pytest.approx(0.0)
+        for row in leaf_values.values()
+    )
+
+
 def test_target_capped_metrics_are_not_inflated_by_hotspots() -> None:
     scene = _single_plant_scene(leaf_count=1)
     base_rows = build_baseline_proxy_surface_flux_rows(scene, 1.0)
@@ -255,6 +325,49 @@ def test_surface_flux_artifact_export_is_deterministic(tmp_path) -> None:
     assert "surface_values" not in payload["visualization"]
     assert payload["visualization"]["leaf_values"]
     assert "target_deviation" in payload["visualization"]["leaf_values"][0]
+    assert payload["raw_leaf_surface_flux_scale"]["mode"] == "raw_leaf_surface_flux"
+    assert payload["visualization"]["raw_leaf_surface_flux_scale"] == payload[
+        "raw_leaf_surface_flux_scale"
+    ]
+    assert "incident_photon_flux_density_umol_m2_s" in payload["visualization"]["leaf_values"][0]
+
+
+def test_radiance_receiver_surface_flux_compact_payload_exposes_raw_leaf_data(
+    tmp_path,
+) -> None:
+    scene = _single_plant_scene(leaf_count=3)
+    samples = build_radiance_receiver_samples(
+        scene,
+        receiver_granularity=RECEIVER_GRANULARITY_LEAF_CENTROID,
+    )
+    path = write_radiance_receiver_plant_surface_flux_artifact(
+        tmp_path,
+        scene,
+        samples,
+        [100.0, 250.0, 900.0],
+        receiver_granularity=RECEIVER_GRANULARITY_LEAF_CENTROID,
+    )
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert payload["method"] == RADIANCE_RECEIVER_METHOD
+    assert payload["status"] == "computed"
+    assert payload["raw_leaf_surface_flux_scale"]["scale_type"] == "target_normalized_ratio"
+    assert payload["raw_leaf_surface_flux_scale"]["target_ppfd_umol_m2_s"] == pytest.approx(
+        275.0
+    )
+    assert payload["raw_leaf_surface_flux_summary"]["min"] == pytest.approx(100.0)
+    assert payload["raw_leaf_surface_flux_summary"]["max"] == pytest.approx(900.0)
+    assert payload["raw_leaf_surface_flux_summary"]["max_percent_of_target"] == pytest.approx(
+        327.2727272727
+    )
+    assert payload["visualization"]["raw_leaf_surface_flux_scale"] == payload[
+        "raw_leaf_surface_flux_scale"
+    ]
+    assert [
+        row["incident_photon_flux_density_umol_m2_s"]
+        for row in payload["visualization"]["leaf_values"]
+    ] == pytest.approx([100.0, 250.0, 900.0])
 
 
 def test_surface_flux_rejects_missing_surface_ids() -> None:

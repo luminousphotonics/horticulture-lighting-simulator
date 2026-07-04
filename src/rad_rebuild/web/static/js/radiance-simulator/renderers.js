@@ -680,6 +680,7 @@ function formatPlantPhotonAbsorption(metrics, used) {
       1,
     );
     const rawMean = formatNumber(scaffold.raw_mean_flux_density_umol_m2_s, 1);
+    const rawSummary = scaffold.raw_leaf_surface_flux_summary;
     const cappedMean = formatNumber(
       scaffold.target_capped_incident_mean_flux_density_umol_m2_s ??
         scaffold.target_capped_mean_flux_density_umol_m2_s,
@@ -699,6 +700,26 @@ function formatPlantPhotonAbsorption(metrics, used) {
     if (targetCv) lines.push(`plant_to_plant_target_capped_incident_CV: ${targetCv}`);
     if (cappedMean) lines.push(`target_capped_incident_mean_density: ${cappedMean} umol/m2/s`);
     if (rawMean) lines.push(`raw_mean_flux_density: ${rawMean} umol/m2/s`);
+    if (rawSummary && typeof rawSummary === "object") {
+      const rawParts = [
+        ["mean", rawSummary.mean],
+        ["min", rawSummary.min],
+        ["p05", rawSummary.p05],
+        ["median", rawSummary.median],
+        ["p95", rawSummary.p95],
+        ["max", rawSummary.max],
+      ]
+        .map(([label, value]) => {
+          const formatted = formatNumber(value, 1);
+          const percent = Number(rawSummary[`${label}_percent_of_target`]);
+          const suffix = Number.isFinite(percent) ? ` (${percent.toFixed(0)}%)` : "";
+          return formatted ? `${label}=${formatted}${suffix}` : null;
+        })
+        .filter(Boolean);
+      if (rawParts.length) {
+        lines.push(`raw_leaf_surface_flux_ppfd: ${rawParts.join(" · ")} umol/m²/s (% target where shown)`);
+      }
+    }
     if (incident) lines.push(`raw_incident_flux_total: ${incident} umol/s`);
   } else {
     lines.push("incident_leaf_surface_flux: not computed");

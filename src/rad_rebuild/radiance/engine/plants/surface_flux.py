@@ -1157,6 +1157,172 @@ def _density_range(rows: list[dict[str, Any]], key: str) -> tuple[float, float]:
     return min(values), max(values)
 
 
+def _linear_percentile(values: list[float], fraction: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    position = max(0.0, min(1.0, fraction)) * (len(ordered) - 1)
+    lower_index = math.floor(position)
+    upper_index = math.ceil(position)
+    if lower_index == upper_index:
+        return ordered[lower_index]
+    lower = ordered[lower_index]
+    upper = ordered[upper_index]
+    return lower + (upper - lower) * (position - lower_index)
+
+
+RAW_LEAF_SURFACE_FLUX_RATIO_ANCHORS: tuple[tuple[float, str], ...] = (
+    (0.00, "#2563EB"),
+    (0.25, "#06B6D4"),
+    (0.45, "#22C55E"),
+    (0.70, "#22C55E"),
+    (0.90, "#EAB308"),
+    (1.15, "#F97316"),
+    (1.50, "#DC2626"),
+)
+
+
+def _raw_flux_ratio(value: float, target_ppfd_umol_m2_s: float | None) -> float | None:
+    if target_ppfd_umol_m2_s is None or target_ppfd_umol_m2_s <= 0.0:
+        return None
+    return value / target_ppfd_umol_m2_s
+
+
+def _raw_flux_summary_stat(
+    value: float,
+    target_ppfd_umol_m2_s: float | None,
+) -> dict[str, float | None]:
+    ratio = _raw_flux_ratio(value, target_ppfd_umol_m2_s)
+    return {
+        "ppfd_umol_m2_s": value,
+        "ratio_to_target": ratio,
+        "percent_of_target": ratio * 100.0 if ratio is not None else None,
+    }
+
+
+def _raw_leaf_surface_flux_metadata(
+    leaf_summaries: list[dict[str, Any]],
+    *,
+    target_ppfd_umol_m2_s: float | None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    key = "incident_photon_flux_density_umol_m2_s"
+    values = [float(row.get(key, 0.0) or 0.0) for row in leaf_summaries]
+    target_ppfd = (
+        float(target_ppfd_umol_m2_s)
+        if target_ppfd_umol_m2_s is not None and target_ppfd_umol_m2_s > 0.0
+        else None
+    )
+    anchors = [
+        {
+            "ratio": ratio,
+            "percent": ratio * 100.0,
+            "ppfd_umol_m2_s": ratio * target_ppfd if target_ppfd is not None else None,
+            "color": color,
+        }
+        for ratio, color in RAW_LEAF_SURFACE_FLUX_RATIO_ANCHORS
+    ]
+    scale = {
+        "mode": "raw_leaf_surface_flux",
+        "scale_type": "target_normalized_ratio",
+        "target_ppfd_umol_m2_s": target_ppfd,
+        "target_source": "fspm_target_ppfd_umol_m2_s",
+        "ratio_min": 0.0,
+        "ratio_max": 1.5,
+        "clamp_min_ratio": 0.0,
+        "clamp_max_ratio": 1.5,
+        "anchors": anchors,
+        "units": "umol/m²/s",
+        "ratio_units": "fraction_of_target",
+    }
+    if not values:
+        return scale, {
+            "mean": 0.0,
+            "min": 0.0,
+            "p05": 0.0,
+            "median": 0.0,
+            "p95": 0.0,
+            "max": 0.0,
+            "mean_ratio_to_target": None,
+            "min_ratio_to_target": None,
+            "p05_ratio_to_target": None,
+            "median_ratio_to_target": None,
+            "p95_ratio_to_target": None,
+            "max_ratio_to_target": None,
+            "mean_percent_of_target": None,
+            "min_percent_of_target": None,
+            "p05_percent_of_target": None,
+            "median_percent_of_target": None,
+            "p95_percent_of_target": None,
+            "max_percent_of_target": None,
+            "target_ppfd_umol_m2_s": target_ppfd,
+            "units": "umol/m²/s",
+        }
+
+    p05 = _linear_percentile(values, 0.05)
+    p50 = _linear_percentile(values, 0.50)
+    p95 = _linear_percentile(values, 0.95)
+    mean = sum(values) / len(values)
+    min_value = min(values)
+    max_value = max(values)
+    summary = {
+        "mean": mean,
+        "min": min_value,
+        "p05": p05,
+        "median": p50,
+        "p95": p95,
+        "max": max_value,
+        "mean_ratio_to_target": _raw_flux_ratio(mean, target_ppfd),
+        "min_ratio_to_target": _raw_flux_ratio(min_value, target_ppfd),
+        "p05_ratio_to_target": _raw_flux_ratio(p05, target_ppfd),
+        "median_ratio_to_target": _raw_flux_ratio(p50, target_ppfd),
+        "p95_ratio_to_target": _raw_flux_ratio(p95, target_ppfd),
+        "max_ratio_to_target": _raw_flux_ratio(max_value, target_ppfd),
+        "mean_percent_of_target": (
+            _raw_flux_ratio(mean, target_ppfd) * 100.0
+            if _raw_flux_ratio(mean, target_ppfd) is not None
+            else None
+        ),
+        "min_percent_of_target": (
+            _raw_flux_ratio(min_value, target_ppfd) * 100.0
+            if _raw_flux_ratio(min_value, target_ppfd) is not None
+            else None
+        ),
+        "p05_percent_of_target": (
+            _raw_flux_ratio(p05, target_ppfd) * 100.0
+            if _raw_flux_ratio(p05, target_ppfd) is not None
+            else None
+        ),
+        "median_percent_of_target": (
+            _raw_flux_ratio(p50, target_ppfd) * 100.0
+            if _raw_flux_ratio(p50, target_ppfd) is not None
+            else None
+        ),
+        "p95_percent_of_target": (
+            _raw_flux_ratio(p95, target_ppfd) * 100.0
+            if _raw_flux_ratio(p95, target_ppfd) is not None
+            else None
+        ),
+        "max_percent_of_target": (
+            _raw_flux_ratio(max_value, target_ppfd) * 100.0
+            if _raw_flux_ratio(max_value, target_ppfd) is not None
+            else None
+        ),
+        "target_ppfd_umol_m2_s": target_ppfd,
+        "by_stat": {
+            "mean": _raw_flux_summary_stat(mean, target_ppfd),
+            "min": _raw_flux_summary_stat(min_value, target_ppfd),
+            "p05": _raw_flux_summary_stat(p05, target_ppfd),
+            "median": _raw_flux_summary_stat(p50, target_ppfd),
+            "p95": _raw_flux_summary_stat(p95, target_ppfd),
+            "max": _raw_flux_summary_stat(max_value, target_ppfd),
+        },
+        "units": "umol/m²/s",
+    }
+    return scale, summary
+
+
 def _target_deviation(
     row: Mapping[str, Any],
     *,
@@ -1189,10 +1355,39 @@ def _visualization_payload(
     target_key = "target_classification_ppfd_umol_m2_s"
     leaf_min, leaf_max = _density_range(leaf_summaries, key)
     surface_min, surface_max = _density_range(surface_summaries, key)
+    raw_scale, raw_summary = _raw_leaf_surface_flux_metadata(
+        leaf_summaries,
+        target_ppfd_umol_m2_s=target_ppfd_umol_m2_s,
+    )
     return {
         "color_metric": key,
         "color_quantity": "incident_leaf_surface_ppfd",
         "normalization": "linear_0_1",
+        "color_modes": [
+            {
+                "mode": "target_range",
+                "label": "Target-range fit",
+                "meaning": "Target-classification PPFD fit against the configured FSPM target range.",
+                "color_metric": target_key,
+            },
+            {
+                "mode": "raw_leaf_surface_flux",
+                "label": "Raw leaf-surface flux",
+                "meaning": "Actual leaf-surface incident PPFD, descriptive only.",
+                "color_metric": key,
+                "scale": raw_scale,
+            },
+        ],
+        "raw_leaf_surface_flux_scale": raw_scale,
+        "raw_leaf_surface_flux_summary": raw_summary,
+        "raw_leaf_surface_flux_legend": {
+            "title": "Raw leaf-surface incident PPFD",
+            "units": "umol/m²/s",
+            "scale": "% of FSPM target",
+            "target_ppfd_umol_m2_s": raw_scale["target_ppfd_umol_m2_s"],
+            "target_source": raw_scale["target_source"],
+            "anchors": raw_scale["anchors"],
+        },
         "leaf_scale": {
             "min": leaf_min,
             "max": leaf_max,
@@ -1463,6 +1658,9 @@ def build_plant_surface_flux_payload(
             "plant_to_plant_absorbed_photon_flux_cv"
         ],
         **{key: absorption_metrics[key] for key in target_keys if key in absorption_metrics},
+        "raw_leaf_surface_flux_scale": visualization["raw_leaf_surface_flux_scale"],
+        "raw_leaf_surface_flux_summary": visualization["raw_leaf_surface_flux_summary"],
+        "raw_leaf_surface_flux_legend": visualization["raw_leaf_surface_flux_legend"],
         "plant_summaries": plant_summaries,
         "leaf_summaries": leaf_summaries,
         "surface_summaries": surface_summaries,
@@ -1501,7 +1699,11 @@ def compact_plant_surface_flux_payload(payload: Mapping[str, Any]) -> dict[str, 
                 "color_metric",
                 "color_quantity",
                 "normalization",
+                "color_modes",
                 "leaf_scale",
+                "raw_leaf_surface_flux_scale",
+                "raw_leaf_surface_flux_summary",
+                "raw_leaf_surface_flux_legend",
                 "plant_values",
                 "leaf_values",
             )

@@ -9,6 +9,8 @@ const DEFAULT_ABSORPTION_INTENSITY = 0.5;
 const DEFAULT_LEAF_THREE_COLOR = new THREE.Color(DEFAULT_LEAF_COLOR);
 const SURFACE_FLUX_METRIC = "incident_photon_flux_density_umol_m2_s";
 const TARGET_CLASSIFICATION_METRIC = "target_classification_ppfd_umol_m2_s";
+export const PLANT_COLOR_MODE_TARGET_RANGE = "target_range";
+export const PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX = "raw_leaf_surface_flux";
 const UNDER_TARGET_FLOOR_DEFICIT_UMOL_M2_S = 200;
 const FALLBACK_UNDER_TARGET_FLOOR_DEVIATION = -10;
 const DISPLAY_DEVIATION_K = 0.45;
@@ -231,6 +233,144 @@ function targetDeviationColor(value, surfaceFlux = {}) {
   return new THREE.Color(surfaceFluxColorHexForTargetDeviation(value, surfaceFlux));
 }
 
+const RAW_LEAF_SURFACE_FLUX_ANCHORS = [
+  { ratio: 0.00, percent: 0, color: "#2563EB" },
+  { ratio: 0.25, percent: 25, color: "#06B6D4" },
+  { ratio: 0.45, percent: 45, color: "#22C55E" },
+  { ratio: 0.70, percent: 70, color: "#22C55E" },
+  { ratio: 0.90, percent: 90, color: "#EAB308" },
+  { ratio: 1.15, percent: 115, color: "#F97316" },
+  { ratio: 1.50, percent: 150, color: "#DC2626" },
+];
+
+function rawLeafSurfaceFluxTarget(surfaceFlux = {}) {
+  const explicitScale = surfaceFlux?.visualization?.raw_leaf_surface_flux_scale
+    || surfaceFlux?.raw_leaf_surface_flux_scale;
+  const explicitTarget = finiteNumber(explicitScale?.target_ppfd_umol_m2_s);
+  if (explicitTarget !== null && explicitTarget > 0) {
+    return {
+      target: explicitTarget,
+      source: explicitScale?.target_source || "fspm_target_ppfd_umol_m2_s",
+    };
+  }
+
+  for (const [source, value] of [
+    ["fspm_target_ppfd_umol_m2_s", surfaceFlux?.fspm_target_ppfd_umol_m2_s],
+    ["fspm_target_ppfd_umol_m2_s", surfaceFlux?.target?.target_ppfd_umol_m2_s],
+    ["fspm_target_ppfd_umol_m2_s", surfaceFlux?.target_ppfd_umol_m2_s],
+    ["lighting_target_ppfd", surfaceFlux?.lighting_target_ppfd_umol_m2_s],
+    ["lighting_target_ppfd", surfaceFlux?.target_ppfd],
+  ]) {
+    const target = finiteNumber(value);
+    if (target !== null && target > 0) {
+      return { target, source };
+    }
+  }
+
+  return { target: null, source: "unavailable" };
+}
+
+function rawLeafSurfaceFluxAnchorEntries(targetPpfd) {
+  return RAW_LEAF_SURFACE_FLUX_ANCHORS.map((anchor, index) => ({
+    ...anchor,
+    ppfd_umol_m2_s: targetPpfd === null ? null : anchor.ratio * targetPpfd,
+    label: index === RAW_LEAF_SURFACE_FLUX_ANCHORS.length - 1
+      ? `${anchor.percent}%+`
+      : `${anchor.percent}%`,
+  }));
+}
+
+function rawLeafSurfaceFluxLegendFromScale(scale) {
+  return {
+    title: "Raw leaf-surface incident PPFD",
+    units: scale.units,
+    scale: "% of FSPM target",
+    target_ppfd_umol_m2_s: scale.targetPpfd,
+    target_source: scale.targetSource,
+    anchors: scale.anchors,
+  };
+}
+
+function normalizeRawLeafSurfaceFluxLegend(legend, scale) {
+  if (legend && Array.isArray(legend.anchors) && legend.anchors.length > 0) {
+    return {
+      title: legend.title || "Raw leaf-surface incident PPFD",
+      units: legend.units || scale.units,
+      scale: legend.scale || "% of FSPM target",
+      target_ppfd_umol_m2_s: finiteNumber(legend.target_ppfd_umol_m2_s) ?? scale.targetPpfd,
+      target_source: legend.target_source || scale.targetSource,
+      anchors: legend.anchors,
+    };
+  }
+  return rawLeafSurfaceFluxLegendFromScale(scale);
+}
+
+function surfaceFluxLeafValues(plantPayload) {
+  const values = plantPayload?.surface_flux?.visualization?.leaf_values;
+  return Array.isArray(values) ? values : [];
+}
+
+function rawLeafSurfaceFluxScale(surfaceFlux = {}) {
+  const explicitScale = surfaceFlux?.visualization?.raw_leaf_surface_flux_scale
+    || surfaceFlux?.raw_leaf_surface_flux_scale;
+  const { target, source } = rawLeafSurfaceFluxTarget(surfaceFlux);
+  const units = explicitScale?.units || "umol/m²/s";
+  const anchors = Array.isArray(explicitScale?.anchors) && explicitScale.anchors.length > 0
+    ? explicitScale.anchors
+    : rawLeafSurfaceFluxAnchorEntries(target);
+  const ratioMin = finiteNumber(explicitScale?.ratio_min) ?? 0;
+  const ratioMax = finiteNumber(explicitScale?.ratio_max) ?? 1.5;
+  return {
+    mode: PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX,
+    scaleType: "target_normalized_ratio",
+    targetPpfd: target,
+    targetSource: source,
+    ratioMin,
+    ratioMax,
+    clampMinRatio: finiteNumber(explicitScale?.clamp_min_ratio) ?? ratioMin,
+    clampMaxRatio: finiteNumber(explicitScale?.clamp_max_ratio) ?? ratioMax,
+    anchors,
+    units,
+    ratioUnits: explicitScale?.ratio_units || "fraction_of_target",
+  };
+}
+
+export function rawLeafSurfaceFluxColorHexForValue(value, scale = {}) {
+  const rawValue = finiteNumber(value);
+  if (rawValue === null) {
+    return `#${DEFAULT_LEAF_COLOR.toString(16).toUpperCase().padStart(6, "0")}`;
+  }
+  const targetPpfd = finiteNumber(scale?.targetPpfd ?? scale?.target_ppfd_umol_m2_s);
+  if (targetPpfd === null || targetPpfd <= 0) {
+    return `#${DEFAULT_LEAF_COLOR.toString(16).toUpperCase().padStart(6, "0")}`;
+  }
+  const clampMinRatio = finiteNumber(scale?.clampMinRatio ?? scale?.clamp_min_ratio) ?? 0;
+  const clampMaxRatio = finiteNumber(scale?.clampMaxRatio ?? scale?.clamp_max_ratio) ?? 1.5;
+  const ratio = clamp(rawValue / targetPpfd, clampMinRatio, clampMaxRatio);
+  const anchors = Array.isArray(scale?.anchors) && scale.anchors.length > 0
+    ? scale.anchors
+    : RAW_LEAF_SURFACE_FLUX_ANCHORS;
+  for (let index = 1; index < anchors.length; index += 1) {
+    const previous = anchors[index - 1];
+    const next = anchors[index];
+    const previousRatio = finiteNumber(previous.ratio) ?? 0;
+    const nextRatio = finiteNumber(next.ratio) ?? previousRatio;
+    if (ratio <= nextRatio) {
+      const span = nextRatio - previousRatio;
+      return interpolatedHexColor(
+        previous.color,
+        next.color,
+        span > 0 ? (ratio - previousRatio) / span : 0,
+      );
+    }
+  }
+  return anchors[anchors.length - 1].color;
+}
+
+function rawLeafSurfaceFluxColor(row, scale) {
+  return new THREE.Color(rawLeafSurfaceFluxColorHexForValue(row?.[SURFACE_FLUX_METRIC], scale));
+}
+
 function surfaceFluxTarget(surfaceFlux) {
   const target = finiteNumber(surfaceFlux?.target_ppfd_umol_m2_s);
   const tolerance = finiteNumber(surfaceFlux?.target_tolerance_umol_m2_s);
@@ -327,11 +467,6 @@ function createAbsorptionLeafMaterial(plantPayload) {
   return material;
 }
 
-function surfaceFluxLeafValues(plantPayload) {
-  const values = plantPayload?.surface_flux?.visualization?.leaf_values;
-  return Array.isArray(values) ? values : [];
-}
-
 function leafFluxById(plantPayload) {
   const map = new Map();
   for (const row of surfaceFluxLeafValues(plantPayload)) {
@@ -378,6 +513,14 @@ export function createPlantVisibilityController(plantGroup) {
   plantGroup.visible = plantGroup.visible !== false;
   const hasAbsorptionColor = Boolean(plantGroup.userData?.hasAbsorptionColor);
   let absorptionColor = hasAbsorptionColor;
+  let colorMode = plantGroup.userData?.colorMode || PLANT_COLOR_MODE_TARGET_RANGE;
+
+  function activeColorAttribute(child) {
+    if (colorMode === PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX) {
+      return child.userData?.rawFluxColorAttribute || child.userData?.absorptionColorAttribute;
+    }
+    return child.userData?.targetColorAttribute || child.userData?.absorptionColorAttribute;
+  }
 
   function applyAbsorptionColor() {
     plantGroup.traverse((child) => {
@@ -385,7 +528,7 @@ export function createPlantVisibilityController(plantGroup) {
         return;
       }
       const defaultColorAttribute = child.userData?.defaultColorAttribute;
-      const absorptionColorAttribute = child.userData?.absorptionColorAttribute;
+      const absorptionColorAttribute = activeColorAttribute(child);
       if (defaultColorAttribute && absorptionColorAttribute && child.geometry instanceof THREE.BufferGeometry) {
         child.geometry.setAttribute("color", absorptionColor ? absorptionColorAttribute : defaultColorAttribute);
         child.geometry.attributes.color.needsUpdate = true;
@@ -416,6 +559,15 @@ export function createPlantVisibilityController(plantGroup) {
     return getState();
   }
 
+  function setColorMode(value) {
+    colorMode = value === PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX
+      ? PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX
+      : PLANT_COLOR_MODE_TARGET_RANGE;
+    plantGroup.userData.colorMode = colorMode;
+    applyAbsorptionColor();
+    return getState();
+  }
+
   function getState() {
     return {
       visible: plantGroup.visible !== false,
@@ -424,11 +576,16 @@ export function createPlantVisibilityController(plantGroup) {
       plantCount: Number(plantGroup.userData?.plantCount || 0),
       leafCount: Number(plantGroup.userData?.leafCount || 0),
       colorMetric: plantGroup.userData?.colorMetric || "",
+      colorMode,
+      rawLeafSurfaceFluxScale: plantGroup.userData?.rawLeafSurfaceFluxScale || null,
+      rawLeafSurfaceFluxLegend: plantGroup.userData?.rawLeafSurfaceFluxLegend || null,
+      surfaceFluxAvailable: Boolean(plantGroup.userData?.surfaceFluxAvailable),
+      surfaceFluxUnavailableReason: plantGroup.userData?.surfaceFluxUnavailableReason || "",
     };
   }
 
   applyAbsorptionColor();
-  return { setVisible, setAbsorptionColor, getState };
+  return { setVisible, setAbsorptionColor, setColorMode, getState };
 }
 
 export function createLeafGeometry(leaf) {
@@ -453,7 +610,16 @@ export function createLeafGeometry(leaf) {
   return geometry;
 }
 
-function appendLeafGeometryBuffers({ leaf, absorptionColor, positions, indices, defaultColors, absorptionColors }) {
+function appendLeafGeometryBuffers({
+  leaf,
+  targetColor,
+  rawFluxColor,
+  positions,
+  indices,
+  defaultColors,
+  targetColors,
+  rawFluxColors,
+}) {
   const sourceVertices = Array.isArray(leaf?.mesh?.vertices) ? leaf.mesh.vertices : [];
   const vertices = sourceVertices.map(finiteCoordinateTriple);
   if (vertices.some((vertex) => vertex === null)) {
@@ -468,7 +634,8 @@ function appendLeafGeometryBuffers({ leaf, absorptionColor, positions, indices, 
   for (const vertex of vertices) {
     positions.push(...radianceVertexToWorld(vertex));
     defaultColors.push(DEFAULT_LEAF_THREE_COLOR.r, DEFAULT_LEAF_THREE_COLOR.g, DEFAULT_LEAF_THREE_COLOR.b);
-    absorptionColors.push(absorptionColor.r, absorptionColor.g, absorptionColor.b);
+    targetColors.push(targetColor.r, targetColor.g, targetColor.b);
+    rawFluxColors.push(rawFluxColor.r, rawFluxColor.g, rawFluxColor.b);
   }
   for (const index of triangles) {
     indices.push(vertexOffset + index);
@@ -494,9 +661,16 @@ export function createPlantGroup(scenePayload) {
     vertexColors: true,
   });
   const absorptionMaterial = createAbsorptionLeafMaterial(plantPayload);
+  const leafFluxValues = surfaceFluxLeafValues(plantPayload);
   const fluxByLeafId = leafFluxById(plantPayload);
   const colorMetric = plantPayload?.surface_flux?.visualization?.color_metric || "";
   const surfaceFlux = plantPayload?.surface_flux || {};
+  const rawScale = rawLeafSurfaceFluxScale(surfaceFlux);
+  const rawLegend = normalizeRawLeafSurfaceFluxLegend(
+    surfaceFlux?.visualization?.raw_leaf_surface_flux_legend
+      || surfaceFlux?.raw_leaf_surface_flux_legend,
+    rawScale,
+  );
   let renderedLeafCount = 0;
   let absorptionColoredLeafCount = 0;
   let matchedLeafCount = 0;
@@ -507,21 +681,25 @@ export function createPlantGroup(scenePayload) {
   const positions = [];
   const indices = [];
   const defaultColors = [];
-  const absorptionColors = [];
+  const targetColors = [];
+  const rawFluxColors = [];
 
   for (const plant of plantPayload.plants) {
     const leaves = Array.isArray(plant?.leaves) ? plant.leaves : [];
     for (const leaf of leaves) {
       const fluxRow = leafFluxRow(leaf, fluxByLeafId);
       const targetDeviation = surfaceFluxTargetDeviationForLeafValue(fluxRow, surfaceFlux, colorMetric);
-      const absorptionColor = absorptionColorForLeaf(fluxRow, surfaceFlux, colorMetric);
+      const targetColor = absorptionColorForLeaf(fluxRow, surfaceFlux, colorMetric);
+      const rawFluxColor = rawLeafSurfaceFluxColor(fluxRow, rawScale);
       const rendered = appendLeafGeometryBuffers({
         leaf,
-        absorptionColor,
+        targetColor,
+        rawFluxColor,
         positions,
         indices,
         defaultColors,
-        absorptionColors,
+        targetColors,
+        rawFluxColors,
       });
       if (!rendered) {
         warnings.push(`${leaf?.leaf_id || "unknown leaf"} has invalid plant mesh data.`);
@@ -546,7 +724,8 @@ export function createPlantGroup(scenePayload) {
   if (renderedLeafCount > 0) {
     const geometry = new THREE.BufferGeometry();
     const defaultColorAttribute = new THREE.Float32BufferAttribute(defaultColors, 3);
-    const absorptionColorAttribute = new THREE.Float32BufferAttribute(absorptionColors, 3);
+    const targetColorAttribute = new THREE.Float32BufferAttribute(targetColors, 3);
+    const rawFluxColorAttribute = new THREE.Float32BufferAttribute(rawFluxColors, 3);
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
     geometry.setAttribute("color", defaultColorAttribute);
     geometry.setIndex(indices);
@@ -563,7 +742,9 @@ export function createPlantGroup(scenePayload) {
       defaultMaterial,
       absorptionMaterial,
       defaultColorAttribute,
-      absorptionColorAttribute,
+      targetColorAttribute,
+      rawFluxColorAttribute,
+      absorptionColorAttribute: targetColorAttribute,
     };
     group.add(mesh);
   }
@@ -579,7 +760,15 @@ export function createPlantGroup(scenePayload) {
     legacyFallbackLeafCount,
     defaultColorLeafCount,
     hasAbsorptionColor: absorptionColoredLeafCount > 0,
+    surfaceFluxAvailable: leafFluxValues.length > 0,
+    surfaceFluxUnavailableReason: leafFluxValues.length > 0
+      ? ""
+      : "Plant geometry is available, but plant_surface_flux.json did not provide leaf color rows for this run.",
     colorMetric,
+    colorMode: PLANT_COLOR_MODE_TARGET_RANGE,
+    colorModes: [PLANT_COLOR_MODE_TARGET_RANGE, PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX],
+    rawLeafSurfaceFluxScale: rawScale,
+    rawLeafSurfaceFluxLegend: rawLegend,
     warnings,
   };
   return group;

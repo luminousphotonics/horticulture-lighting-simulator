@@ -816,7 +816,10 @@ def _required_workspace_outputs(req: Any) -> tuple[str, ...]:
     action = str(getattr(req, "action", "")).strip().lower()
     if action == "visualize":
         return ()
-    return ("ppfd_map.txt",)
+    required = ["ppfd_map.txt"]
+    if bool(getattr(req, "plants_enabled", False)):
+        required.append("runtime_state/plant_surface_flux.json")
+    return tuple(required)
 
 
 def _can_reuse_committed_workspace(req: Any | None) -> bool:

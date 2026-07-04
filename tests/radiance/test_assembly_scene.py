@@ -292,6 +292,37 @@ def _write_minimal_large_plant_payload(
                 "one_sided_leaf_area_m2": 12.34,
                 "target_ppfd_umol_m2_s": 1000.0,
                 "target_tolerance_umol_m2_s": 20.0,
+                "raw_leaf_surface_flux_scale": {
+                    "mode": "raw_leaf_surface_flux",
+                    "scale_type": "target_normalized_ratio",
+                    "target_ppfd_umol_m2_s": 1000.0,
+                    "target_source": "fspm_target_ppfd_umol_m2_s",
+                    "ratio_min": 0.0,
+                    "ratio_max": 1.5,
+                    "clamp_min_ratio": 0.0,
+                    "clamp_max_ratio": 1.5,
+                    "anchors": [
+                        {"ratio": 0.0, "percent": 0.0, "ppfd_umol_m2_s": 0.0, "color": "#2563EB"},
+                        {"ratio": 0.25, "percent": 25.0, "ppfd_umol_m2_s": 250.0, "color": "#06B6D4"},
+                        {"ratio": 0.45, "percent": 45.0, "ppfd_umol_m2_s": 450.0, "color": "#22C55E"},
+                        {"ratio": 0.7, "percent": 70.0, "ppfd_umol_m2_s": 700.0, "color": "#22C55E"},
+                        {"ratio": 0.9, "percent": 90.0, "ppfd_umol_m2_s": 900.0, "color": "#EAB308"},
+                        {"ratio": 1.15, "percent": 115.0, "ppfd_umol_m2_s": 1150.0, "color": "#F97316"},
+                        {"ratio": 1.5, "percent": 150.0, "ppfd_umol_m2_s": 1500.0, "color": "#DC2626"},
+                    ],
+                    "units": "umol/m²/s",
+                    "ratio_units": "fraction_of_target",
+                },
+                "raw_leaf_surface_flux_summary": {
+                    "mean": 255.5,
+                    "min": 250.0,
+                    "p05": 250.55,
+                    "median": 255.5,
+                    "p95": 260.45,
+                    "max": 261.0,
+                    "mean_percent_of_target": 25.55,
+                    "units": "umol/m²/s",
+                },
                 "plant_summaries": [{"plant_id": plant["plant_id"]} for plant in plants],
                 "leaf_summaries": [{"leaf_id": row["leaf_id"]} for row in leaf_values],
                 "surface_summaries": [{"surface_id": row["surface_id"]} for row in surface_values],
@@ -299,6 +330,36 @@ def _write_minimal_large_plant_payload(
                     "color_metric": "incident_photon_flux_density_umol_m2_s",
                     "color_quantity": "incident_leaf_surface_ppfd",
                     "normalization": "linear_0_1",
+                    "raw_leaf_surface_flux_scale": {
+                        "mode": "raw_leaf_surface_flux",
+                        "scale_type": "target_normalized_ratio",
+                        "target_ppfd_umol_m2_s": 1000.0,
+                        "target_source": "fspm_target_ppfd_umol_m2_s",
+                        "ratio_min": 0.0,
+                        "ratio_max": 1.5,
+                        "clamp_min_ratio": 0.0,
+                        "clamp_max_ratio": 1.5,
+                        "anchors": [
+                            {"ratio": 0.0, "percent": 0.0, "ppfd_umol_m2_s": 0.0, "color": "#2563EB"},
+                            {"ratio": 0.25, "percent": 25.0, "ppfd_umol_m2_s": 250.0, "color": "#06B6D4"},
+                            {"ratio": 0.45, "percent": 45.0, "ppfd_umol_m2_s": 450.0, "color": "#22C55E"},
+                            {"ratio": 0.7, "percent": 70.0, "ppfd_umol_m2_s": 700.0, "color": "#22C55E"},
+                            {"ratio": 0.9, "percent": 90.0, "ppfd_umol_m2_s": 900.0, "color": "#EAB308"},
+                            {"ratio": 1.15, "percent": 115.0, "ppfd_umol_m2_s": 1150.0, "color": "#F97316"},
+                            {"ratio": 1.5, "percent": 150.0, "ppfd_umol_m2_s": 1500.0, "color": "#DC2626"},
+                        ],
+                        "units": "umol/m²/s",
+                        "ratio_units": "fraction_of_target",
+                    },
+                    "raw_leaf_surface_flux_summary": {
+                        "mean": 255.5,
+                        "min": 250.0,
+                        "p05": 250.55,
+                        "median": 255.5,
+                        "p95": 260.45,
+                        "max": 261.0,
+                        "units": "umol/m²/s",
+                    },
                     "leaf_scale": {"min": 250.0, "max": 261.0},
                     "surface_scale": {"min": 250.0, "max": 261.0},
                     "leaf_values": leaf_values,
@@ -440,6 +501,8 @@ def test_large_fspm_scene_embeds_compact_leaf_visualization_under_proxy_limit(tm
     assert "visual_intensity_0_1" in visualization["leaf_values"][0]
     assert "target_classification_ppfd_umol_m2_s" in visualization["leaf_values"][0]
     assert "target_deviation" in visualization["leaf_values"][0]
+    assert surface_flux["raw_leaf_surface_flux_scale"]["mode"] == "raw_leaf_surface_flux"
+    assert visualization["raw_leaf_surface_flux_summary"]["median"] == 255.5
     assert len(json.dumps(scene, separators=(",", ":")).encode("utf-8")) < PROXY_RESPONSE_LIMIT_BYTES
 
 
@@ -1078,6 +1141,17 @@ def test_route_authorizes_plant_enabled_workspace_with_matching_query() -> None:
             plant_grid_columns=1,
             leaf_count_per_plant=3,
         ),
+    )
+    (
+        lease.staging_workspace / "runtime_state" / "plant_surface_flux.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema": PLANT_SURFACE_FLUX_SCHEMA,
+                "visualization": {"leaf_values": []},
+            }
+        ),
+        encoding="utf-8",
     )
     commit_staged_workspace(lease, {"runtime": "assembly-plant-test"}, req)
 

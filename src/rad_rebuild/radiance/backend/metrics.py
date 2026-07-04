@@ -330,6 +330,9 @@ def _load_plant_surface_flux_summary(workspace_root: Path) -> dict[str, object] 
         "target_range_plant_fraction": payload.get("target_range_plant_fraction"),
         "over_lit_plant_fraction": payload.get("over_lit_plant_fraction"),
         "raw_mean_flux_density_umol_m2_s": payload.get("raw_mean_flux_density_umol_m2_s"),
+        "raw_leaf_surface_flux_scale": payload.get("raw_leaf_surface_flux_scale"),
+        "raw_leaf_surface_flux_summary": payload.get("raw_leaf_surface_flux_summary"),
+        "raw_leaf_surface_flux_legend": payload.get("raw_leaf_surface_flux_legend"),
         "target_classification_mean_ppfd_umol_m2_s": payload.get(
             "target_classification_mean_ppfd_umol_m2_s"
         ),

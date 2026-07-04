@@ -342,6 +342,21 @@ test("FSPM panel formatter summarizes available plant metrics", async ({ page })
           excess_incident_flux_above_target_umol_s: 4,
           deficit_to_target_incident_flux_umol_s: 7,
           plant_to_plant_target_capped_incident_flux_cv: 0.06,
+          raw_leaf_surface_flux_summary: {
+            mean: 271.5,
+            min: 120,
+            p05: 135,
+            median: 274,
+            p95: 330,
+            max: 360,
+            mean_percent_of_target: 98.7272727273,
+            min_percent_of_target: 43.6363636364,
+            p05_percent_of_target: 49.0909090909,
+            median_percent_of_target: 99.6363636364,
+            p95_percent_of_target: 120,
+            max_percent_of_target: 130.9090909091,
+            units: "umol/m²/s",
+          },
           lower_tail_raw_flux_density_umol_m2_s: 150,
           lower_tail_target_classification_ppfd_umol_m2_s: 180,
           target_capped_incident_mean_flux_density_umol_m2_s: 274.2,
@@ -404,11 +419,14 @@ test("FSPM panel formatter summarizes available plant metrics", async ({ page })
 
   expect(result.emptyAvailable).toBe(false);
   expect(result.available).toBe(true);
+  expect(result.sectionTitles).toContain("raw leaf-surface flux");
   expect(result.sectionTitles).toContain("incident leaf-surface PPFD");
   expect(result.sectionTitles).toContain("spectral exposure");
   expect(result.sectionTitles).toContain("photosynthetic light-response potential");
   expect(result.sectionTitles).toContain("photoreceptor exposure");
   expect(result.text).toContain("Target PPFD");
+  expect(result.text).toContain("Mean 271.5 umol/m²/s");
+  expect(result.text).toContain("p95 330.0 umol/m²/s");
   expect(result.text).toContain("Target-range leaves");
   expect(result.text).toContain("Target classification basis");
   expect(result.text).toContain("Excess incident above target");
