@@ -14,7 +14,7 @@ from dataclasses import dataclass
 import json
 import math
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Literal, Mapping, cast, overload
 
 from rad_rebuild.radiance.engine.plants.absorption import (
     LeafAbsorptionSurface,
@@ -174,6 +174,11 @@ def _distance_squared(a: Vector3, b: Vector3) -> float:
     )
 
 
+def _vector3_from_values(values: Iterable[float]) -> Vector3:
+    x, y, z = tuple(values)
+    return (float(x), float(y), float(z))
+
+
 def _surface_geometry_by_id(scene: PlantScene) -> dict[str, dict[str, Any]]:
     surface_registry = {surface.surface_id: surface for surface in leaf_absorption_surfaces(scene)}
     geometry: dict[str, dict[str, Any]] = {}
@@ -234,12 +239,12 @@ def _aggregate_receiver_geometry(items: Iterable[Mapping[str, Any]]) -> dict[str
         for index in range(3):
             centroid[index] += float(item_centroid[index]) * area
 
-    area_centroid = tuple(value / total_area for value in centroid)
+    area_centroid = _vector3_from_values(value / total_area for value in centroid)
     # Keep the traced point on an actual mesh patch. Averaged interior points can
     # self-occlude against opaque plant geometry in the FSPM receiver octree.
     representative = min(
         item_list,
-        key=lambda item: _distance_squared(item["centroid_m"], area_centroid),
+        key=lambda item: _distance_squared(cast(Vector3, item["centroid_m"]), area_centroid),
     )
     return {
         "area_m2": total_area,
@@ -1062,9 +1067,10 @@ def _raw_surface_detail_payload(
             leaf_items = by_leaf[leaf_id]
             face_indices = sorted(
                 {
-                    int(sample.get("face_index"))
+                    face_index
                     for sample, _density in leaf_items
-                    if isinstance(sample.get("face_index"), int)
+                    for face_index in [sample.get("face_index")]
+                    if isinstance(face_index, int)
                 }
             )
             patch_face_indices.append(face_indices)
@@ -1112,6 +1118,48 @@ def _raw_surface_detail_payload(
         "values_ppfd": values_ppfd,
         **detail_mapping,
     }
+
+
+@overload
+def write_radiance_receiver_plant_surface_flux_artifact(
+    target_dir: str | Path,
+    scene: PlantScene,
+    receiver_samples: Iterable[Mapping[str, Any]],
+    receiver_flux_density_umol_m2_s: Iterable[float],
+    *,
+    receiver_scale_multiplier: float = ...,
+    source_octree: str | None = ...,
+    receiver_granularity: str | None = ...,
+    baseline_transport_scene: str = ...,
+    fspm_receiver_transport_scene: str = ...,
+    receiver_trace_count: int = ...,
+    target_ppfd_umol_m2_s: float | None = ...,
+    target_tolerance_umol_m2_s: float | None = ...,
+    target_classification_ppfd_map_path: str | Path | None = ...,
+    leaf_material_metadata: Mapping[str, Any] | None = ...,
+    return_payload: Literal[True],
+) -> tuple[Path, dict[str, Any]]: ...
+
+
+@overload
+def write_radiance_receiver_plant_surface_flux_artifact(
+    target_dir: str | Path,
+    scene: PlantScene,
+    receiver_samples: Iterable[Mapping[str, Any]],
+    receiver_flux_density_umol_m2_s: Iterable[float],
+    *,
+    receiver_scale_multiplier: float = ...,
+    source_octree: str | None = ...,
+    receiver_granularity: str | None = ...,
+    baseline_transport_scene: str = ...,
+    fspm_receiver_transport_scene: str = ...,
+    receiver_trace_count: int = ...,
+    target_ppfd_umol_m2_s: float | None = ...,
+    target_tolerance_umol_m2_s: float | None = ...,
+    target_classification_ppfd_map_path: str | Path | None = ...,
+    leaf_material_metadata: Mapping[str, Any] | None = ...,
+    return_payload: Literal[False] = ...,
+) -> Path: ...
 
 
 def write_radiance_receiver_plant_surface_flux_artifact(
@@ -1487,35 +1535,29 @@ def _raw_flux_distribution_summary(
         "median_ratio_to_target": _raw_flux_ratio(p50, target_ppfd_umol_m2_s),
         "p95_ratio_to_target": _raw_flux_ratio(p95, target_ppfd_umol_m2_s),
         "max_ratio_to_target": _raw_flux_ratio(max_value, target_ppfd_umol_m2_s),
-        "mean_percent_of_target": (
-            _raw_flux_ratio(mean, target_ppfd_umol_m2_s) * 100.0
-            if _raw_flux_ratio(mean, target_ppfd_umol_m2_s) is not None
-            else None
+        "mean_percent_of_target": _raw_flux_percent_of_target(
+            mean,
+            target_ppfd_umol_m2_s,
         ),
-        "min_percent_of_target": (
-            _raw_flux_ratio(min_value, target_ppfd_umol_m2_s) * 100.0
-            if _raw_flux_ratio(min_value, target_ppfd_umol_m2_s) is not None
-            else None
+        "min_percent_of_target": _raw_flux_percent_of_target(
+            min_value,
+            target_ppfd_umol_m2_s,
         ),
-        "p05_percent_of_target": (
-            _raw_flux_ratio(p05, target_ppfd_umol_m2_s) * 100.0
-            if _raw_flux_ratio(p05, target_ppfd_umol_m2_s) is not None
-            else None
+        "p05_percent_of_target": _raw_flux_percent_of_target(
+            p05,
+            target_ppfd_umol_m2_s,
         ),
-        "median_percent_of_target": (
-            _raw_flux_ratio(p50, target_ppfd_umol_m2_s) * 100.0
-            if _raw_flux_ratio(p50, target_ppfd_umol_m2_s) is not None
-            else None
+        "median_percent_of_target": _raw_flux_percent_of_target(
+            p50,
+            target_ppfd_umol_m2_s,
         ),
-        "p95_percent_of_target": (
-            _raw_flux_ratio(p95, target_ppfd_umol_m2_s) * 100.0
-            if _raw_flux_ratio(p95, target_ppfd_umol_m2_s) is not None
-            else None
+        "p95_percent_of_target": _raw_flux_percent_of_target(
+            p95,
+            target_ppfd_umol_m2_s,
         ),
-        "max_percent_of_target": (
-            _raw_flux_ratio(max_value, target_ppfd_umol_m2_s) * 100.0
-            if _raw_flux_ratio(max_value, target_ppfd_umol_m2_s) is not None
-            else None
+        "max_percent_of_target": _raw_flux_percent_of_target(
+            max_value,
+            target_ppfd_umol_m2_s,
         ),
         "target_ppfd_umol_m2_s": target_ppfd_umol_m2_s,
         "bucket_counts": _raw_flux_bucket_counts(
@@ -1624,6 +1666,14 @@ def _raw_flux_ratio(value: float, target_ppfd_umol_m2_s: float | None) -> float 
     if target_ppfd_umol_m2_s is None or target_ppfd_umol_m2_s <= 0.0:
         return None
     return value / target_ppfd_umol_m2_s
+
+
+def _raw_flux_percent_of_target(
+    value: float,
+    target_ppfd_umol_m2_s: float | None,
+) -> float | None:
+    ratio = _raw_flux_ratio(value, target_ppfd_umol_m2_s)
+    return ratio * 100.0 if ratio is not None else None
 
 
 def _raw_scale_anchors(
@@ -1765,36 +1815,12 @@ def _raw_leaf_surface_flux_metadata(
         "median_ratio_to_target": _raw_flux_ratio(p50, target_ppfd),
         "p95_ratio_to_target": _raw_flux_ratio(p95, target_ppfd),
         "max_ratio_to_target": _raw_flux_ratio(max_value, target_ppfd),
-        "mean_percent_of_target": (
-            _raw_flux_ratio(mean, target_ppfd) * 100.0
-            if _raw_flux_ratio(mean, target_ppfd) is not None
-            else None
-        ),
-        "min_percent_of_target": (
-            _raw_flux_ratio(min_value, target_ppfd) * 100.0
-            if _raw_flux_ratio(min_value, target_ppfd) is not None
-            else None
-        ),
-        "p05_percent_of_target": (
-            _raw_flux_ratio(p05, target_ppfd) * 100.0
-            if _raw_flux_ratio(p05, target_ppfd) is not None
-            else None
-        ),
-        "median_percent_of_target": (
-            _raw_flux_ratio(p50, target_ppfd) * 100.0
-            if _raw_flux_ratio(p50, target_ppfd) is not None
-            else None
-        ),
-        "p95_percent_of_target": (
-            _raw_flux_ratio(p95, target_ppfd) * 100.0
-            if _raw_flux_ratio(p95, target_ppfd) is not None
-            else None
-        ),
-        "max_percent_of_target": (
-            _raw_flux_ratio(max_value, target_ppfd) * 100.0
-            if _raw_flux_ratio(max_value, target_ppfd) is not None
-            else None
-        ),
+        "mean_percent_of_target": _raw_flux_percent_of_target(mean, target_ppfd),
+        "min_percent_of_target": _raw_flux_percent_of_target(min_value, target_ppfd),
+        "p05_percent_of_target": _raw_flux_percent_of_target(p05, target_ppfd),
+        "median_percent_of_target": _raw_flux_percent_of_target(p50, target_ppfd),
+        "p95_percent_of_target": _raw_flux_percent_of_target(p95, target_ppfd),
+        "max_percent_of_target": _raw_flux_percent_of_target(max_value, target_ppfd),
         "target_ppfd_umol_m2_s": target_ppfd,
         "bucket_counts": _raw_flux_bucket_counts(values, target_ppfd),
         "summary_granularity": "leaf_average",

@@ -11,6 +11,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import numpy as np
@@ -26,6 +27,7 @@ from rad_rebuild.radiance.backend import env as backend_env  # noqa: E402
 from rad_rebuild.radiance.backend import runtime as backend_runtime  # noqa: E402
 from rad_rebuild.radiance.backend.models import RadianceRunRequest, request_with_updates  # noqa: E402
 from rad_rebuild.radiance.config import MODE_COMPETITOR, MODE_HPS, MODE_SMD  # noqa: E402
+from rad_rebuild.radiance.domain import plant_geometry_config_from_request  # noqa: E402
 from rad_rebuild.radiance.paths import RADIANCE_DATA_ROOT  # noqa: E402
 from rad_rebuild.radiance.engine.emitters.hps_generation.profile import (  # noqa: E402
     DEFAULT_IES_VARIANT as DEFAULT_HPS_IES_VARIANT,
@@ -57,6 +59,8 @@ from rad_rebuild.radiance.engine.simulation.precomputed_dataset import (  # noqa
     validate_mesh_patch_plant_receiver_payload,
     write_precomputed_plant_receiver_npz,
 )
+from rad_rebuild.radiance.engine.plants import generate_plant_scene  # noqa: E402
+from rad_rebuild.radiance.engine.plants.absorption import leaf_absorption_surfaces  # noqa: E402
 from rad_rebuild.radiance.engine.plants.surface_flux import (  # noqa: E402
     RADIANCE_RECEIVER_METHOD,
     build_plant_surface_flux_payload,
@@ -117,6 +121,70 @@ def _mesh_patch_surface_flux_fixture(*, front: float = 12.0, back: float = 18.0)
     }
 
 
+def _mesh_patch_surface_flux_fixture_for_request(
+    req: RadianceRunRequest,
+    *,
+    front: float = 12.0,
+    back: float = 18.0,
+) -> dict[str, object]:
+    scene = generate_plant_scene(plant_geometry_config_from_request(req))
+    surface_summaries: list[dict[str, object]] = []
+    for surface in leaf_absorption_surfaces(scene):
+        surface_summaries.append(
+            {
+                "surface_id": surface.surface_id,
+                "plant_id": surface.plant_id,
+                "leaf_id": surface.leaf_id,
+                "leaf_index": surface.leaf_index,
+                "face_index": surface.face_index,
+                "area_m2": surface.area_m2,
+                "incident_photon_flux_density_umol_m2_s": front + back,
+                "receiver_sample_count": 2,
+                "receiver_rows_per_mesh_surface_row": 2,
+                "receiver_sides": ["front", "back"],
+                "side_summaries": [
+                    {
+                        "sample_id": f"{surface.surface_id}_front",
+                        "side": "front",
+                        "incident_photon_flux_density_umol_m2_s": front,
+                        "normal": [0.0, 0.0, 1.0],
+                    },
+                    {
+                        "sample_id": f"{surface.surface_id}_back",
+                        "side": "back",
+                        "incident_photon_flux_density_umol_m2_s": back,
+                        "normal": [0.0, 0.0, -1.0],
+                    },
+                ],
+            }
+        )
+    return {
+        **_mesh_patch_surface_flux_fixture(front=front, back=back),
+        "surface_count": len(surface_summaries),
+        "receiver_sample_count": len(surface_summaries) * 2,
+        "surface_summaries": surface_summaries,
+    }
+
+
+def _minimal_direct_layout() -> dict[str, object]:
+    return {
+        "units": "meters",
+        "z": 0.4572,
+        "fixtures": [
+            {
+                "cx": 0.0,
+                "cy": 0.0,
+                "body_corners": [
+                    [-0.5, -0.25],
+                    [0.5, -0.25],
+                    [0.5, 0.25],
+                    [-0.5, 0.25],
+                ],
+            }
+        ],
+    }
+
+
 def _write_synthetic_mesh_patch_receiver_bundle(
     bundle: Path,
     *,
@@ -130,8 +198,13 @@ def _write_synthetic_mesh_patch_receiver_bundle(
         "receiver_sample_count": 4 if include_samples else 0,
     }
     receiver_metadata = {key: value for key, value in receiver_metadata.items() if value is not None}
-    receiver_arrays: dict[str, object] = {
-        "metadata_json": np.array(json.dumps(receiver_metadata)),
+    receiver_arrays: dict[str, Any] = {
+        "metadata_json": np.frombuffer(
+            json.dumps(receiver_metadata, sort_keys=True, separators=(",", ":")).encode(
+                "utf-8"
+            ),
+            dtype=np.uint8,
+        ),
         "plant_row": np.array([0, 0], dtype=np.uint16),
         "plant_column": np.array([0, 0], dtype=np.uint16),
         "leaf_index": np.array([0, 1], dtype=np.uint16),
@@ -470,10 +543,6 @@ class PrecomputedBoundaryTests(unittest.TestCase):
         )
 
     def test_precomputed_playback_mesh_patch_samples_materialize_dense_detail(self) -> None:
-        receiver_payload = build_precomputed_plant_receiver_payload(
-            _mesh_patch_surface_flux_fixture(front=12.0, back=18.0),
-            value_semantics="smd_receiver_basis",
-        )
         req = RadianceRunRequest(
             action="uniformity",
             mode=MODE_SMD,
@@ -485,18 +554,23 @@ class PrecomputedBoundaryTests(unittest.TestCase):
             fspm_receiver_granularity="mesh_patch",
             fspm_spectral_transport_mode="scalar_source_weighted",
         )
+        receiver_payload = build_precomputed_plant_receiver_payload(
+            _mesh_patch_surface_flux_fixture_for_request(req, front=12.0, back=18.0),
+            value_semantics="smd_receiver_basis",
+        )
+        runtime_values = [12.0, 18.0] * int(receiver_payload["surface_count"])
 
         scene, rows = precomputed_playback._plant_receiver_surface_flux_rows(
             req,
             receiver_payload,
-            [12.0, 18.0],
+            runtime_values,
         )
         payload = build_plant_surface_flux_payload(
             scene,
             rows,
             method=RADIANCE_RECEIVER_METHOD,
             source_ppfd_map="ppfd_map.txt",
-            receiver_sample_count=2,
+            receiver_sample_count=len(runtime_values),
             receiver_granularity="mesh_patch",
             receiver_rows_per_mesh_surface_row=2.0,
         )
@@ -505,7 +579,8 @@ class PrecomputedBoundaryTests(unittest.TestCase):
         self.assertEqual(rows[0]["receiver_sides"], ["front", "back"])
         self.assertEqual(len(rows[0]["side_summaries"]), 2)
         detail = payload["visualization"]["raw_leaf_surface_flux_detail"]
-        self.assertEqual(detail["visual_granularity"], "mesh_patch")
+        self.assertEqual(detail["receiver_granularity"], "mesh_patch")
+        self.assertEqual(detail["visual_granularity"], "leaf_average")
 
     def test_compact_mesh_patch_npz_arrays_build_leaf_major_dense_detail(self) -> None:
         receiver_payload = build_precomputed_plant_receiver_payload(
@@ -713,7 +788,7 @@ class PrecomputedBoundaryTests(unittest.TestCase):
                 ref.path.mkdir(parents=True)
                 (ref.path / "ppfd_map.txt.gz").write_bytes(b"tiny")
                 (ref.path / "hps_layout.json").write_text(
-                    '{"fixtures": []}', encoding="utf-8"
+                    json.dumps(_minimal_direct_layout()), encoding="utf-8"
                 )
                 (ref.path / "power.json").write_text("{}", encoding="utf-8")
                 ref.manifest_path.write_text(
@@ -773,7 +848,7 @@ class PrecomputedBoundaryTests(unittest.TestCase):
             ref.path.mkdir(parents=True)
             (ref.path / "ppfd_map.txt.gz").write_bytes(b"tiny")
             (ref.path / "hps_layout.json").write_text(
-                '{"fixtures": []}', encoding="utf-8"
+                json.dumps(_minimal_direct_layout()), encoding="utf-8"
             )
             (ref.path / "power.json").write_text("{}", encoding="utf-8")
             ref.manifest_path.write_text(
@@ -1404,7 +1479,7 @@ class PrecomputedBoundaryTests(unittest.TestCase):
                 handle.write("0 0 0 100\n")
                 handle.write("1 0 0 200\n")
             (bundle_dir / "spydr3_layout.json").write_text(
-                '{"fixtures": []}', encoding="utf-8"
+                json.dumps(_minimal_direct_layout()), encoding="utf-8"
             )
             (bundle_dir / "power.json").write_text(
                 json.dumps(
@@ -1486,7 +1561,8 @@ class PrecomputedBoundaryTests(unittest.TestCase):
                 handle.write("0 0 0 100\n")
                 handle.write("1 0 0 200\n")
             (bundle_dir / "hps_layout.json").write_text(
-                json.dumps({"fixtures": [], "nx": 0, "ny": 0}), encoding="utf-8"
+                json.dumps({**_minimal_direct_layout(), "nx": 1, "ny": 1}),
+                encoding="utf-8",
             )
             (bundle_dir / "power.json").write_text(
                 json.dumps(

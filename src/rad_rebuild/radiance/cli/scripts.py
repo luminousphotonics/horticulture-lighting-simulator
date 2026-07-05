@@ -17,7 +17,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, overload
 
 import numpy as np
 
@@ -1730,10 +1730,32 @@ def _spectral_distribution_from_env(
     )
 
 
+@overload
 def _write_optional_spectral_absorption_artifact(
     config: RuntimeConfig,
     surface_flux_payload: Mapping[str, Any],
-    spectral_distribution,
+    spectral_distribution: Any,
+    *,
+    spectral_mode: str,
+    return_payload: Literal[True],
+) -> tuple[Path, dict[str, Any]] | None: ...
+
+
+@overload
+def _write_optional_spectral_absorption_artifact(
+    config: RuntimeConfig,
+    surface_flux_payload: Mapping[str, Any],
+    spectral_distribution: Any,
+    *,
+    spectral_mode: str,
+    return_payload: Literal[False] = ...,
+) -> Path | None: ...
+
+
+def _write_optional_spectral_absorption_artifact(
+    config: RuntimeConfig,
+    surface_flux_payload: Mapping[str, Any],
+    spectral_distribution: Any,
     *,
     spectral_mode: str,
     return_payload: bool = False,
@@ -1757,12 +1779,19 @@ def _write_optional_spectral_absorption_artifact(
             spectral_distribution,
             profile.wavelength_nm,
         )
+    if return_payload:
+        return write_plant_spectral_absorption_artifact(
+            config.runtime_state_root,
+            surface_flux_payload,
+            profile,
+            photon_distribution,
+            return_payload=True,
+        )
     return write_plant_spectral_absorption_artifact(
         config.runtime_state_root,
         surface_flux_payload,
         profile,
         photon_distribution,
-        return_payload=return_payload,
     )
 
 
@@ -1885,7 +1914,7 @@ def _write_banded_plant_surface_flux_artifact(
     )
     receiver_input.write_text(receiver_sample_input_text(samples), encoding="utf-8")
     aggregate_par_densities = [0.0 for _sample in samples]
-    band_surface_rows: dict[str, list[Mapping[str, Any]]] = {}
+    band_surface_rows: dict[str, list[dict[str, Any]]] = {}
     band_payloads: list[dict[str, Any]] = []
     active_trace_count = 0
 
@@ -2070,7 +2099,7 @@ def _write_banded_plant_surface_flux_artifact(
             receiver_samples=samples
             if receiver_granularity == "mesh_patch"
             else None,
-            receiver_densities=receiver_densities
+            receiver_densities=aggregate_par_densities
             if receiver_granularity == "mesh_patch"
             else None,
             receiver_scale_multiplier=receiver_scale_multiplier,

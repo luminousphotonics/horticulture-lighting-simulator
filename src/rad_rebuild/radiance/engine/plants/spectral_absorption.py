@@ -14,7 +14,7 @@ from dataclasses import dataclass
 import json
 import math
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Literal, Mapping, overload
 
 from rad_rebuild.radiance.engine.plants.optical_profiles import (
     LeafOpticalProfile,
@@ -444,6 +444,28 @@ def build_plant_spectral_absorption_payload(
     }
 
 
+@overload
+def write_plant_spectral_absorption_artifact(
+    target_dir: str | Path,
+    surface_flux_payload: Mapping[str, Any],
+    optical_profile: LeafOpticalProfile,
+    photon_distribution: WavelengthPhotonDistribution,
+    *,
+    return_payload: Literal[True],
+) -> tuple[Path, dict[str, Any]]: ...
+
+
+@overload
+def write_plant_spectral_absorption_artifact(
+    target_dir: str | Path,
+    surface_flux_payload: Mapping[str, Any],
+    optical_profile: LeafOpticalProfile,
+    photon_distribution: WavelengthPhotonDistribution,
+    *,
+    return_payload: Literal[False] = ...,
+) -> Path: ...
+
+
 def write_plant_spectral_absorption_artifact(
     target_dir: str | Path,
     surface_flux_payload: Mapping[str, Any],
@@ -579,6 +601,28 @@ def build_banded_plant_spectral_absorption_payload(
             "Target-capped fields are not biological absorption, yield, biomass, photosynthesis, or validated photoinhibition predictions.",
         ],
     }
+
+
+@overload
+def write_banded_plant_spectral_absorption_artifact(
+    target_dir: str | Path,
+    surface_flux_payload: Mapping[str, Any],
+    band_surface_flux_rows: Mapping[str, Iterable[Mapping[str, Any]]],
+    banded_transport_metadata: Mapping[str, Any],
+    *,
+    return_payload: Literal[True],
+) -> tuple[Path, dict[str, Any]]: ...
+
+
+@overload
+def write_banded_plant_spectral_absorption_artifact(
+    target_dir: str | Path,
+    surface_flux_payload: Mapping[str, Any],
+    band_surface_flux_rows: Mapping[str, Iterable[Mapping[str, Any]]],
+    banded_transport_metadata: Mapping[str, Any],
+    *,
+    return_payload: Literal[False] = ...,
+) -> Path: ...
 
 
 def write_banded_plant_spectral_absorption_artifact(
@@ -899,7 +943,7 @@ def _finite_non_negative(name: str, value: object) -> float:
     return number
 
 
-def _empty_band_totals() -> dict[str, dict[str, float | None]]:
+def _empty_band_totals() -> dict[str, dict[str, float]]:
     return {
         str(band["band_id"]): {
             "incident_photon_flux_umol_s": 0.0,

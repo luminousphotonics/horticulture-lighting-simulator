@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -871,13 +872,15 @@ def _metrics_payload_for_request(req: RadianceRunRequest, workspace_root: Path) 
     elif req.mode == MODE_SMD and smd_summary.exists():
         total_watts, emitted_ppf = _parse_smd_summary(smd_summary)
 
-    metrics = compute_ppfd_metrics(
-        ppfd,
-        setpoint_ppfd=cap,
-        canopy_area_m2=area,
-        total_input_watts=total_watts,
-        emitted_ppf_umol_s=emitted_ppf,
-        legacy_metrics=True,
+    metrics: dict[str, object] = dict(
+        compute_ppfd_metrics(
+            ppfd,
+            setpoint_ppfd=cap,
+            canopy_area_m2=area,
+            total_input_watts=total_watts,
+            emitted_ppf_umol_s=emitted_ppf,
+            legacy_metrics=True,
+        )
     )
     if req.mode == HPS_MODE_LABEL:
         metrics["mode_note"] = "Peak-cap metrics are omitted for 1000W HPS because reliable dimming is not assumed."

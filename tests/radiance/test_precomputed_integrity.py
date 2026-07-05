@@ -34,6 +34,25 @@ def _basis_sha256(basis: np.ndarray) -> str:
     return hashlib.sha256(np.asarray(basis, dtype=np.float64).tobytes()).hexdigest()
 
 
+def _minimal_direct_layout() -> dict[str, object]:
+    return {
+        "units": "meters",
+        "z": 0.4572,
+        "fixtures": [
+            {
+                "cx": 0.0,
+                "cy": 0.0,
+                "body_corners": [
+                    [-0.5, -0.25],
+                    [0.5, -0.25],
+                    [0.5, 0.25],
+                    [-0.5, 0.25],
+                ],
+            }
+        ],
+    }
+
+
 class PrecomputedIntegrityTests(unittest.TestCase):
     def test_resolver_rejects_traversal_and_absolute_paths(self) -> None:
         with tempfile.TemporaryDirectory(prefix="rad_rebuild_integrity_paths_") as tmp:
@@ -289,7 +308,10 @@ class PrecomputedIntegrityTests(unittest.TestCase):
             ref.path.mkdir(parents=True)
             with gzip.open(ref.path / "ppfd_map.txt.gz", "wt", encoding="utf-8") as handle:
                 handle.write("0 0 0 100\n")
-            (ref.path / "layout.json").write_text("{}", encoding="utf-8")
+            (ref.path / "layout.json").write_text(
+                json.dumps(_minimal_direct_layout()),
+                encoding="utf-8",
+            )
             (ref.path / "power.json").write_text(
                 json.dumps({"total_ppf": 100.0, "total_w": 50.0}),
                 encoding="utf-8",

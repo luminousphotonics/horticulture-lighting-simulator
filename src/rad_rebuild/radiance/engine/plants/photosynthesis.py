@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass
 import json
 import math
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Literal, Mapping, overload
 
 LEGACY_PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA = (
     "rad_rebuild.fspm.plant_photosynthesis_response.v1"
@@ -753,6 +753,26 @@ def build_plant_photosynthesis_response_payload(
             "The model does not predict yield, biomass, harvest weight, growth rate, or crop output.",
         ],
     }
+
+
+@overload
+def write_plant_photosynthesis_response_artifact(
+    target_dir: str | Path,
+    spectral_response_payload: Mapping[str, Any],
+    parameters: PhotosynthesisResponseParameters | None = ...,
+    *,
+    return_payload: Literal[True],
+) -> tuple[Path, dict[str, Any]]: ...
+
+
+@overload
+def write_plant_photosynthesis_response_artifact(
+    target_dir: str | Path,
+    spectral_response_payload: Mapping[str, Any],
+    parameters: PhotosynthesisResponseParameters | None = ...,
+    *,
+    return_payload: Literal[False] = ...,
+) -> Path: ...
 
 
 def write_plant_photosynthesis_response_artifact(

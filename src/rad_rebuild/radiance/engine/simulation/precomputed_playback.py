@@ -1122,7 +1122,7 @@ def _plant_receiver_surface_flux_rows(
                     f"{surface_id!r}."
                 )
             grouped.setdefault(surface_id, []).append((entry, max(0.0, float(density))))
-        rows: list[dict[str, Any]] = []
+        sample_rows: list[dict[str, Any]] = []
         for surface_id in sorted(grouped):
             surface = surfaces[surface_id]
             sample_items = grouped[surface_id]
@@ -1149,7 +1149,7 @@ def _plant_receiver_surface_flux_rows(
                     if isinstance(value, list):
                         side_row[key] = list(value)
                 side_summaries.append(side_row)
-            rows.append(
+            sample_rows.append(
                 {
                     "surface_id": surface.surface_id,
                     "plant_id": surface.plant_id,
@@ -1171,31 +1171,31 @@ def _plant_receiver_surface_flux_rows(
                     "source": "precomputed_plant_receiver_playback",
                 }
             )
-        return scene, rows
-    rows: list[dict[str, Any]] = []
+        return scene, sample_rows
+    surface_rows: list[dict[str, Any]] = []
     for index, (entry, density) in enumerate(zip(entries, runtime_values, strict=True)):
         surface_id = str(entry["surface_id"])
-        surface = surfaces.get(surface_id)
-        if surface is None:
+        row_surface = surfaces.get(surface_id)
+        if row_surface is None:
             raise PlaybackError(
                 f"Precomputed plant receiver row {index} references unknown surface_id "
                 f"{surface_id!r}."
             )
         value = max(0.0, float(density))
-        rows.append(
+        surface_rows.append(
             {
-                "surface_id": surface.surface_id,
-                "plant_id": surface.plant_id,
-                "leaf_id": surface.leaf_id,
-                "leaf_index": surface.leaf_index,
-                "face_index": surface.face_index,
-                "area_m2": surface.area_m2,
+                "surface_id": row_surface.surface_id,
+                "plant_id": row_surface.plant_id,
+                "leaf_id": row_surface.leaf_id,
+                "leaf_index": row_surface.leaf_index,
+                "face_index": row_surface.face_index,
+                "area_m2": row_surface.area_m2,
                 "incident_photon_flux_density_umol_m2_s": value,
-                "incident_photon_flux_umol_s": value * surface.area_m2,
+                "incident_photon_flux_umol_s": value * row_surface.area_m2,
                 "source": "precomputed_plant_receiver_playback",
             }
         )
-    return scene, rows
+    return scene, surface_rows
 
 
 def _dense_mesh_patch_detail_from_arrays(
@@ -1439,7 +1439,11 @@ def _write_runtime_plant_receiver_payload(
         row = dict(entry)
         row["runtime_ppfd_umol_m2_s"] = max(0.0, float(value))
         rows.append(row)
-    payload = dict(receiver_payload)
+    payload = {
+        str(key): value
+        for key, value in receiver_payload.items()
+        if not str(key).startswith("_")
+    }
     if _plant_receiver_samples(receiver_payload):
         payload["receiver_samples"] = rows
     else:
@@ -1554,6 +1558,8 @@ def precomputed_plant_playback_diagnostics(workspace_root: str | Path) -> JsonOb
         for row in leaf_values
         if isinstance(row.get("incident_photon_flux_density_umol_m2_s"), int | float)
     ]
+    if not runtime_values:
+        runtime_values = leaf_raw_values
     leaf_classification_values = [
         float(row["target_classification_ppfd_umol_m2_s"])
         for row in leaf_values

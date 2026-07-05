@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping, overload
 
 PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA = "rad_rebuild.fspm.plant_photoreceptor_exposure.v1"
 PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA_VERSION = 1
@@ -341,6 +341,24 @@ def build_plant_photoreceptor_exposure_payload(
             "Dose fields remain null unless recipe timing input is provided.",
         ],
     }
+
+
+@overload
+def write_plant_photoreceptor_exposure_artifact(
+    target_dir: str | Path,
+    spectral_response_payload: Mapping[str, Any],
+    *,
+    return_payload: Literal[True],
+) -> tuple[Path, dict[str, Any]]: ...
+
+
+@overload
+def write_plant_photoreceptor_exposure_artifact(
+    target_dir: str | Path,
+    spectral_response_payload: Mapping[str, Any],
+    *,
+    return_payload: Literal[False] = ...,
+) -> Path: ...
 
 
 def write_plant_photoreceptor_exposure_artifact(

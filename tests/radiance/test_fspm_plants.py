@@ -343,13 +343,19 @@ def test_fit_room_plant_grid_maps_canonical_rectangular_axes_without_transpose()
     assert config.plant_grid_columns == 8
     assert row_indexes == set(range(9))
     assert column_indexes == set(range(8))
+    assert config.room_length_m is not None
+    assert config.room_width_m is not None
     assert config.plant_column_margin_m is not None
     assert config.plant_row_margin_m is not None
+    room_length_m = config.room_length_m
+    room_width_m = config.room_width_m
+    plant_row_margin_m = config.plant_row_margin_m
+    plant_column_margin_m = config.plant_column_margin_m
     assert max(plant.center_m[0] for plant in scene.plants) == pytest.approx(
-        config.room_length_m / 2.0 - config.plant_row_margin_m
+        room_length_m / 2.0 - plant_row_margin_m
     )
     assert max(plant.center_m[1] for plant in scene.plants) == pytest.approx(
-        config.room_width_m / 2.0 - config.plant_column_margin_m
+        room_width_m / 2.0 - plant_column_margin_m
     )
 
     transposed_config = _room_fit_config(12, 10)

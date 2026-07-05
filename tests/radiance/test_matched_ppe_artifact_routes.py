@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 
 from tests.radiance.runtime_env import configure_test_runtime
 
@@ -36,7 +36,7 @@ def test_radiance_images_preserves_match_system_ppe_in_generated_image_urls(monk
     monkeypatch.setattr(artifacts_route, "_ensure_visuals", lambda _req, _env, _workspace: visuals)
 
     result = artifacts_route.radiance_images(
-        cast(object, _FakeRequest({"session_id": "matched-ppe-test"})),
+        cast(Any, _FakeRequest({"session_id": "matched-ppe-test"})),
         mode="SMD",
         execution_mode="live_local",
         target_ppfd=275,
@@ -64,7 +64,10 @@ def test_radiance_metrics_authorizes_against_match_system_ppe_request(monkeypatc
     monkeypatch.setattr(metrics_route, "get_metrics_payload", fake_get_metrics_payload)
 
     result = metrics_route.radiance_metrics(
-        cast(object, _FakeRequest({"session_id": "matched-ppe-test", "match_system_ppe": "true"})),
+        cast(
+            Any,
+            _FakeRequest({"session_id": "matched-ppe-test", "match_system_ppe": "true"}),
+        ),
         mode="SMD",
         execution_mode="live_local",
         target_ppfd=275,
@@ -94,7 +97,7 @@ def test_radiance_assembly_scene_authorizes_against_match_system_ppe_request(mon
     request.method = "HEAD"
 
     result = assembly_route.radiance_assembly_scene(
-        cast(object, request),
+        cast(Any, request),
         mode="SMD",
         execution_mode="live_local",
         target_ppfd=275,
@@ -127,7 +130,7 @@ def test_radiance_scatter_authorizes_against_match_system_ppe_request(monkeypatc
     request.method = "HEAD"
 
     result = artifacts_route.radiance_scatter(
-        cast(object, request),
+        cast(Any, request),
         mode="SMD",
         execution_mode="live_local",
         target_ppfd=275,
@@ -174,7 +177,7 @@ def test_radiance_scatter_authorizes_against_match_system_ppe_and_plant_request(
     request.method = "HEAD"
 
     result = artifacts_route.radiance_scatter(
-        cast(object, request),
+        cast(Any, request),
         mode="SMD",
         execution_mode="live_local",
         target_ppfd=275,

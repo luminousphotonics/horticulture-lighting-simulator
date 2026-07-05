@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from fastapi import HTTPException
@@ -15,7 +16,7 @@ from rad_rebuild.radiance.backend.routes import runs  # noqa: E402
 from rad_rebuild.radiance.config import EXECUTION_MODE_LIVE_LOCAL  # noqa: E402
 
 
-def _request(query: dict[str, str]) -> SimpleNamespace:
+def _request(query: dict[str, str]) -> Any:
     return SimpleNamespace(query_params=query)
 
 

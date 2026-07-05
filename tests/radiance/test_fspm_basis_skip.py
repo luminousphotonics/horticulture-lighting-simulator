@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 from tests.radiance.runtime_env import configure_test_runtime
 
@@ -93,7 +94,7 @@ def test_final_smd_simulation_strips_basis_environment_keys(monkeypatch, tmp_pat
     exit_code = scripts._run_smd_simulation(config)
 
     assert exit_code == int(scripts.RadianceScriptExit.OK)
-    env = captured["env"]
+    env = cast(dict[str, str], captured["env"])
     for key in (
         "FSPM_SKIP_DURING_BASIS",
         "SMD_BASIS_MODE",

@@ -164,7 +164,7 @@ function interpolatedHexColor(startHex, endHex, value) {
   });
 }
 
-export function surfaceFluxColorHexForTargetDeviation(value, surfaceFlux = {}) {
+export function surfaceFluxColorHexForTargetDeviation(value, _surfaceFlux = {}) {
   const deviation = finiteNumber(value);
   if (deviation === null) {
     return SURFACE_FLUX_COLOR_PALETTE.green;
@@ -457,7 +457,7 @@ function targetCoveragePpfdForLeaf(row) {
   return finiteNumber(row?.[TARGET_CLASSIFICATION_METRIC]);
 }
 
-export function surfaceFluxTargetDeviationForLeafValue(row, surfaceFlux = {}, colorMetric = "") {
+export function surfaceFluxTargetDeviationForLeafValue(row, surfaceFlux = {}, _colorMetric = "") {
   const rowDeviation = finiteNumber(row?.target_deviation);
   if (rowDeviation !== null) {
     return rowDeviation;

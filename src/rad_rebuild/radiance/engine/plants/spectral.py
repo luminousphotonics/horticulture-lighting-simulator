@@ -13,7 +13,7 @@ import json
 import math
 import re
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Literal, Mapping, overload
 
 SPECTRAL_RESPONSE_SCHEMA = "rad_rebuild.fspm.plant_spectral_response.scaffold.v1"
 SPECTRAL_RESPONSE_SCHEMA_VERSION = 1
@@ -1292,6 +1292,28 @@ def build_banded_plant_spectral_response_payload(
     }
 
 
+@overload
+def write_plant_spectral_response_artifact(
+    target_dir: str | Path,
+    surface_flux_payload: Mapping[str, Any],
+    optical_bands: list[LeafSpectralOpticalBand],
+    photon_distribution: SpectralPhotonDistribution,
+    *,
+    return_payload: Literal[True],
+) -> tuple[Path, dict[str, Any]]: ...
+
+
+@overload
+def write_plant_spectral_response_artifact(
+    target_dir: str | Path,
+    surface_flux_payload: Mapping[str, Any],
+    optical_bands: list[LeafSpectralOpticalBand],
+    photon_distribution: SpectralPhotonDistribution,
+    *,
+    return_payload: Literal[False] = ...,
+) -> Path: ...
+
+
 def write_plant_spectral_response_artifact(
     target_dir: str | Path,
     surface_flux_payload: Mapping[str, Any],
@@ -1313,6 +1335,24 @@ def write_plant_spectral_response_artifact(
         encoding="utf-8",
     )
     return (path, payload) if return_payload else path
+
+
+@overload
+def write_banded_plant_spectral_response_artifact(
+    target_dir: str | Path,
+    spectral_absorption_payload: Mapping[str, Any],
+    *,
+    return_payload: Literal[True],
+) -> tuple[Path, dict[str, Any]]: ...
+
+
+@overload
+def write_banded_plant_spectral_response_artifact(
+    target_dir: str | Path,
+    spectral_absorption_payload: Mapping[str, Any],
+    *,
+    return_payload: Literal[False] = ...,
+) -> Path: ...
 
 
 def write_banded_plant_spectral_response_artifact(

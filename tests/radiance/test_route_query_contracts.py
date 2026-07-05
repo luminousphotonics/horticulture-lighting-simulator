@@ -246,7 +246,8 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         self.assertNotIn("visualization", incident)
         self.assertNotIn("leaf_summaries", incident)
         self.assertNotIn("plant_summaries", incident)
-        self.assertNotIn("raw_leaf_surface_flux_detail", json.dumps(payload))
+        self.assertNotIn('"raw_leaf_surface_flux_detail":', json.dumps(payload))
+        self.assertIn("raw_leaf_surface_flux_detail_summary", incident)
         self.assertLess(len(json.dumps(payload, separators=(",", ":")).encode("utf-8")), 250_000)
 
     def test_metrics_rejects_removed_hps_ies_variant(self) -> None:
@@ -650,7 +651,7 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         self.assertEqual(captured.req.fspm_target_ppfd_umol_m2_s, 275.0)
         self.assertEqual(captured.req.fspm_target_tolerance_umol_m2_s, 20.0)
 
-        text = response.body.decode("utf-8")
+        text = bytes(response.body).decode("utf-8")
         self.assertNotIn("metric_name", text)
         self.assertNotIn("bucket_label", text)
         self.assertNotIn("bucket_min", text)
@@ -1140,7 +1141,7 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
                 target_ppfd=1000,
             )
 
-        rows = list(csv.DictReader(StringIO(response.body.decode("utf-8"))))
+        rows = list(csv.DictReader(StringIO(bytes(response.body).decode("utf-8"))))
         self.assertEqual(len(rows), 1)
         row = rows[0]
         self.assertEqual(list(row.keys()), list(FSPM_CSV_SCALAR_HEADERS))

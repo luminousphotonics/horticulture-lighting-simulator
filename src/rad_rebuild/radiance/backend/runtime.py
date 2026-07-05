@@ -337,7 +337,7 @@ def precomputed_bundle_diagnostics(req: RadianceRunRequest) -> dict[str, object]
         )
         manifest = load_manifest(ref)
         manifest_params = manifest.get("request_params") if manifest else None
-        if isinstance(manifest_params, dict):
+        if manifest is not None and isinstance(manifest_params, dict):
             attempt["installed_manifest_params"] = manifest_params
             attempt["params_match"] = params_match(manifest, requested_params)
             attempt["param_diff"] = _precomputed_param_diff(

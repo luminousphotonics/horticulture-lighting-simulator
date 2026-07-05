@@ -11,7 +11,7 @@ from dataclasses import asdict, dataclass
 import json
 import math
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping, overload
 
 PLANT_PHOTOMORPHOGENESIS_RESPONSE_SCHEMA = "rad_rebuild.fspm.plant_photomorphogenesis_response.v1"
 PLANT_PHOTOMORPHOGENESIS_RESPONSE_SCHEMA_VERSION = 1
@@ -428,6 +428,28 @@ def build_plant_photomorphogenesis_response_payload(
             "The model does not predict yield, biomass, harvest weight, growth rate, or crop output.",
         ],
     }
+
+
+@overload
+def write_plant_photomorphogenesis_response_artifact(
+    target_dir: str | Path,
+    spectral_response_payload: Mapping[str, Any],
+    photosynthesis_response_payload: Mapping[str, Any],
+    parameters: PhotomorphogenesisResponseParameters | None = ...,
+    *,
+    return_payload: Literal[True],
+) -> tuple[Path, dict[str, Any]]: ...
+
+
+@overload
+def write_plant_photomorphogenesis_response_artifact(
+    target_dir: str | Path,
+    spectral_response_payload: Mapping[str, Any],
+    photosynthesis_response_payload: Mapping[str, Any],
+    parameters: PhotomorphogenesisResponseParameters | None = ...,
+    *,
+    return_payload: Literal[False] = ...,
+) -> Path: ...
 
 
 def write_plant_photomorphogenesis_response_artifact(

@@ -643,7 +643,13 @@ def test_smd_simulation_includes_plants_only_when_gate_enabled(
         options: Sequence[str],
         nthreads: int,
     ) -> int:
-        assert octree.name == "smd_fspm_receiver.oct"
+        assert octree.name in {
+            "direct_fspm_receiver_blue.oct",
+            "direct_fspm_receiver_green.oct",
+            "direct_fspm_receiver_orange.oct",
+            "direct_fspm_receiver_red.oct",
+            "direct_fspm_receiver_far_red.oct",
+        }
         assert options
         assert nthreads == 1
         plant_receiver_calls.append(octree)
@@ -685,34 +691,72 @@ def test_smd_simulation_includes_plants_only_when_gate_enabled(
     assert manifest["active_simulation_integration"] is True
     assert manifest["config"]["seed"] == 99
     assert manifest["config"]["plant_grid_rows"] == 1
-    assert len(octree_argvs) == 2
+    assert len(octree_argvs) == 6
     assert octree_argvs[0] == (
         "-f",
         str(tmp_path / "room.rad"),
         str(runtime / "emitters_smd_ALL_umol.rad"),
     )
-    assert octree_argvs[1] == (
+    assert octree_argvs[1:] == [
+        (
+            "-f",
+            str(tmp_path / "room.rad"),
+            str(runtime / "emitters_smd_ALL_umol.rad"),
+            str(runtime / "plants_fspm_receiver_blue.rad"),
+        ),
+        (
+            "-f",
+            str(tmp_path / "room.rad"),
+            str(runtime / "emitters_smd_ALL_umol.rad"),
+            str(runtime / "plants_fspm_receiver_green.rad"),
+        ),
+        (
+            "-f",
+            str(tmp_path / "room.rad"),
+            str(runtime / "emitters_smd_ALL_umol.rad"),
+            str(runtime / "plants_fspm_receiver_orange.rad"),
+        ),
+        (
+            "-f",
+            str(tmp_path / "room.rad"),
+            str(runtime / "emitters_smd_ALL_umol.rad"),
+            str(runtime / "plants_fspm_receiver_red.rad"),
+        ),
+        (
+            "-f",
+            str(tmp_path / "room.rad"),
+            str(runtime / "emitters_smd_ALL_umol.rad"),
+            str(runtime / "plants_fspm_receiver_far_red.rad"),
+        ),
+    ]
+    assert all(str(plant_rad) not in argv for argv in octree_argvs[1:])
+    assert octree_argvs[1] != (
         "-f",
         str(tmp_path / "room.rad"),
         str(runtime / "emitters_smd_ALL_umol.rad"),
         str(plant_rad),
     )
-    assert plant_receiver_calls == [tmp_path / "cache" / "smd_fspm_receiver.oct"]
+    assert plant_receiver_calls == [
+        tmp_path / "cache" / "direct_fspm_receiver_blue.oct",
+        tmp_path / "cache" / "direct_fspm_receiver_green.oct",
+        tmp_path / "cache" / "direct_fspm_receiver_orange.oct",
+        tmp_path / "cache" / "direct_fspm_receiver_red.oct",
+        tmp_path / "cache" / "direct_fspm_receiver_far_red.oct",
+    ]
     surface_flux = json.loads(
         (runtime / "plant_surface_flux.json").read_text(encoding="utf-8")
     )
-    assert receiver_sample_counts == [surface_flux["leaf_count"] * 4]
+    assert receiver_sample_counts == [surface_flux["leaf_count"] * 4] * 5
     assert surface_flux["baseline_transport_scene"] == "room_emitters_only"
     assert surface_flux["fspm_receiver_transport_scene"] == "room_emitters_plants"
-    assert surface_flux["receiver_trace_count"] == 1
+    assert surface_flux["receiver_trace_count"] == 5
     assert surface_flux["receiver_granularity"] == "leaf_quadrature_4"
     assert surface_flux["receiver_granularity_role"] == "development_demo_default"
     assert surface_flux["receiver_sample_count"] == surface_flux["leaf_count"] * 4
     assert surface_flux["receiver_samples_per_leaf"] == pytest.approx(4.0)
     assert surface_flux["leaf_radiance_material_mode"] == (
-        LEAF_RADIANCE_MATERIAL_MODE_OPAQUE_OCCLUDER
+        LEAF_RADIANCE_MATERIAL_MODE_REX_SOURCE_WEIGHTED_TRANS
     )
-    assert surface_flux["leaf_material_radiance_primitive"] == "plastic"
     assert not (runtime / "plants_fspm_receiver_material.rad").exists()
 
 
@@ -1248,14 +1292,20 @@ def test_rex_source_weighted_leaf_material_is_receiver_scene_only(
     viewer_before = plant_artifacts.viewer.read_text(encoding="utf-8")
     manifest_before = plant_artifacts.manifest.read_text(encoding="utf-8")
 
+    scalar_config = scripts._runtime_config(
+        {
+            **env,
+            "FSPM_SPECTRAL_TRANSPORT_MODE": "scalar_source_weighted",
+        }
+    )
     receiver_material = scripts._prepare_fspm_receiver_plant_material(
-        config,
+        scalar_config,
         plant_artifacts,
         spectral_mode="smd",
     )
 
     assert receiver_material.radiance_path == (
-        config.runtime_state_root / "plants_fspm_receiver_material.rad"
+        scalar_config.runtime_state_root / "plants_fspm_receiver_material.rad"
     )
     original_text = plant_artifacts.radiance.read_text(encoding="utf-8")
     receiver_text = receiver_material.radiance_path.read_text(encoding="utf-8")
@@ -1313,6 +1363,9 @@ def test_banded_transport_requires_rex_material_and_profile(tmp_path: Path) -> N
     env.update(
         {
             "FSPM_SPECTRAL_TRANSPORT_MODE": "banded_5",
+            "FSPM_LEAF_RADIANCE_MATERIAL_MODE": (
+                LEAF_RADIANCE_MATERIAL_MODE_OPAQUE_OCCLUDER
+            ),
             "RADIANCE_CURVE_DATA_ROOT": str(tmp_path / "empty_curve_data"),
         }
     )
@@ -1329,8 +1382,8 @@ def test_banded_transport_requires_rex_material_and_profile(tmp_path: Path) -> N
         }
     )
     config = scripts._runtime_config(env)
-    with pytest.raises(ValueError, match="FSPM_LEAF_OPTICAL_PROFILE_ID is required"):
-        scripts._prepare_banded_transport_plan(config, spectral_mode="smd")
+    plan = scripts._prepare_banded_transport_plan(config, spectral_mode="smd")
+    assert plan.profile.profile_id == REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1
 
 
 def test_live_workspace_sync_shell_optionally_copies_plant_artifacts(

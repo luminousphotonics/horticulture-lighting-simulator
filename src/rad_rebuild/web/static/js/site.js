@@ -57,6 +57,7 @@
         }
         navToggle.setAttribute("aria-expanded", open ? "true" : "false");
         navPanel.classList.toggle("is-open", open);
+        document.body?.classList.toggle("site-nav-open", open);
     }
 
     function navIsOpen() {

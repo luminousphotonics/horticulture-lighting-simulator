@@ -711,7 +711,7 @@ def test_fspm_panel_reports_compact_mesh_patch_detail_available(tmp_path: Path) 
     panel = build_fspm_panel_metrics(tmp_path)
 
     assert panel is not None
-    raw = panel["incident_leaf_surface_flux"]
+    raw = cast(dict[str, Any], panel["incident_leaf_surface_flux"])
     assert raw["receiver_sample_count"] == 24576
     assert raw["raw_visualization_granularity"] == "mesh_patch"
     assert raw["raw_mesh_patch_side_detail_available"] is True
@@ -962,7 +962,7 @@ def test_fspm_panel_reads_compact_photoreceptor_means(tmp_path: Path) -> None:
     panel = build_fspm_panel_metrics(tmp_path)
 
     assert panel is not None
-    exposure = panel["photoreceptor_exposure"]
+    exposure = cast(dict[str, Any], panel["photoreceptor_exposure"])
     assert exposure["mean_absorbed_blue_pfd_umol_m2_s"] == 24.9
     assert exposure["mean_absorbed_green_pfd_umol_m2_s"] == 45.4
     assert exposure["mean_absorbed_orange_pfd_umol_m2_s"] == 15.7
@@ -1348,7 +1348,7 @@ def test_precomputed_mesh_patch_commit_replaces_stale_leaf_average_detail() -> N
         plants_enabled=True,
         fspm_receiver_granularity="mesh_patch",
     )
-    runtime_identity = {"runtime": "meshpatch-playback"}
+    runtime_identity: dict[str, object] = {"runtime": "meshpatch-playback"}
     first = allocate_workspace_for_run(session_id, req)
     _write_minimal_workspace(first.staging_workspace)
     _write_mesh_patch_surface_flux(first.staging_workspace, valid_detail=True)

@@ -784,6 +784,11 @@ html[data-theme="dark"] {
     pointer-events: none;
 }
 
+.radiance-dialog-open .demo-guide,
+.site-nav-open .demo-guide {
+    visibility: hidden;
+}
+
 .demo-guide__highlight {
     position: fixed;
     border: 2px solid var(--accent);

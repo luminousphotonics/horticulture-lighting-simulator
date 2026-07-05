@@ -5,7 +5,7 @@ import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 from rad_rebuild.radiance.config import (
     MODE_COMPETITOR,
@@ -562,6 +562,12 @@ def _metadata_without_receiver_rows(payload: Mapping[str, Any]) -> JsonObject:
     }
 
 
+def _json_int_or_default(value: object, default: int) -> int:
+    if value is None:
+        return default
+    return int(cast(Any, value))
+
+
 def _plant_grid_indices_from_surface_id(
     surface_id: str,
 ) -> tuple[int, int, int, int] | None:
@@ -615,11 +621,11 @@ def _plant_receiver_npz_string_columns(
         "plant_id": np.asarray([str(row.get("plant_id", "")) for row in rows]),
         "leaf_id": np.asarray([str(row.get("leaf_id", "")) for row in rows]),
         "leaf_index": np.asarray(
-            [int(row.get("leaf_index", -1) or -1) for row in rows],
+            [_json_int_or_default(row.get("leaf_index"), -1) for row in rows],
             dtype=np.int32,
         ),
         "face_index": np.asarray(
-            [int(row.get("face_index", -1) or -1) for row in rows],
+            [_json_int_or_default(row.get("face_index"), -1) for row in rows],
             dtype=np.int32,
         ),
         "stored_ppfd_umol_m2_s": np.asarray(
@@ -641,11 +647,11 @@ def _plant_receiver_sample_npz_columns(
         "sample_plant_id": np.asarray([str(row.get("plant_id", "")) for row in samples]),
         "sample_leaf_id": np.asarray([str(row.get("leaf_id", "")) for row in samples]),
         "sample_leaf_index": np.asarray(
-            [int(row.get("leaf_index", -1) or -1) for row in samples],
+            [_json_int_or_default(row.get("leaf_index"), -1) for row in samples],
             dtype=np.int32,
         ),
         "sample_face_index": np.asarray(
-            [int(row.get("face_index", -1) or -1) for row in samples],
+            [_json_int_or_default(row.get("face_index"), -1) for row in samples],
             dtype=np.int32,
         ),
         "sample_stored_ppfd_umol_m2_s": np.asarray(
@@ -850,6 +856,11 @@ def load_precomputed_plant_receiver_npz_compact(path: str | Path) -> JsonObject:
                     archive["stored_ppfd_umol_m2_s"], dtype=np.float64
                 ),
             }
+            if metadata.get("receiver_granularity") != "mesh_patch":
+                metadata["surface_receivers"] = _plant_receiver_rows_from_grid_npz(
+                    archive,
+                    npz_path,
+                )
         else:
             rows = (
                 _plant_receiver_rows_from_string_npz(archive, npz_path)

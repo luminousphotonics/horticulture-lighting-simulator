@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 from fastapi import HTTPException
@@ -21,11 +22,15 @@ from rad_rebuild.radiance.engine.plants.spectral_absorption import PLANT_SPECTRA
 from rad_rebuild.radiance.engine.plants.surface_flux import write_spatial_proxy_plant_surface_flux_artifact  # noqa: E402
 
 
-def _request(query: dict[str, str]) -> SimpleNamespace:
+def _request(query: dict[str, str]) -> Any:
     return SimpleNamespace(query_params=query)
 
 
-def _write_ppfd_map(workspace_root) -> None:
+def _metrics_payload(req: RadianceRunRequest, workspace_root: Any) -> dict[str, Any]:
+    return cast(dict[str, Any], _metrics_payload_for_request(req, workspace_root))
+
+
+def _write_ppfd_map(workspace_root: Any) -> None:
     workspace_root.mkdir(parents=True, exist_ok=True)
     (workspace_root / "ppfd_map.txt").write_text(
         "0 0 0 100\n1 0 0 120\n0 1 0 110\n1 1 0 130\n",
@@ -41,7 +46,7 @@ def test_metrics_payload_omits_plant_absorption_when_artifact_missing(tmp_path) 
         plants_enabled=False,
     )
 
-    payload = _metrics_payload_for_request(req, tmp_path)
+    payload = _metrics_payload(req, tmp_path)
 
     assert "plant_photon_absorption" not in payload["metrics"]
 
@@ -75,7 +80,7 @@ def test_smd_metrics_parse_emitted_photons_and_plane_utilization(tmp_path) -> No
         width_ft=10,
     )
 
-    payload = _metrics_payload_for_request(req, tmp_path)
+    payload = _metrics_payload(req, tmp_path)
     metrics = payload["metrics"]
 
     assert metrics["watts_in"] == pytest.approx(100.0)
@@ -107,7 +112,7 @@ def test_metrics_payload_includes_scaffold_only_plant_absorption_summary(tmp_pat
         plant_leaf_count=4,
     )
 
-    payload = _metrics_payload_for_request(req, tmp_path)
+    payload = _metrics_payload(req, tmp_path)
     scaffold = payload["metrics"]["plant_photon_absorption"]
 
     assert scaffold["status"] == "scaffold_only"
@@ -198,7 +203,7 @@ def test_metrics_payload_prefers_surface_flux_artifact_when_available(tmp_path) 
         plant_leaf_count=4,
     )
 
-    payload = _metrics_payload_for_request(req, tmp_path)
+    payload = _metrics_payload(req, tmp_path)
     absorption = payload["metrics"]["plant_photon_absorption"]
 
     assert payload["metrics"]["plant_incident_surface_flux"] is absorption
@@ -217,7 +222,7 @@ def test_metrics_payload_prefers_surface_flux_artifact_when_available(tmp_path) 
     ]
     assert "scalar optical-assumption diagnostics" in absorption["broadband_absorption_note"]
     assert absorption["plant_to_plant_absorbed_photon_flux_cv"] >= 0
-    assert absorption["leaf_summaries"]
+    assert "leaf_summaries" not in absorption
 
 
 def test_metrics_payload_includes_modeled_spectral_absorption_when_available(tmp_path) -> None:
@@ -272,7 +277,7 @@ def test_metrics_payload_includes_modeled_spectral_absorption_when_available(tmp
         plants_enabled=True,
     )
 
-    payload = _metrics_payload_for_request(req, tmp_path)
+    payload = _metrics_payload(req, tmp_path)
     spectral = payload["metrics"]["plant_spectral_absorption"]
 
     assert spectral["artifact_role"] == "modeled_spectral_leaf_photon_absorption"

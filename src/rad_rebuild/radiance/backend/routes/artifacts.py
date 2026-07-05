@@ -149,19 +149,19 @@ def _apply_artifact_plant_query_overrides(
         )
 
     for field_name in _INT_PLANT_QUERY_FIELDS:
-        value = _query_int(request, field_name)
-        if value is not None:
-            updates[field_name] = value
+        int_value = _query_int(request, field_name)
+        if int_value is not None:
+            updates[field_name] = int_value
 
     for field_name in _FLOAT_PLANT_QUERY_FIELDS:
-        value = _query_float(request, field_name)
-        if value is not None:
-            updates[field_name] = value
+        float_value = _query_float(request, field_name)
+        if float_value is not None:
+            updates[field_name] = float_value
 
     for field_name in _STRING_PLANT_QUERY_FIELDS:
-        value = _query_text(request, field_name)
-        if value is not None:
-            updates[field_name] = value
+        text_value = _query_text(request, field_name)
+        if text_value is not None:
+            updates[field_name] = text_value
 
     if not updates:
         return req

@@ -139,7 +139,9 @@ class Phase07JobServiceTests(unittest.TestCase):
             self.assertEqual(timed_out.failure["timeout_s"], 0.2)
             self.assertEqual(timed_out.failure["stage"], "radiance")
             self.assertEqual(timed_out.failure["active_command"], job.command)
-            self.assertGreaterEqual(float(timed_out.failure["elapsed_s"]), 0.0)
+            elapsed_s = timed_out.failure["elapsed_s"]
+            assert isinstance(elapsed_s, int | float)
+            self.assertGreaterEqual(float(elapsed_s), 0.0)
             tail = service.tail(job.id, cursor=0, limit=20, owner_session="owner-a")
             logs = "\n".join(tail.lines)
             self.assertIn("Job timeout: 0.2s.", logs)

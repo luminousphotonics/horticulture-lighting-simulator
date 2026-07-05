@@ -415,19 +415,22 @@ class PrecomputedRunRouteTests(unittest.TestCase):
                 dataset_root,
                 canonical_plant_enabled_precomputed_request(base_req),
             )
-            for session_id, extra_fields in (
+            cases: tuple[tuple[str, dict[str, object]], ...] = (
                 ("smd-10x10-omitted", {}),
                 ("smd-10x10-false", {"plants_enabled": False}),
-            ):
+            )
+            for session_id, extra_fields in cases:
                 service = _FakeJobService()
-                req = RadianceRunRequest(
-                    action="all",
-                    mode=MODE_SMD,
-                    execution_mode="precomputed",
-                    length_ft=10,
-                    width_ft=10,
-                    match_system_ppe=True,
-                    **extra_fields,
+                req = RadianceRunRequest.model_validate(
+                    {
+                        "action": "all",
+                        "mode": MODE_SMD,
+                        "execution_mode": "precomputed",
+                        "length_ft": 10,
+                        "width_ft": 10,
+                        "match_system_ppe": True,
+                        **extra_fields,
+                    }
                 )
                 with (
                     patch.dict(
@@ -529,8 +532,8 @@ class PrecomputedRunRouteTests(unittest.TestCase):
         command_text = " ".join(service.submitted[0].command)
         self.assertIn("precomputed_playback", command_text)
         self.assertIn(str(bundle_path.parent.parent), command_text)
-        self.assertIn("--length-ft 10", command_text)
-        self.assertIn("--width-ft 11", command_text)
+        self.assertIn("--length-ft 11", command_text)
+        self.assertIn("--width-ft 10", command_text)
         self.assertIn("--plants-enabled", command_text)
 
     def test_missing_precomputed_bundle_response_is_structured_for_frontend(

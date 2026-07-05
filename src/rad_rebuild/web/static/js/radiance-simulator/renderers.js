@@ -19,6 +19,10 @@ const ASSEMBLY_SUPPORTED_MODES = new Set(["SMD", "Competitor", "1000W HPS"]);
 const MODAL_FRAME_SANDBOX = "allow-scripts allow-same-origin allow-downloads";
 const dialogStack = [];
 
+function syncDialogOpenState() {
+  document.body?.classList.toggle("radiance-dialog-open", dialogStack.length > 0);
+}
+
 export function appendOutput(el, text) {
   if (!el) {
     return;
@@ -211,6 +215,7 @@ function activateDialog(dialog, opener = document.activeElement) {
     });
   }
   dialog.classList.remove("hidden");
+  syncDialogOpenState();
   window.setTimeout(() => {
     const focusTarget = focusableElements(dialog)[0] || dialog;
     if (focusTarget instanceof HTMLElement) {
@@ -226,6 +231,7 @@ function deactivateDialog(dialog) {
   dialog.classList.add("hidden");
   const index = dialogStack.findIndex((entry) => entry.dialog === dialog);
   const entry = index >= 0 ? dialogStack.splice(index, 1)[0] : null;
+  syncDialogOpenState();
   if (entry?.opener?.isConnected) {
     entry.opener.focus({ preventScroll: true });
   }

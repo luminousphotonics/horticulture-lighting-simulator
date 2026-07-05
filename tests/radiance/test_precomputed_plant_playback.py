@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from contextlib import redirect_stdout
 import io
+from typing import Any
 
 import numpy as np
 import pytest
@@ -69,6 +70,8 @@ def _plant_req(
         plant_columns=plant_columns,
         plant_spacing_m=0.40,
         plant_leaf_count=plant_leaf_count,
+        fspm_receiver_granularity="mesh_patch",
+        fspm_spectral_transport_mode="scalar_source_weighted",
         fspm_target_ppfd_umol_m2_s=fspm_target,
         fspm_target_tolerance_umol_m2_s=fspm_tolerance,
         hps_ies_variant=DEFAULT_HPS_IES_VARIANT,
@@ -80,10 +83,29 @@ def _receiver_entries(req: RadianceRunRequest, stored_ppfd: float) -> list[dict[
     return [
         {
             "surface_id": surface.surface_id,
+            "plant_id": surface.plant_id,
+            "leaf_id": surface.leaf_id,
+            "leaf_index": surface.leaf_index,
+            "face_index": surface.face_index,
             "stored_ppfd_umol_m2_s": stored_ppfd,
         }
         for surface in leaf_absorption_surfaces(scene)
     ]
+
+
+def _receiver_samples(req: RadianceRunRequest, stored_ppfd: float) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for entry in _receiver_entries(req, stored_ppfd / 2.0):
+        surface_id = str(entry["surface_id"])
+        for side in ("front", "back"):
+            rows.append(
+                {
+                    **entry,
+                    "sample_id": f"{surface_id}_{side}",
+                    "side": side,
+                }
+            )
+    return rows
 
 
 def _write_receiver_json(
@@ -94,17 +116,17 @@ def _write_receiver_json(
     value_semantics: str,
 ) -> Path:
     path = tmp_path / "plant_receiver.json"
+    payload: dict[str, object] = {
+        "schema": PRECOMPUTED_PLANT_RECEIVER_SCHEMA,
+        "schema_version": PRECOMPUTED_PLANT_RECEIVER_SCHEMA_VERSION,
+        "receiver_granularity": req.fspm_receiver_granularity,
+        "value_semantics": value_semantics,
+        "surface_receivers": _receiver_entries(req, stored_ppfd),
+    }
+    if req.fspm_receiver_granularity == "mesh_patch":
+        payload["receiver_samples"] = _receiver_samples(req, stored_ppfd)
     path.write_text(
-        json.dumps(
-            {
-                "schema": PRECOMPUTED_PLANT_RECEIVER_SCHEMA,
-                "schema_version": PRECOMPUTED_PLANT_RECEIVER_SCHEMA_VERSION,
-                "receiver_granularity": req.fspm_receiver_granularity,
-                "value_semantics": value_semantics,
-                "surface_receivers": _receiver_entries(req, stored_ppfd),
-            },
-            sort_keys=True,
-        ),
+        json.dumps(payload, sort_keys=True),
         encoding="utf-8",
     )
     return path
@@ -176,11 +198,30 @@ def _write_gz_ppfd(path: Path, values: list[float]) -> None:
             handle.write(f"{index} 0 0 {value}\n")
 
 
+def _minimal_direct_layout() -> dict[str, object]:
+    return {
+        "units": "meters",
+        "z": 0.4572,
+        "fixtures": [
+            {
+                "cx": 0.0,
+                "cy": 0.0,
+                "body_corners": [
+                    [-0.5, -0.25],
+                    [0.5, -0.25],
+                    [0.5, 0.25],
+                    [-0.5, 0.25],
+                ],
+            }
+        ],
+    }
+
+
 def _competitor_artifacts(tmp_path: Path, req: RadianceRunRequest) -> dict[str, Path]:
     ppfd_path = tmp_path / "ppfd_map.txt.gz"
     _write_gz_ppfd(ppfd_path, [200.0, 200.0])
     layout_path = tmp_path / "spydr3_layout.json"
-    layout_path.write_text('{"fixtures": []}', encoding="utf-8")
+    layout_path.write_text(json.dumps(_minimal_direct_layout()), encoding="utf-8")
     power_path = tmp_path / "power.json"
     power_path.write_text(
         json.dumps(
@@ -209,7 +250,7 @@ def _hps_artifacts(tmp_path: Path, req: RadianceRunRequest) -> dict[str, Path]:
     ppfd_path = tmp_path / "ppfd_map.txt.gz"
     _write_gz_ppfd(ppfd_path, [300.0, 300.0])
     layout_path = tmp_path / "hps_layout.json"
-    layout_path.write_text('{"fixtures": []}', encoding="utf-8")
+    layout_path.write_text(json.dumps(_minimal_direct_layout()), encoding="utf-8")
     power_path = tmp_path / "power.json"
     power_path.write_text(
         json.dumps(
@@ -292,13 +333,13 @@ def _assert_surface_flux_color_payload(payload: dict[str, object]) -> None:
     assert "target_classification_ppfd_umol_m2_s" in leaf_values[0]
 
 
-def _load_json(path: Path) -> dict[str, object]:
+def _load_json(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert isinstance(payload, dict)
     return payload
 
 
-def _runtime_run_id(payload: dict[str, object]) -> str:
+def _runtime_run_id(payload: dict[str, Any]) -> str:
     runtime_source = payload.get("runtime_source")
     assert isinstance(runtime_source, dict)
     run_id = runtime_source.get("run_id")
@@ -368,14 +409,16 @@ def test_conventional_fspm_target_and_tolerance_recompute_reporting_not_raw_ppfd
     assert base["raw_mean_flux_density_umol_m2_s"] == pytest.approx(
         changed_tolerance["raw_mean_flux_density_umol_m2_s"]
     )
+    assert base["target_classification_source"] == "interpolated_runtime_ppfd_map"
     assert base["target_capped_incident_mean_flux_density_umol_m2_s"] == pytest.approx(
-        180.0
+        100.0
     )
     assert changed_target[
         "target_capped_incident_mean_flux_density_umol_m2_s"
     ] == pytest.approx(80.0)
-    assert base["target_range_leaf_fraction"] == pytest.approx(1.0)
-    assert changed_tolerance["over_lit_leaf_fraction"] == pytest.approx(1.0)
+    assert base["under_lit_leaf_fraction"] == pytest.approx(1.0)
+    assert changed_target["target_range_leaf_fraction"] == pytest.approx(1.0)
+    assert changed_tolerance["under_lit_leaf_fraction"] == pytest.approx(1.0)
 
 
 def test_hps_lighting_target_does_not_scale_runtime_plant_ppfd_but_fspm_reporting_changes(
@@ -415,14 +458,15 @@ def test_hps_lighting_target_does_not_scale_runtime_plant_ppfd_but_fspm_reportin
 
     assert lower_lighting["raw_mean_flux_density_umol_m2_s"] == pytest.approx(400.0)
     assert higher_lighting["raw_mean_flux_density_umol_m2_s"] == pytest.approx(400.0)
+    assert higher_lighting["target_classification_source"] == "interpolated_runtime_ppfd_map"
     assert higher_lighting[
         "target_capped_incident_mean_flux_density_umol_m2_s"
-    ] == pytest.approx(400.0)
+    ] == pytest.approx(300.0)
     assert changed_fspm[
         "target_capped_incident_mean_flux_density_umol_m2_s"
-    ] == pytest.approx(350.0)
-    assert higher_lighting["target_range_leaf_fraction"] == pytest.approx(1.0)
-    assert changed_fspm["over_lit_leaf_fraction"] == pytest.approx(1.0)
+    ] == pytest.approx(300.0)
+    assert higher_lighting["under_lit_leaf_fraction"] == pytest.approx(1.0)
+    assert changed_fspm["under_lit_leaf_fraction"] == pytest.approx(1.0)
     _assert_surface_flux_color_payload(higher_lighting)
 
 
@@ -462,8 +506,13 @@ def _smd_artifacts(tmp_path: Path, req: RadianceRunRequest) -> dict[str, Path]:
         stored_ppfd=0.0,
         value_semantics="smd_receiver_basis",
     )
-    receiver_count = len(_receiver_entries(req, 0.0))
-    plant_basis = np.full((receiver_count, 1), 20.0, dtype=float)
+    receiver_count = len(
+        _receiver_samples(req, 0.0)
+        if req.fspm_receiver_granularity == "mesh_patch"
+        else _receiver_entries(req, 0.0)
+    )
+    basis_value = 10.0 if req.fspm_receiver_granularity == "mesh_patch" else 20.0
+    plant_basis = np.full((receiver_count, 1), basis_value, dtype=float)
     plant_basis_path = tmp_path / "plant_receiver_basis_A.npy"
     np.save(plant_basis_path, plant_basis)
     return {
@@ -524,7 +573,7 @@ def _materialize_smd_payload(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     req: RadianceRunRequest,
-) -> tuple[dict[str, object], dict[str, object]]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     workspace = tmp_path / f"smd_workspace_{req.target_ppfd:g}_{req.fspm_target_ppfd_umol_m2_s}_{req.fspm_target_tolerance_umol_m2_s}"
     _patch_room_and_grid(monkeypatch, workspace)
     with redirect_stdout(io.StringIO()):
@@ -574,7 +623,11 @@ def test_smd_plant_receiver_basis_column_mismatch_fails_explicitly(
     workspace = tmp_path / "basis_mismatch_workspace"
     _patch_room_and_grid(monkeypatch, workspace)
     artifacts = _smd_artifacts(tmp_path, req)
-    receiver_count = len(_receiver_entries(req, 0.0))
+    receiver_count = len(
+        _receiver_samples(req, 0.0)
+        if req.fspm_receiver_granularity == "mesh_patch"
+        else _receiver_entries(req, 0.0)
+    )
     mismatch_path = tmp_path / "plant_receiver_basis_mismatch.npy"
     np.save(mismatch_path, np.zeros((receiver_count, 2), dtype=float))
     artifacts[PRECOMPUTED_PLANT_RECEIVER_BASIS_NPY_ARTIFACT_KEY] = mismatch_path
@@ -611,13 +664,13 @@ def test_smd_target_classification_uses_runtime_plant_receiver_not_ppfd_map(
     assert surface_flux["raw_mean_flux_density_umol_m2_s"] < 255.0
     assert (
         surface_flux["target_classification_source"]
-        == "plant_surface_receiver_rows"
+        == "interpolated_runtime_ppfd_map"
     )
     assert surface_flux["target_classification_mean_ppfd_umol_m2_s"] == pytest.approx(
-        surface_flux["raw_mean_flux_density_umol_m2_s"]
+        275.0
     )
-    assert surface_flux["target_range_leaf_fraction"] == pytest.approx(0.0)
-    assert surface_flux["under_lit_leaf_count"] == surface_flux["leaf_count"]
+    assert surface_flux["target_range_leaf_fraction"] == pytest.approx(1.0)
+    assert surface_flux["under_lit_leaf_count"] == 0
     assert surface_flux["over_lit_leaf_count"] == 0
 
 
@@ -650,12 +703,12 @@ def test_precomputed_plant_playback_diagnostics_report_runtime_sources(
     assert diagnostics["baseline_ppfd_map"]["target_counts"]["target_range"] == 2
     assert diagnostics["plant_receiver_runtime_ppfd"]["mean"] < 255.0
     assert diagnostics["leaf_aggregate_classification_ppfd"]["mean"] == pytest.approx(
-        diagnostics["plant_receiver_runtime_ppfd"]["mean"]
+        diagnostics["baseline_ppfd_map"]["mean"]
     )
     assert diagnostics["leaf_aggregate_classification_ppfd"]["target_counts"][
-        "under_lit"
+        "target_range"
     ] == diagnostics["leaf_aggregate_classification_ppfd"]["count"]
-    assert diagnostics["fspm_panel_source"] == "plant_surface_receiver_rows"
+    assert diagnostics["fspm_panel_source"] == "interpolated_runtime_ppfd_map"
 
 
 def test_fspm_target_tolerance_boundaries_are_inclusive() -> None:
@@ -757,7 +810,9 @@ def test_cli_playback_infers_plant_artifacts_from_manifest_receiver_json(
         assert not (runtime / forbidden).exists()
 
     receiver = json.loads((runtime / "plant_receiver.json").read_text(encoding="utf-8"))
-    assert receiver["surface_receivers"][0]["runtime_ppfd_umol_m2_s"] > 0.0
+    assert receiver["receiver_granularity"] == "mesh_patch"
+    assert receiver["surface_count"] > 0
+    assert receiver["receiver_sample_count"] == receiver["surface_count"] * 2
     surface_flux = json.loads(
         (runtime / "plant_surface_flux.json").read_text(encoding="utf-8")
     )
@@ -887,9 +942,9 @@ def test_precomputed_playback_reuses_workspace_without_stale_target_values(
     assert _runtime_run_id(scene) == second_run_id
     assert scene["plants"]["surface_flux"]["runtime_source"]["run_id"] == second_run_id
     assert scene["fspm_metrics"]["runtime_source"]["run_id"] == second_run_id
-    assert surface["target_classification_source"] == "plant_surface_receiver_rows"
+    assert surface["target_classification_source"] == "interpolated_runtime_ppfd_map"
     assert surface["target_classification_mean_ppfd_umol_m2_s"] == pytest.approx(
-        surface["raw_mean_flux_density_umol_m2_s"]
+        275.0
     )
     assert surface["raw_mean_flux_density_umol_m2_s"] < 275.0
 
@@ -925,7 +980,8 @@ def test_precomputed_playback_materializes_10x10_compact_plant_counts(
     scene = _load_json(workspace / "assembly_scene.json")
     leaf_values = surface["visualization"]["leaf_values"]
 
-    assert len(receiver["surface_receivers"]) == 12288
+    assert receiver["surface_count"] == 12288
+    assert receiver["receiver_sample_count"] == 24576
     assert surface["leaf_count"] == 768
     assert surface["surface_count"] == 12288
     assert len(leaf_values) == 768

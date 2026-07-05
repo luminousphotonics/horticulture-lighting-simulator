@@ -63,7 +63,9 @@ def _single_plant_scene(leaf_count: int = 4):
 
 
 def _with_density(row: dict[str, object], density: float) -> dict[str, object]:
-    area = float(row["area_m2"])
+    area_value = row["area_m2"]
+    assert isinstance(area_value, int | float)
+    area = float(area_value)
     return {
         **row,
         "incident_photon_flux_density_umol_m2_s": density,

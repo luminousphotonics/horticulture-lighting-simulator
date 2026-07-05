@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any, cast
 
 import pytest
 
@@ -31,7 +32,7 @@ def _band(
     }
 
 
-def _spectral_payload() -> dict[str, object]:
+def _spectral_payload() -> dict[str, Any]:
     return {
         "schema": "rad_rebuild.fspm.plant_spectral_response.v1",
         "schema_version": 1,
@@ -166,13 +167,16 @@ def test_metrics_payload_includes_photoreceptor_exposure_summary(tmp_path) -> No
     )
     write_plant_photoreceptor_exposure_artifact(runtime, _spectral_payload())
 
-    payload = _metrics_payload_for_request(
-        RadianceRunRequest(
-            action="metrics",
-            execution_mode=EXECUTION_MODE_LIVE_LOCAL,
-            plants_enabled=True,
+    payload = cast(
+        dict[str, Any],
+        _metrics_payload_for_request(
+            RadianceRunRequest(
+                action="metrics",
+                execution_mode=EXECUTION_MODE_LIVE_LOCAL,
+                plants_enabled=True,
+            ),
+            tmp_path,
         ),
-        tmp_path,
     )
 
     exposure = payload["metrics"]["plant_photoreceptor_exposure"]
