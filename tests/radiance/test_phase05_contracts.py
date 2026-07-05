@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from pydantic import ValidationError
 
@@ -12,6 +13,7 @@ from tests.radiance.runtime_env import configure_test_runtime
 configure_test_runtime()
 
 from rad_rebuild.radiance import config  # noqa: E402
+from rad_rebuild.radiance.backend import env as backend_env  # noqa: E402
 from rad_rebuild.radiance.backend.models import RadianceRunRequest, request_with_updates  # noqa: E402
 from rad_rebuild.radiance.backend.server import app  # noqa: E402
 from rad_rebuild.radiance.domain import (  # noqa: E402
@@ -22,6 +24,9 @@ from rad_rebuild.radiance.engine.simulation import basis_backends  # noqa: E402
 from rad_rebuild.radiance.engine.simulation.precomputed_dataset import (  # noqa: E402
     canonical_competitor_layout,
     canonical_mode,
+)
+from rad_rebuild.radiance.engine.plants.optical_profiles import (  # noqa: E402
+    REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
 )
 from rad_rebuild.radiance.settings import load_settings  # noqa: E402
 
@@ -80,6 +85,133 @@ class Phase05DomainContractTests(unittest.TestCase):
         round_trip = RadianceRunRequest.model_validate_json(serialized)
         self.assertEqual(round_trip, req)
 
+    def test_default_request_has_plants_disabled(self) -> None:
+        req = RadianceRunRequest(action="all")
+
+        self.assertFalse(req.plants_enabled)
+        self.assertEqual(req.execution_mode, config.EXECUTION_MODE_PRECOMPUTED)
+        self.assertEqual(req.fspm_receiver_granularity, "leaf_quadrature_4")
+        self.assertEqual(
+            req.fspm_leaf_optical_profile_id,
+            REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
+        )
+        self.assertEqual(req.fspm_leaf_radiance_material_mode, "rex_source_weighted_trans")
+        self.assertEqual(req.fspm_spectral_transport_mode, "banded_5")
+
+    def test_invalid_enabled_plant_config_is_rejected(self) -> None:
+        invalid_cases = (
+            {"plant_rows": 0},
+            {"plant_spacing_m": -0.1},
+            {"plant_growth_stage": 1.5},
+        )
+        for overrides in invalid_cases:
+            with self.subTest(overrides=overrides), self.assertRaises(ValidationError):
+                RadianceRunRequest(
+                    action="all",
+                    execution_mode=config.EXECUTION_MODE_LIVE_LOCAL,
+                    plants_enabled=True,
+                    **overrides,
+                )
+
+    def test_disabled_plant_fields_do_not_enable_runtime_env(self) -> None:
+        req = RadianceRunRequest(
+            action="all",
+            plant_seed=99,
+            plant_rows=1,
+            plant_columns=1,
+        )
+
+        with tempfile.TemporaryDirectory(prefix="rad_rebuild_plant_env_") as tmp:
+            env = backend_env._make_env_base(req)
+            self.assertNotIn("FSPM_PLANTS_ENABLED", env)
+            with self.subTest("stale process env is cleared"):
+                patched = {
+                    "FSPM_PLANTS_ENABLED": "1",
+                    "FSPM_PLANT_ROWS": "99",
+                    "RADIANCE_OUTPUT_ROOT": tmp,
+                }
+                with patch.dict("os.environ", patched):
+                    stale_env = backend_env._make_env_base(req)
+                self.assertNotIn("FSPM_PLANTS_ENABLED", stale_env)
+                self.assertNotIn("FSPM_PLANT_ROWS", stale_env)
+
+    def test_valid_plant_config_maps_to_runtime_env_gate(self) -> None:
+        req = RadianceRunRequest(
+            action="all",
+            execution_mode=config.EXECUTION_MODE_LIVE_LOCAL,
+            plants_enabled=True,
+            plant_seed=23,
+            plant_rows=1,
+            plant_columns=3,
+            plant_spacing_m=0.42,
+            plant_height_m=0.2,
+            plant_canopy_radius_m=0.22,
+            plant_leaf_count=9,
+            plant_growth_stage=0.75,
+        )
+
+        env = backend_env._make_env_base(req)
+
+        self.assertEqual(env["FSPM_PLANTS_ENABLED"], "1")
+        self.assertEqual(env["FSPM_PLANT_SEED"], "23")
+        self.assertEqual(env["FSPM_PLANT_ROWS"], "1")
+        self.assertEqual(env["FSPM_PLANT_COLUMNS"], "3")
+        self.assertEqual(env["FSPM_PLANT_SPACING_M"], "0.42")
+        self.assertEqual(env["FSPM_PLANT_ROOM_LENGTH_FT"], f"{req.length_ft:g}")
+        self.assertEqual(env["FSPM_PLANT_ROOM_WIDTH_FT"], f"{req.width_ft:g}")
+        self.assertEqual(env["FSPM_PLANT_HEIGHT_M"], "0.2")
+        self.assertEqual(env["FSPM_PLANT_CANOPY_RADIUS_M"], "0.22")
+        self.assertEqual(env["FSPM_PLANT_LEAF_COUNT"], "9")
+        self.assertEqual(env["FSPM_PLANT_GROWTH_STAGE"], "0.75")
+        self.assertEqual(env["FSPM_PLANT_REFLECTANCE"], "0.22")
+        self.assertEqual(env["FSPM_PLANT_TRANSMITTANCE"], "0.08")
+        self.assertEqual(env["FSPM_PLANT_ABSORPTANCE"], "0.7")
+        self.assertEqual(env["FSPM_RECEIVER_GRANULARITY"], "leaf_quadrature_4")
+        self.assertEqual(
+            env["FSPM_LEAF_OPTICAL_PROFILE_ID"],
+            REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
+        )
+        self.assertEqual(env["FSPM_LEAF_RADIANCE_MATERIAL_MODE"], "rex_source_weighted_trans")
+        self.assertEqual(env["FSPM_SPECTRAL_TRANSPORT_MODE"], "banded_5")
+
+    def test_multispectral_checkbox_modes_map_to_runtime_env(self) -> None:
+        checked_req = RadianceRunRequest(
+            action="all",
+            execution_mode=config.EXECUTION_MODE_LIVE_LOCAL,
+            plants_enabled=True,
+            fspm_receiver_granularity="mesh_patch",
+            fspm_leaf_radiance_material_mode="rex_source_weighted_trans",
+            fspm_spectral_transport_mode="banded_5",
+        )
+        unchecked_req = RadianceRunRequest(
+            action="all",
+            execution_mode=config.EXECUTION_MODE_LIVE_LOCAL,
+            plants_enabled=True,
+            fspm_receiver_granularity="leaf_centroid",
+            fspm_leaf_radiance_material_mode="opaque_occluder",
+            fspm_spectral_transport_mode="scalar_source_weighted",
+        )
+
+        checked_env = backend_env._make_env_base(checked_req)
+        unchecked_env = backend_env._make_env_base(unchecked_req)
+
+        self.assertEqual(checked_env["FSPM_RECEIVER_GRANULARITY"], "mesh_patch")
+        self.assertEqual(checked_env["FSPM_LEAF_RADIANCE_MATERIAL_MODE"], "rex_source_weighted_trans")
+        self.assertEqual(checked_env["FSPM_SPECTRAL_TRANSPORT_MODE"], "banded_5")
+        self.assertEqual(unchecked_env["FSPM_RECEIVER_GRANULARITY"], "leaf_centroid")
+        self.assertEqual(unchecked_env["FSPM_LEAF_RADIANCE_MATERIAL_MODE"], "opaque_occluder")
+        self.assertEqual(unchecked_env["FSPM_SPECTRAL_TRANSPORT_MODE"], "scalar_source_weighted")
+
+    def test_plant_enabled_request_does_not_bypass_precomputed_mode(self) -> None:
+        req = RadianceRunRequest(
+            action="all",
+            execution_mode=config.EXECUTION_MODE_PRECOMPUTED,
+            plants_enabled=True,
+            plant_seed=17,
+        )
+
+        self.assertTrue(backend_env._request_uses_precomputed(req))
+
     def test_extra_fields_are_rejected_at_external_boundary(self) -> None:
         with self.assertRaises(ValidationError):
             RadianceRunRequest.model_validate(
@@ -135,6 +267,36 @@ class Phase05DomainContractTests(unittest.TestCase):
             properties["action"]["enum"],
             ["uniformity", "competitor", "visualize", "all", "metrics"],
         )
+        self.assertIn("plants_enabled", properties)
+        self.assertFalse(properties["plants_enabled"]["default"])
+        self.assertEqual(
+            properties["fspm_receiver_granularity"]["enum"],
+            ["leaf_centroid", "leaf_quadrature_4", "mesh_patch"],
+        )
+        self.assertEqual(
+            properties["fspm_leaf_radiance_material_mode"]["enum"],
+            ["opaque_occluder", "rex_source_weighted_trans"],
+        )
+        self.assertEqual(
+            properties["fspm_spectral_transport_mode"]["enum"],
+            ["banded_5", "scalar_source_weighted"],
+        )
+        for field_name in (
+            "plant_seed",
+            "plant_rows",
+            "plant_columns",
+            "plant_spacing_m",
+            "plant_height_m",
+            "plant_canopy_radius_m",
+            "plant_leaf_count",
+            "plant_growth_stage",
+            "fspm_receiver_granularity",
+            "fspm_leaf_optical_profile_id",
+            "fspm_leaf_radiance_material_mode",
+            "fspm_spectral_transport_mode",
+        ):
+            with self.subTest(field_name=field_name):
+                self.assertIn(field_name, properties)
         self.assertFalse(schemas["RadianceRunRequest"]["additionalProperties"])
 
 

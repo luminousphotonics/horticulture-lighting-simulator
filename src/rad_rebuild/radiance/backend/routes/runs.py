@@ -4,8 +4,10 @@ import shlex
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import ValidationError
 
 from rad_rebuild.radiance.config import (
+    EXECUTION_MODE_LIVE_LOCAL,
     MODE_COMPETITOR,
     PRECOMPUTED_DOWNLOAD_COMMAND,
     PRECOMPUTED_FULL_DATASET_SIZE_TEXT,
@@ -15,6 +17,7 @@ from rad_rebuild.radiance.config import (
     PUBLIC_PRECOMPUTED_MIN_FT,
     RADIANCE_MODE_LABELS,
 )
+from rad_rebuild.radiance.settings import get_settings
 from rad_rebuild.radiance.backend.artifacts import _live_workspace_sync_shell, _visualize_command, _visualize_shell
 from rad_rebuild.radiance.backend.env import (
     _apply_visualize_env,
@@ -48,6 +51,8 @@ from rad_rebuild.radiance.backend.runner import (
 from rad_rebuild.radiance.backend.runtime import (
     assert_live_execution_allowed,
     maybe_cleanup_runtime_state,
+    precomputed_bundle_diagnostics,
+    request_bool_query_param,
     pipeline_command,
     pipeline_shell,
     precomputed_mode,
@@ -82,10 +87,20 @@ def _job_service_for_route(request: Request) -> JobService:
     return getattr(app_state, "job_service", None) or job_service_for_request(request)
 
 
+def _run_job_timeout_s(req: RadianceRunRequest, *, use_precomputed: bool) -> float | None:
+    if (
+        req.execution_mode == EXECUTION_MODE_LIVE_LOCAL
+        and not use_precomputed
+        and not _request_uses_docker(req)
+    ):
+        return get_settings().local_live_job_timeout_s
+    return None
+
+
 def _precomputed_bundle_detail(req: RadianceRunRequest, *, reason: str = "missing") -> dict[str, object]:
     ref = bundle_ref(ROOT, req.mode, req.length_ft, req.width_ft, req=req)
     slug = ref.slug if ref is not None else f"{req.length_ft:g}x{req.width_ft:g}"
-    return {
+    detail: dict[str, object] = {
         "error": "precomputed_bundle_missing" if reason == "missing" else "precomputed_dimension_unsupported",
         "title": "Precomputed bundle not installed" if reason == "missing" else "Room size outside public dataset range",
         "message": (
@@ -108,6 +123,9 @@ def _precomputed_bundle_detail(req: RadianceRunRequest, *, reason: str = "missin
             "width_ft": PUBLIC_DEFAULT_WIDTH_FT,
         },
     }
+    if reason == "missing":
+        detail["diagnostics"] = precomputed_bundle_diagnostics(req)
+    return detail
 
 
 def _validate_public_precomputed_dimensions(req: RadianceRunRequest) -> None:
@@ -116,6 +134,98 @@ def _validate_public_precomputed_dimensions(req: RadianceRunRequest) -> None:
     in_range = all(PUBLIC_PRECOMPUTED_MIN_FT <= value <= PUBLIC_PRECOMPUTED_MAX_FT for value in values)
     if not whole_feet or not in_range:
         raise HTTPException(status_code=422, detail=_precomputed_bundle_detail(req, reason="range"))
+
+
+_INT_PLANT_QUERY_FIELDS = {
+    "plant_seed",
+    "plant_rows",
+    "plant_columns",
+    "plant_leaf_count",
+}
+
+_FLOAT_PLANT_QUERY_FIELDS = {
+    "plant_spacing_m",
+    "plant_height_m",
+    "plant_canopy_radius_m",
+    "plant_growth_stage",
+    "fspm_target_ppfd_umol_m2_s",
+    "fspm_target_tolerance_umol_m2_s",
+}
+
+_STRING_PLANT_QUERY_FIELDS = {
+    "fspm_receiver_granularity",
+    "fspm_leaf_optical_profile_id",
+    "fspm_leaf_radiance_material_mode",
+    "fspm_spectral_transport_mode",
+}
+
+
+def _query_text(request: Request, name: str) -> str | None:
+    raw = request.query_params.get(name)
+    if raw is None:
+        return None
+    value = raw.strip()
+    return value if value else None
+
+
+def _query_int(request: Request, name: str) -> int | None:
+    raw = _query_text(request, name)
+    if raw is None:
+        return None
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"{name} must be an integer.") from exc
+
+
+def _query_float(request: Request, name: str) -> float | None:
+    raw = _query_text(request, name)
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"{name} must be a number.") from exc
+
+
+def _apply_run_plant_query_overrides(
+    req: RadianceRunRequest,
+    request: Request,
+) -> RadianceRunRequest:
+    updates: dict[str, object] = {}
+
+    if request.query_params.get("plants_enabled") is not None:
+        updates["plants_enabled"] = request_bool_query_param(
+            request,
+            "plants_enabled",
+            req.plants_enabled,
+        )
+
+    for field_name in _INT_PLANT_QUERY_FIELDS:
+        int_value = _query_int(request, field_name)
+        if int_value is not None:
+            updates[field_name] = int_value
+
+    for field_name in _FLOAT_PLANT_QUERY_FIELDS:
+        float_value = _query_float(request, field_name)
+        if float_value is not None:
+            updates[field_name] = float_value
+
+    for field_name in _STRING_PLANT_QUERY_FIELDS:
+        text_value = _query_text(request, field_name)
+        if text_value is not None:
+            updates[field_name] = text_value
+
+    if not updates:
+        return req
+
+    try:
+        return request_with_updates(req, **updates)
+    except (TypeError, ValueError, ValidationError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid plant query parameter: {exc}",
+        ) from exc
 
 
 @router.post(
@@ -150,6 +260,8 @@ def run_radiance(req: RadianceRunRequest, request: Request) -> dict[str, Any]:
     action = req.action.strip().lower()
     if action not in {"uniformity", "competitor", "visualize", "all"}:
         raise HTTPException(status_code=400, detail="Invalid action.")
+    req = _canonicalize_mode_request(req)
+    req = _apply_run_plant_query_overrides(req, request)
     req = _canonicalize_mode_request(req)
     session_id = _session_id_from_request(request)
     assert_live_execution_allowed(req, session_id)
@@ -246,6 +358,7 @@ def run_radiance(req: RadianceRunRequest, request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=str(e))
 
     runtime_identity = request_runtime_identity(req)
+    job_timeout_s = _run_job_timeout_s(req, use_precomputed=use_precomputed)
 
     def finalize_workspace(done_job: JobRecord) -> None:
         if done_job.status == "succeeded":
@@ -261,6 +374,7 @@ def run_radiance(req: RadianceRunRequest, request: Request) -> dict[str, Any]:
             owner_session=session_id,
             request_fingerprint=artifact_key_from_request(req),
             kind="radiance_run",
+            timeout_s=job_timeout_s,
             on_complete=finalize_workspace,
         )
     except JobBackpressureError as exc:

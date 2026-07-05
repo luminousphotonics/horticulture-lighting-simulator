@@ -2,17 +2,86 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping
 from pathlib import Path
 
 from fastapi import HTTPException
 
+from rad_rebuild.radiance.assembly.fspm_panel import (
+    FSPM_PANEL_METRICS_FILENAME,
+    FSPM_PANEL_SCHEMA,
+)
 from rad_rebuild.radiance.config import MODE_COMPETITOR, MODE_SMD
+from rad_rebuild.radiance.engine.plants.absorption import PHOTON_ABSORPTION_SCAFFOLD_SCHEMA
+from rad_rebuild.radiance.engine.plants.artifacts import PLANT_ABSORPTION_SURFACES_FILENAME
+from rad_rebuild.radiance.engine.plants.photomorphogenesis import (
+    PLANT_PHOTOMORPHOGENESIS_RESPONSE_FILENAME,
+    PLANT_PHOTOMORPHOGENESIS_RESPONSE_SCHEMA,
+)
+from rad_rebuild.radiance.engine.plants.photoreceptor import (
+    PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME,
+    PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA,
+)
+from rad_rebuild.radiance.engine.plants.photosynthesis import (
+    PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME,
+    SUPPORTED_PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMAS,
+)
+from rad_rebuild.radiance.engine.plants.surface_flux import (
+    PLANT_SURFACE_FLUX_FILENAME,
+    PLANT_SURFACE_FLUX_SCHEMA,
+    RADIANCE_RECEIVER_METHOD,
+)
+from rad_rebuild.radiance.engine.plants.spectral import (
+    PLANT_SPECTRAL_RESPONSE_FILENAME,
+    PLANT_SPECTRAL_RESPONSE_SCHEMA,
+)
+from rad_rebuild.radiance.engine.plants.spectral_absorption import (
+    PLANT_SPECTRAL_ABSORPTION_FILENAME,
+    PLANT_SPECTRAL_ABSORPTION_SCHEMA,
+)
 
 from .artifacts import BACKEND_SERVER_FILE, _cache_fresh, _layout_file_for_mode
 from .costs import build_cost_estimate
 from .env import HPS_MODE_LABEL, _aligned_dims_ft, _canonicalize_mode_request
 from .models import RadianceRunRequest
 from .workspace import ENGINE_PACKAGE_ROOT, ROOT
+
+TARGET_CAPPED_SPECTRAL_METADATA_KEYS: tuple[str, ...] = (
+    "target_capped_absorption_basis",
+    "target_classification_basis",
+    "target_classification_source",
+    "target_saturation_cap_ppfd_umol_m2_s",
+    "target_range_lower_ppfd_umol_m2_s",
+    "target_range_upper_ppfd_umol_m2_s",
+    "target_cap_scale_basis",
+    "raw_absorption_preserved",
+    "not_biological_prediction",
+)
+TARGET_CAPPED_SPECTRAL_SUMMARY_KEYS: tuple[str, ...] = (
+    "target_capped_absorbed_par_ppfd",
+    "target_capped_absorbed_epar_ppfd",
+    "target_capped_absorbed_blue_ppfd",
+    "target_capped_absorbed_green_ppfd",
+    "target_capped_absorbed_orange_ppfd",
+    "target_capped_absorbed_red_ppfd",
+    "target_capped_absorbed_far_red_ppfd",
+    "target_capped_absorbed_par_ppfd_umol_m2_s",
+    "target_capped_absorbed_epar_ppfd_umol_m2_s",
+    "target_capped_absorbed_blue_ppfd_umol_m2_s",
+    "target_capped_absorbed_green_ppfd_umol_m2_s",
+    "target_capped_absorbed_orange_ppfd_umol_m2_s",
+    "target_capped_absorbed_red_ppfd_umol_m2_s",
+    "target_capped_absorbed_far_red_ppfd_umol_m2_s",
+    "excess_absorbed_par_ppfd_above_target_cap",
+    "excess_absorbed_epar_ppfd_above_target_cap",
+    "target_capped_absorbed_par_fraction_of_raw",
+    "target_capped_absorbed_epar_fraction_of_raw",
+    "target_effective_absorbed_fraction",
+    "over_target_absorbed_par_fraction_of_raw",
+    "under_target_leaf_fraction",
+    "in_target_leaf_fraction",
+    "over_target_leaf_fraction",
+)
 
 
 def _parse_kv_file(path: Path) -> dict[str, str]:
@@ -31,7 +100,8 @@ def _parse_kv_file(path: Path) -> dict[str, str]:
 
 def _parse_smd_summary(path: Path) -> tuple[float | None, float | None]:
     watts = None
-    ppf = None
+    emitted_ppf = None
+    fallback_ppf = None
     try:
         text = path.read_text()
     except Exception:
@@ -46,16 +116,23 @@ def _parse_smd_summary(path: Path) -> tuple[float | None, float | None]:
                     watts = float(nums[-1])
                 except ValueError:
                     watts = None
-        if ppf is None and ("total photons" in s or "total ppf" in s) and ("mol/s" in s):
+        if ("total emitted photons" in s or "total emitted ppf" in s) and ("mol/s" in s):
             nums = num_re.findall(s)
             if nums:
                 try:
-                    ppf = float(nums[-1])
+                    emitted_ppf = float(nums[-1])
                 except ValueError:
-                    ppf = None
-        if watts is not None and ppf is not None:
+                    emitted_ppf = None
+        elif fallback_ppf is None and ("total photons" in s or "total ppf" in s) and ("mol/s" in s):
+            nums = num_re.findall(s)
+            if nums:
+                try:
+                    fallback_ppf = float(nums[-1])
+                except ValueError:
+                    fallback_ppf = None
+        if watts is not None and emitted_ppf is not None:
             break
-    return watts, ppf
+    return watts, emitted_ppf if emitted_ppf is not None else fallback_ppf
 
 
 def _metrics_path(mode: str, workspace_root: Path | None = None) -> Path:
@@ -78,7 +155,666 @@ def _metrics_dependencies(workspace_root: Path | None = None) -> list[Path | Non
         work_root / "runtime_state" / "hps_power.txt",
         work_root / "runtime_state" / "smd_summary.txt",
         work_root / "runtime_state" / "last_run.json",
+        work_root / "runtime_state" / FSPM_PANEL_METRICS_FILENAME,
+        work_root / "runtime_state" / PLANT_ABSORPTION_SURFACES_FILENAME,
+        work_root / "runtime_state" / PLANT_SURFACE_FLUX_FILENAME,
+        work_root / "runtime_state" / PLANT_SPECTRAL_ABSORPTION_FILENAME,
+        work_root / "runtime_state" / PLANT_SPECTRAL_RESPONSE_FILENAME,
+        work_root / "runtime_state" / PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME,
+        work_root / "runtime_state" / PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME,
+        work_root / "runtime_state" / PLANT_PHOTOMORPHOGENESIS_RESPONSE_FILENAME,
     ]
+
+
+def _plant_absorption_unavailable(reason: str) -> dict[str, object]:
+    return {
+        "schema": PHOTON_ABSORPTION_SCAFFOLD_SCHEMA,
+        "status": "unavailable",
+        "reason": reason,
+        "outputs_do_not_predict": [
+            "yield",
+            "biomass",
+            "growth",
+            "crop_output",
+        ],
+    }
+
+
+def _load_compact_fspm_panel_metrics(workspace_root: Path) -> dict[str, object] | None:
+    path = workspace_root / "runtime_state" / FSPM_PANEL_METRICS_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict) or payload.get("schema") != FSPM_PANEL_SCHEMA:
+        return None
+    return payload
+
+
+def _attach_compact_fspm_metrics(
+    metrics: dict[str, object],
+    panel: dict[str, object],
+) -> bool:
+    absorption = panel.get("incident_leaf_surface_flux") or panel.get("plant_surface_absorption")
+    if isinstance(absorption, dict):
+        metrics["plant_incident_surface_flux"] = absorption
+        metrics["plant_photon_absorption"] = absorption
+    spectral_absorption = panel.get("modeled_spectral_absorption")
+    if isinstance(spectral_absorption, dict):
+        metrics["plant_spectral_absorption"] = spectral_absorption
+    spectral_response = panel.get("spectral_exposure")
+    if isinstance(spectral_response, dict):
+        metrics["plant_spectral_response"] = spectral_response
+    photosynthesis = panel.get("photosynthetic_light_response_potential")
+    if isinstance(photosynthesis, dict):
+        metrics["plant_photosynthesis_response"] = photosynthesis
+    photoreceptor = panel.get("photoreceptor_exposure")
+    if isinstance(photoreceptor, dict):
+        metrics["plant_photoreceptor_exposure"] = photoreceptor
+    photomorphogenesis = panel.get("legacy_morphology_response_scaffold")
+    if isinstance(photomorphogenesis, dict):
+        metrics["plant_photomorphogenesis_response"] = photomorphogenesis
+    return any(key.startswith("plant_") for key in metrics)
+
+
+def _load_plant_surface_flux_summary(workspace_root: Path) -> dict[str, object] | None:
+    path = workspace_root / "runtime_state" / PLANT_SURFACE_FLUX_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return _plant_absorption_unavailable("invalid_surface_flux_artifact")
+    if not isinstance(payload, dict):
+        return _plant_absorption_unavailable("invalid_surface_flux_artifact")
+    if payload.get("schema") != PLANT_SURFACE_FLUX_SCHEMA:
+        return _plant_absorption_unavailable("unsupported_surface_flux_schema")
+
+    method = payload.get("method")
+    status = payload.get("status", "proxy")
+    note = (
+        "Radiance receiver sampling present. Values use the selected receiver "
+        "granularity against the FSPM receiver lighting field. "
+        "Target classification uses target-equivalent PPFD; incident receiver "
+        "flux remains separate from modeled spectral absorption."
+        if status == "computed" and method == RADIANCE_RECEIVER_METHOD
+        else (
+            "Incident surface-flux artifact present. Current values are proxy "
+            "values until the Radiance receiver-sample method is reviewed. "
+            "Target classification uses target-equivalent PPFD where available; "
+            "modeled spectral absorption is reported only when "
+            "plant_spectral_absorption.json is available."
+        )
+    )
+    visualization = payload.get("visualization")
+    visualization_mapping = visualization if isinstance(visualization, Mapping) else {}
+    raw_detail = visualization_mapping.get("raw_leaf_surface_flux_detail")
+    raw_detail_mapping = raw_detail if isinstance(raw_detail, Mapping) else {}
+    detail_values = raw_detail_mapping.get("values_ppfd")
+    detail_sides = raw_detail_mapping.get("sides")
+    mesh_patch_detail_available = (
+        raw_detail_mapping.get("encoding") == "leaf_major_dense"
+        and raw_detail_mapping.get("visual_granularity") == "mesh_patch"
+        and isinstance(detail_values, Mapping)
+        and {"front", "back"}.issubset(set(detail_values))
+        and isinstance(detail_sides, list)
+        and {"front", "back"}.issubset({str(side) for side in detail_sides})
+    )
+    detail_leaf_count = raw_detail_mapping.get("leaf_count")
+    detail_patches_per_leaf = raw_detail_mapping.get("patches_per_leaf")
+    detail_sample_count = (
+        int(detail_leaf_count) * int(detail_patches_per_leaf) * 2
+        if isinstance(detail_leaf_count, int | float)
+        and isinstance(detail_patches_per_leaf, int | float)
+        else payload.get("receiver_sample_count")
+    )
+
+    return {
+        "schema": payload.get("schema"),
+        "schema_version": payload.get("schema_version"),
+        "artifact_role": payload.get("artifact_role", "incident_leaf_surface_flux"),
+        "display_label": "Incident leaf-surface PPFD",
+        "status": status,
+        "method": method,
+        "source_artifact": f"runtime_state/{PLANT_SURFACE_FLUX_FILENAME}",
+        "source_ppfd_map": payload.get("source_ppfd_map"),
+        "baseline_transport_scene": payload.get("baseline_transport_scene"),
+        "fspm_receiver_transport_scene": payload.get("fspm_receiver_transport_scene"),
+        "receiver_trace_count": payload.get("receiver_trace_count"),
+        "receiver_sample_count": payload.get("receiver_sample_count"),
+        "receiver_granularity": payload.get("receiver_granularity"),
+        "receiver_samples_per_leaf": payload.get("receiver_samples_per_leaf"),
+        "receiver_generation_basis": payload.get("receiver_generation_basis"),
+        "receiver_represented_area_m2": payload.get("receiver_represented_area_m2"),
+        "receiver_sample_area_sum_m2": payload.get("receiver_sample_area_sum_m2"),
+        "receiver_area_basis": payload.get("receiver_area_basis"),
+        "receiver_side_policy": payload.get("receiver_side_policy"),
+        "receiver_rows_per_mesh_surface_row": payload.get(
+            "receiver_rows_per_mesh_surface_row"
+        ),
+        "normal_generation_basis": payload.get("normal_generation_basis"),
+        "receiver_granularity_role": payload.get("receiver_granularity_role"),
+        "plant_count": payload.get("plant_count"),
+        "leaf_count": payload.get("leaf_count"),
+        "surface_count": payload.get("surface_count"),
+        "one_sided_leaf_area_m2": payload.get("one_sided_leaf_area_m2"),
+        "total_incident_photon_flux_umol_s": payload.get("total_incident_photon_flux_umol_s"),
+        "incident_leaf_surface_flux_total_umol_s": payload.get(
+            "total_incident_photon_flux_umol_s"
+        ),
+        "incident_leaf_surface_ppfd_umol_m2_s": payload.get(
+            "raw_mean_flux_density_umol_m2_s"
+        ),
+        "total_absorbed_photon_flux_umol_s": payload.get("total_absorbed_photon_flux_umol_s"),
+        "legacy_broadband_absorbed_flux_total_umol_s": payload.get(
+            "total_absorbed_photon_flux_umol_s"
+        ),
+        "broadband_absorption_note": (
+            "Legacy absorbed fields are scalar optical-assumption diagnostics, "
+            "not wavelength-resolved modeled leaf absorption."
+        ),
+        "mean_absorbed_fraction_of_incident": payload.get("mean_absorbed_fraction_of_incident"),
+        "plant_to_plant_absorbed_photon_flux_cv": payload.get("plant_to_plant_absorbed_photon_flux_cv"),
+        "target": payload.get("target"),
+        "target_ppfd_umol_m2_s": payload.get("target_ppfd_umol_m2_s"),
+        "target_tolerance_umol_m2_s": payload.get("target_tolerance_umol_m2_s"),
+        "target_classification_basis": payload.get("target_classification_basis"),
+        "target_classification_basis_label": payload.get(
+            "target_classification_basis_label"
+        ),
+        "target_classification_source": payload.get("target_classification_source"),
+        "target_classification_note": payload.get("target_classification_note"),
+        "target_basis": payload.get("target_basis"),
+        "target_basis_label": payload.get("target_basis_label"),
+        "target_lower_threshold_umol_m2_s": payload.get("target_lower_threshold_umol_m2_s"),
+        "target_upper_threshold_umol_m2_s": payload.get("target_upper_threshold_umol_m2_s"),
+        "target_capping_enabled": payload.get("target_capping_enabled"),
+        "under_lit_leaf_count": payload.get("under_lit_leaf_count"),
+        "target_range_leaf_count": payload.get("target_range_leaf_count"),
+        "over_lit_leaf_count": payload.get("over_lit_leaf_count"),
+        "under_lit_leaves": payload.get("under_lit_leaves"),
+        "target_range_leaves": payload.get("target_range_leaves"),
+        "over_lit_leaves": payload.get("over_lit_leaves"),
+        "under_lit_leaf_fraction": payload.get("under_lit_leaf_fraction"),
+        "target_range_leaf_fraction": payload.get("target_range_leaf_fraction"),
+        "over_lit_leaf_fraction": payload.get("over_lit_leaf_fraction"),
+        "under_lit_surface_count": payload.get("under_lit_surface_count"),
+        "target_range_surface_count": payload.get("target_range_surface_count"),
+        "over_lit_surface_count": payload.get("over_lit_surface_count"),
+        "under_lit_surface_fraction": payload.get("under_lit_surface_fraction"),
+        "target_range_surface_fraction": payload.get("target_range_surface_fraction"),
+        "over_lit_surface_fraction": payload.get("over_lit_surface_fraction"),
+        "under_lit_plant_count": payload.get("under_lit_plant_count"),
+        "target_range_plant_count": payload.get("target_range_plant_count"),
+        "over_lit_plant_count": payload.get("over_lit_plant_count"),
+        "under_lit_plant_fraction": payload.get("under_lit_plant_fraction"),
+        "target_range_plant_fraction": payload.get("target_range_plant_fraction"),
+        "over_lit_plant_fraction": payload.get("over_lit_plant_fraction"),
+        "raw_mean_flux_density_umol_m2_s": payload.get("raw_mean_flux_density_umol_m2_s"),
+        "raw_leaf_surface_flux_scale": payload.get("raw_leaf_surface_flux_scale"),
+        "raw_leaf_surface_flux_side_scales": payload.get(
+            "raw_leaf_surface_flux_side_scales"
+        ),
+        "raw_leaf_surface_flux_summary": payload.get("raw_leaf_surface_flux_summary"),
+        "raw_leaf_surface_flux_side_summaries": payload.get(
+            "raw_leaf_surface_flux_side_summaries"
+        ),
+        "raw_mesh_patch_side_detail_available": mesh_patch_detail_available,
+        "raw_leaf_surface_flux_detail_summary": {
+            "visual_granularity": "mesh_patch",
+            "encoding": "leaf_major_dense",
+            "leaf_count": int(detail_leaf_count)
+            if isinstance(detail_leaf_count, int | float)
+            else None,
+            "patches_per_leaf": int(detail_patches_per_leaf)
+            if isinstance(detail_patches_per_leaf, int | float)
+            else None,
+            "sides": ["front", "back"],
+            "sample_count": detail_sample_count,
+        }
+        if mesh_patch_detail_available
+        else None,
+        "raw_primary_side": payload.get("raw_primary_side"),
+        "raw_leaf_surface_flux_legend": payload.get("raw_leaf_surface_flux_legend"),
+        "raw_leaf_surface_flux_side_legends": payload.get(
+            "raw_leaf_surface_flux_side_legends"
+        ),
+        "target_classification_mean_ppfd_umol_m2_s": payload.get(
+            "target_classification_mean_ppfd_umol_m2_s"
+        ),
+        "target_classification_total_incident_flux_umol_s": payload.get(
+            "target_classification_total_incident_flux_umol_s"
+        ),
+        "target_capped_incident_mean_flux_density_umol_m2_s": payload.get(
+            "target_capped_incident_mean_flux_density_umol_m2_s"
+        ),
+        "target_capped_incident_flux_total_umol_s": payload.get(
+            "target_capped_incident_flux_total_umol_s"
+        ),
+        "target_capped_incident_total_flux_umol_s": payload.get(
+            "target_capped_incident_total_flux_umol_s"
+        ),
+        "excess_incident_flux_above_target_umol_s": payload.get(
+            "excess_incident_flux_above_target_umol_s"
+        ),
+        "excess_incident_flux_fraction": payload.get("excess_incident_flux_fraction"),
+        "deficit_to_target_incident_flux_umol_s": payload.get(
+            "deficit_to_target_incident_flux_umol_s"
+        ),
+        "deficit_to_target_incident_flux_fraction": payload.get(
+            "deficit_to_target_incident_flux_fraction"
+        ),
+        "target_capped_mean_flux_density_umol_m2_s": payload.get(
+            "target_capped_mean_flux_density_umol_m2_s"
+        ),
+        "raw_total_flux_umol_s": payload.get("raw_total_flux_umol_s"),
+        "target_capped_flux_total_umol_s": payload.get("target_capped_flux_total_umol_s"),
+        "target_capped_total_flux_umol_s": payload.get("target_capped_total_flux_umol_s"),
+        "excess_flux_above_target_umol_s": payload.get("excess_flux_above_target_umol_s"),
+        "excess_flux_fraction": payload.get("excess_flux_fraction"),
+        "under_target_deficit_umol_s": payload.get("under_target_deficit_umol_s"),
+        "under_target_deficit_fraction": payload.get("under_target_deficit_fraction"),
+        "lower_tail_raw_flux_density_umol_m2_s": payload.get(
+            "lower_tail_raw_flux_density_umol_m2_s"
+        ),
+        "lower_tail_target_classification_ppfd_umol_m2_s": payload.get(
+            "lower_tail_target_classification_ppfd_umol_m2_s"
+        ),
+        "lower_tail_target_capped_incident_flux_density_umol_m2_s": payload.get(
+            "lower_tail_target_capped_incident_flux_density_umol_m2_s"
+        ),
+        "lower_tail_target_capped_flux_density_umol_m2_s": payload.get(
+            "lower_tail_target_capped_flux_density_umol_m2_s"
+        ),
+        "plant_to_plant_target_capped_incident_flux_cv": payload.get(
+            "plant_to_plant_target_capped_incident_flux_cv"
+        ),
+        "plant_to_plant_target_capped_flux_cv": payload.get(
+            "plant_to_plant_target_capped_flux_cv"
+        ),
+        "units": payload.get("units"),
+        "outputs_do_not_predict": payload.get(
+            "outputs_do_not_predict",
+            ["yield", "biomass", "growth", "crop_output"],
+        ),
+        "warnings": payload.get("warnings", []),
+        "limitations": payload.get("limitations", []),
+        "note": note,
+    }
+
+
+def _load_plant_spectral_absorption_summary(workspace_root: Path) -> dict[str, object] | None:
+    path = workspace_root / "runtime_state" / PLANT_SPECTRAL_ABSORPTION_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("schema") != PLANT_SPECTRAL_ABSORPTION_SCHEMA:
+        return None
+
+    crop = payload.get("crop_summary")
+    crop_summary = crop if isinstance(crop, dict) else {}
+    optical = payload.get("optical_profile")
+    optical_profile = optical if isinstance(optical, dict) else {}
+    source_spectrum = payload.get("source_spectrum")
+    source = source_spectrum if isinstance(source_spectrum, dict) else {}
+
+    return {
+        "schema": payload.get("schema"),
+        "schema_version": payload.get("schema_version"),
+        **{
+            key: payload.get(key)
+            for key in TARGET_CAPPED_SPECTRAL_METADATA_KEYS
+            if key in payload
+        },
+        "artifact_role": payload.get(
+            "artifact_role",
+            "modeled_spectral_leaf_photon_absorption",
+        ),
+        "display_label": "Modeled spectral leaf absorption",
+        "status": payload.get("status"),
+        "method": payload.get("method"),
+        "source_artifact": f"runtime_state/{PLANT_SPECTRAL_ABSORPTION_FILENAME}",
+        "source_surface_flux_method": payload.get("source_surface_flux_method"),
+        "optical_profile_id": optical_profile.get("profile_id"),
+        "optical_profile_version": optical_profile.get("profile_version"),
+        "source_spectral_basis": payload.get("source_spectral_basis"),
+        "scalar_flux_basis": payload.get("scalar_flux_basis"),
+        "baseline_transport_scene": payload.get("baseline_transport_scene"),
+        "fspm_receiver_transport_scene": payload.get("fspm_receiver_transport_scene"),
+        "receiver_trace_count": payload.get("receiver_trace_count"),
+        "receiver_sample_count": payload.get("receiver_sample_count"),
+        "receiver_granularity": payload.get("receiver_granularity"),
+        "receiver_samples_per_leaf": payload.get("receiver_samples_per_leaf"),
+        "receiver_generation_basis": payload.get("receiver_generation_basis"),
+        "receiver_represented_area_m2": payload.get("receiver_represented_area_m2"),
+        "receiver_sample_area_sum_m2": payload.get("receiver_sample_area_sum_m2"),
+        "receiver_area_basis": payload.get("receiver_area_basis"),
+        "receiver_side_policy": payload.get("receiver_side_policy"),
+        "receiver_rows_per_mesh_surface_row": payload.get(
+            "receiver_rows_per_mesh_surface_row"
+        ),
+        "normal_generation_basis": payload.get("normal_generation_basis"),
+        "receiver_granularity_role": payload.get("receiver_granularity_role"),
+        "source_spectrum_id": source.get("distribution_id"),
+        "plant_count": payload.get("plant_count"),
+        "leaf_count": payload.get("leaf_count"),
+        "surface_count": payload.get("surface_count"),
+        "scalar_incident_par_ppfd_umol_m2_s": crop_summary.get(
+            "scalar_incident_par_ppfd_umol_m2_s"
+        ),
+        "absorbed_par_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_par_ppfd_umol_m2_s"
+        ),
+        "absorbed_epar_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_epar_ppfd_umol_m2_s"
+        ),
+        "absorbed_blue_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_blue_ppfd_umol_m2_s"
+        ),
+        "absorbed_green_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_green_ppfd_umol_m2_s"
+        ),
+        "absorbed_orange_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_orange_ppfd_umol_m2_s"
+        ),
+        "absorbed_red_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_red_ppfd_umol_m2_s"
+        ),
+        "absorbed_far_red_ppfd_umol_m2_s": crop_summary.get(
+            "absorbed_far_red_ppfd_umol_m2_s"
+        ),
+        **{
+            key: crop_summary.get(key)
+            for key in TARGET_CAPPED_SPECTRAL_SUMMARY_KEYS
+            if key in crop_summary
+        },
+        "absorbed_fraction": crop_summary.get("absorbed_fraction"),
+        "reflected_fraction": crop_summary.get("reflected_fraction"),
+        "transmitted_fraction": crop_summary.get("transmitted_fraction"),
+        "outputs_do_not_predict": payload.get(
+            "outputs_do_not_predict",
+            ["yield", "biomass", "growth", "crop_output"],
+        ),
+        "warnings": payload.get("warnings", []),
+        "limitations": payload.get("limitations", []),
+        "note": (
+            "Modeled spectral absorption artifact present. Values summarize "
+            "absorbed/reflected/transmitted leaf photon flux from the selected "
+            "optical profile and source spectrum basis."
+        ),
+    }
+
+
+
+
+
+def _load_plant_photomorphogenesis_response_summary(workspace_root: Path) -> dict[str, object] | None:
+    path = workspace_root / "runtime_state" / PLANT_PHOTOMORPHOGENESIS_RESPONSE_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("schema") != PLANT_PHOTOMORPHOGENESIS_RESPONSE_SCHEMA:
+        return None
+
+    return {
+        "schema": payload.get("schema"),
+        "schema_version": payload.get("schema_version"),
+        "status": payload.get("status"),
+        "method": payload.get("method"),
+        "source_artifact": f"runtime_state/{PLANT_PHOTOMORPHOGENESIS_RESPONSE_FILENAME}",
+        "source_spectral_response_method": payload.get("source_spectral_response_method"),
+        "source_photosynthesis_response_method": payload.get("source_photosynthesis_response_method"),
+        "source_spectral_distribution": payload.get("source_spectral_distribution"),
+        "parameters": payload.get("parameters"),
+        "plant_count": payload.get("plant_count"),
+        "leaf_count": payload.get("leaf_count"),
+        "surface_count": payload.get("surface_count"),
+        "mean_plant_shade_avoidance_response_index_0_1": payload.get("mean_plant_shade_avoidance_response_index_0_1"),
+        "plant_to_plant_shade_avoidance_cv": payload.get("plant_to_plant_shade_avoidance_cv"),
+        "mean_plant_morphology_balance_index_0_1": payload.get("mean_plant_morphology_balance_index_0_1"),
+        "plant_to_plant_morphology_balance_cv": payload.get("plant_to_plant_morphology_balance_cv"),
+        "shade_avoidance_leaf_count": payload.get("shade_avoidance_leaf_count"),
+        "compact_response_leaf_count": payload.get("compact_response_leaf_count"),
+        "expansion_favorable_leaf_count": payload.get("expansion_favorable_leaf_count"),
+        "plant_summaries": payload.get("plant_summaries", []),
+        "leaf_summaries": payload.get("leaf_summaries", []),
+        "visualization": payload.get("visualization"),
+        "outputs_do_not_predict": payload.get(
+            "outputs_do_not_predict",
+            ["yield", "biomass", "growth", "crop_output"],
+        ),
+        "warnings": payload.get("warnings", []),
+        "limitations": payload.get("limitations", []),
+        "note": (
+            "Photomorphogenic response artifact present. Values are spectral-ratio "
+            "response potentials and do not predict crop output."
+        ),
+    }
+
+
+def _load_plant_photoreceptor_exposure_summary(workspace_root: Path) -> dict[str, object] | None:
+    path = workspace_root / "runtime_state" / PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("schema") != PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA:
+        return None
+
+    return {
+        "schema": payload.get("schema"),
+        "schema_version": payload.get("schema_version"),
+        "status": payload.get("status"),
+        "method": payload.get("method"),
+        "source_artifact": f"runtime_state/{PLANT_PHOTORECEPTOR_EXPOSURE_FILENAME}",
+        "source_spectral_response_method": payload.get("source_spectral_response_method"),
+        "source_spectral_response_data_basis": payload.get(
+            "source_spectral_response_data_basis"
+        ),
+        "source_spectral_distribution": payload.get("source_spectral_distribution"),
+        "plant_count": payload.get("plant_count"),
+        "leaf_count": payload.get("leaf_count"),
+        "surface_count": payload.get("surface_count"),
+        "mean_absorbed_blue_pfd_umol_m2_s": payload.get(
+            "mean_absorbed_blue_pfd_umol_m2_s"
+        ),
+        "mean_absorbed_green_pfd_umol_m2_s": payload.get(
+            "mean_absorbed_green_pfd_umol_m2_s"
+        ),
+        "mean_absorbed_orange_pfd_umol_m2_s": payload.get(
+            "mean_absorbed_orange_pfd_umol_m2_s"
+        ),
+        "mean_absorbed_red_pfd_umol_m2_s": payload.get(
+            "mean_absorbed_red_pfd_umol_m2_s"
+        ),
+        "mean_absorbed_far_red_pfd_umol_m2_s": payload.get(
+            "mean_absorbed_far_red_pfd_umol_m2_s"
+        ),
+        "mean_absorbed_blue_fraction_of_par": payload.get(
+            "mean_absorbed_blue_fraction_of_par"
+        ),
+        "mean_absorbed_red_to_far_red_ratio_diagnostic": payload.get(
+            "mean_absorbed_red_to_far_red_ratio_diagnostic"
+        ),
+        "blue_photon_dose": payload.get("blue_photon_dose"),
+        "phytochrome_pss_proxy": payload.get("phytochrome_pss_proxy"),
+        "single_leaf_transmission_proxy_note": payload.get(
+            "single_leaf_transmission_proxy_note"
+        ),
+        "red_far_red_diagnostic_note": payload.get("red_far_red_diagnostic_note"),
+        "optional_hypotheses": payload.get("optional_hypotheses"),
+        "exposure_consistency": payload.get("exposure_consistency"),
+        "plant_summaries": payload.get("plant_summaries", []),
+        "leaf_summaries": payload.get("leaf_summaries", []),
+        "warnings": payload.get("warnings", []),
+        "limitations": payload.get("limitations", []),
+        "note": (
+            "Photoreceptor exposure artifact present. Values are spectral "
+            "lighting inputs, not response outcomes."
+        ),
+    }
+
+
+
+def _load_plant_photosynthesis_response_summary(workspace_root: Path) -> dict[str, object] | None:
+    path = workspace_root / "runtime_state" / PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("schema") not in SUPPORTED_PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMAS:
+        return None
+
+    return {
+        "schema": payload.get("schema"),
+        "schema_version": payload.get("schema_version"),
+        "status": payload.get("status"),
+        "method": payload.get("method"),
+        "method_version": payload.get("method_version"),
+        "contract": payload.get("contract"),
+        "calibration_status": payload.get("calibration_status"),
+        "default_parameter_status": payload.get("default_parameter_status"),
+        "target_model": payload.get("target_model"),
+        "input_basis": payload.get("input_basis"),
+        "evidence_quality_tier": payload.get("evidence_quality_tier"),
+        "uncertainty_notes": payload.get("uncertainty_notes", []),
+        "non_prediction_framing": payload.get("non_prediction_framing"),
+        "source_artifact": f"runtime_state/{PLANT_PHOTOSYNTHESIS_RESPONSE_FILENAME}",
+        "source_spectral_response_method": payload.get("source_spectral_response_method"),
+        "source_spectral_distribution": payload.get("source_spectral_distribution"),
+        "parameters": payload.get("parameters"),
+        "plant_count": payload.get("plant_count"),
+        "leaf_count": payload.get("leaf_count"),
+        "surface_count": payload.get("surface_count"),
+        "total_absorbed_par_photon_flux_umol_s": payload.get("total_absorbed_par_photon_flux_umol_s"),
+        "total_gross_photosynthetic_potential_umol_co2_s": payload.get("total_gross_photosynthetic_potential_umol_co2_s"),
+        "total_clipped_net_photosynthetic_potential_umol_co2_s": payload.get("total_clipped_net_photosynthetic_potential_umol_co2_s"),
+        "daily_clipped_net_photosynthetic_potential_mol_co2": payload.get("daily_clipped_net_photosynthetic_potential_mol_co2"),
+        "mean_leaf_photosynthetic_response_index_0_1": payload.get("mean_leaf_photosynthetic_response_index_0_1"),
+        "plant_to_plant_photosynthetic_response_cv": payload.get("plant_to_plant_photosynthetic_response_cv"),
+        "light_limited_leaf_count": payload.get("light_limited_leaf_count"),
+        "near_saturation_leaf_count": payload.get("near_saturation_leaf_count"),
+        "plant_summaries": payload.get("plant_summaries", []),
+        "leaf_summaries": payload.get("leaf_summaries", []),
+        "visualization": payload.get("visualization"),
+        "outputs_do_not_predict": payload.get(
+            "outputs_do_not_predict",
+            ["yield", "biomass", "growth", "crop_output"],
+        ),
+        "warnings": payload.get("warnings", []),
+        "limitations": payload.get("limitations", []),
+        "note": (
+            "Photosynthesis response artifact present. Values are absorbed-PAR "
+            "response potentials and do not predict crop output."
+        ),
+    }
+
+
+
+def _load_plant_spectral_response_summary(workspace_root: Path) -> dict[str, object] | None:
+    path = workspace_root / "runtime_state" / PLANT_SPECTRAL_RESPONSE_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("schema") != PLANT_SPECTRAL_RESPONSE_SCHEMA:
+        return None
+
+    return {
+        "schema": payload.get("schema"),
+        "schema_version": payload.get("schema_version"),
+        "status": payload.get("status"),
+        "method": payload.get("method"),
+        "source_artifact": f"runtime_state/{PLANT_SPECTRAL_RESPONSE_FILENAME}",
+        "source_surface_flux_method": payload.get("source_surface_flux_method"),
+        "spectral_distribution": payload.get("spectral_distribution"),
+        "plant_count": payload.get("plant_count"),
+        "leaf_count": payload.get("leaf_count"),
+        "surface_count": payload.get("surface_count"),
+        "total_absorbed_photon_flux_umol_s": payload.get("total_absorbed_photon_flux_umol_s"),
+        "total_absorbed_par_photon_flux_umol_s": payload.get("total_absorbed_par_photon_flux_umol_s"),
+        "band_totals": payload.get("band_totals"),
+        "plant_summaries": payload.get("plant_summaries", []),
+        "leaf_summaries": payload.get("leaf_summaries", []),
+        "visualization": payload.get("visualization"),
+        "outputs_do_not_predict": payload.get(
+            "outputs_do_not_predict",
+            ["yield", "biomass", "growth", "crop_output"],
+        ),
+        "warnings": payload.get("warnings", []),
+        "limitations": payload.get("limitations", []),
+        "note": (
+            "Spectral response artifact present. Values split Radiance receiver "
+            "flux into band-level absorbed photon estimates using explicit "
+            "spectral photon fractions and leaf optical assumptions."
+        ),
+    }
+
+
+
+def _load_plant_photon_absorption_scaffold(workspace_root: Path) -> dict[str, object] | None:
+    path = workspace_root / "runtime_state" / PLANT_ABSORPTION_SURFACES_FILENAME
+    if not path.is_file():
+        return None
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return _plant_absorption_unavailable("invalid_scaffold_artifact")
+
+    if not isinstance(payload, dict):
+        return _plant_absorption_unavailable("invalid_scaffold_artifact")
+
+    if payload.get("schema") != PHOTON_ABSORPTION_SCAFFOLD_SCHEMA:
+        return _plant_absorption_unavailable("unsupported_scaffold_schema")
+
+    return {
+        "schema": payload.get("schema"),
+        "schema_version": payload.get("schema_version"),
+        "status": payload.get("status", "scaffold_only"),
+        "method": payload.get("method"),
+        "source_artifact": f"runtime_state/{PLANT_ABSORPTION_SURFACES_FILENAME}",
+        "plant_count": payload.get("plant_count"),
+        "leaf_count": payload.get("leaf_count"),
+        "surface_count": payload.get("surface_count"),
+        "one_sided_leaf_area_m2": payload.get("one_sided_leaf_area_m2"),
+        "optical_assumptions": payload.get("optical_assumptions"),
+        "units": payload.get("units"),
+        "outputs_do_not_predict": payload.get(
+            "outputs_do_not_predict",
+            ["yield", "biomass", "growth", "crop_output"],
+        ),
+        "limitations": payload.get("limitations", []),
+        "note": (
+            "Surface registry only. Incident leaf-surface flux requires "
+            "plant_surface_flux.json; modeled spectral absorption requires "
+            "plant_spectral_absorption.json."
+        ),
+    }
 
 
 def _metrics_payload_for_request(req: RadianceRunRequest, workspace_root: Path) -> dict[str, object]:
@@ -136,18 +872,53 @@ def _metrics_payload_for_request(req: RadianceRunRequest, workspace_root: Path) 
     elif req.mode == MODE_SMD and smd_summary.exists():
         total_watts, emitted_ppf = _parse_smd_summary(smd_summary)
 
-    metrics = compute_ppfd_metrics(
-        ppfd,
-        setpoint_ppfd=cap,
-        canopy_area_m2=area,
-        total_input_watts=total_watts,
-        emitted_ppf_umol_s=emitted_ppf,
-        legacy_metrics=True,
+    metrics: dict[str, object] = dict(
+        compute_ppfd_metrics(
+            ppfd,
+            setpoint_ppfd=cap,
+            canopy_area_m2=area,
+            total_input_watts=total_watts,
+            emitted_ppf_umol_s=emitted_ppf,
+            legacy_metrics=True,
+        )
     )
     if req.mode == HPS_MODE_LABEL:
         metrics["mode_note"] = "Peak-cap metrics are omitted for 1000W HPS because reliable dimming is not assumed."
     elif not req.peak_capping_enabled:
         metrics["mode_note"] = "Peak-capping is disabled. Dimmable LED systems are evaluated against the requested target PPFD without hotspot-cap post-processing."
+
+    compact_panel = _load_compact_fspm_panel_metrics(workspace_root)
+    if compact_panel is not None:
+        _attach_compact_fspm_metrics(metrics, compact_panel)
+    else:
+        plant_photon_absorption = (
+            _load_plant_surface_flux_summary(workspace_root)
+            or _load_plant_photon_absorption_scaffold(workspace_root)
+        )
+        if plant_photon_absorption is not None:
+            if plant_photon_absorption.get("artifact_role") == "incident_leaf_surface_flux":
+                metrics["plant_incident_surface_flux"] = plant_photon_absorption
+            metrics["plant_photon_absorption"] = plant_photon_absorption
+
+        plant_spectral_absorption = _load_plant_spectral_absorption_summary(workspace_root)
+        if plant_spectral_absorption is not None:
+            metrics["plant_spectral_absorption"] = plant_spectral_absorption
+
+        plant_spectral_response = _load_plant_spectral_response_summary(workspace_root)
+        if plant_spectral_response is not None:
+            metrics["plant_spectral_response"] = plant_spectral_response
+
+        plant_photosynthesis_response = _load_plant_photosynthesis_response_summary(workspace_root)
+        if plant_photosynthesis_response is not None:
+            metrics["plant_photosynthesis_response"] = plant_photosynthesis_response
+
+        plant_photoreceptor_exposure = _load_plant_photoreceptor_exposure_summary(workspace_root)
+        if plant_photoreceptor_exposure is not None:
+            metrics["plant_photoreceptor_exposure"] = plant_photoreceptor_exposure
+
+        plant_photomorphogenesis_response = _load_plant_photomorphogenesis_response_summary(workspace_root)
+        if plant_photomorphogenesis_response is not None:
+            metrics["plant_photomorphogenesis_response"] = plant_photomorphogenesis_response
 
     cost_estimate = None
     try:

@@ -22,7 +22,10 @@ from rad_rebuild.radiance.engine.emitters.hps_generation.profile import (
     normalize_ies_variant,
     validate_coverage_ft,
 )
-from rad_rebuild.radiance.engine.emitters.hps_generation.rad_writer import write_hps_rad
+from rad_rebuild.radiance.engine.emitters.hps_generation.rad_writer import (
+    normalize_ies_light_rgb_to_grey_scalar_carrier,
+    write_hps_rad,
+)
 from rad_rebuild.radiance.engine.emitters.hps_generation.summary import (
     completion_lines,
     hps_base_summary_text,
@@ -321,6 +324,9 @@ def _write_ies_comparator(
 
     ies_rad_path = run_ies2rad(OUT_DIR, IES_PATH, IES_BASENAME, ies_scale)
     normalize_ies_rad_companion_paths(ies_rad_path)
+    hps_grey_channel_normalized = normalize_ies_light_rgb_to_grey_scalar_carrier(
+        ies_rad_path
+    )
     native_meta = cast(JsonObject, inspect_ies_rad_source(ies_rad_path))
     dims = native_meta["dimensions_m"]
     center = native_meta["center_m"]
@@ -379,6 +385,17 @@ def _write_ies_comparator(
             spd_metrics=spd_metrics,
             anchor_notes=anchor_notes,
         )
+    )
+    layout.update(
+        {
+            "baseline_source_channel_policy": (
+                "r_equals_g_equals_b_scalar_par_ppfd_carrier"
+            ),
+            "hps_ies_light_rgb_normalization": (
+                "arithmetic_mean_to_scalar_grey_par_ppfd_carrier"
+            ),
+            "hps_ies_light_rgb_normalized": hps_grey_channel_normalized,
+        }
     )
 
     writer_source_meta = {

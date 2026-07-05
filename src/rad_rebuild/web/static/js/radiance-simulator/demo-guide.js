@@ -484,6 +484,9 @@ class DemoGuideController {
       return;
     }
     window.setTimeout(() => {
+      if (document.body?.classList.contains("site-nav-open")) {
+        return;
+      }
       const [first] = visibleFocusableElements(this.card || document.body);
       if (first instanceof HTMLElement) {
         first.focus({ preventScroll: true });
@@ -498,6 +501,12 @@ class DemoGuideController {
    */
   onKeydown(event) {
     if (!this.mode || this.root?.classList.contains("hidden")) {
+      return;
+    }
+    if (document.body?.classList.contains("site-nav-open")) {
+      return;
+    }
+    if (document.querySelector(".radiance-modal:not(.hidden)")) {
       return;
     }
     if (event.key === "Escape") {

@@ -30,6 +30,25 @@ def _basis_sha256(basis: np.ndarray) -> str:
     return hashlib.sha256(np.asarray(basis, dtype=np.float64).tobytes()).hexdigest()
 
 
+def _minimal_direct_layout() -> dict[str, object]:
+    return {
+        "units": "meters",
+        "z": 0.4572,
+        "fixtures": [
+            {
+                "cx": 0.0,
+                "cy": 0.0,
+                "body_corners": [
+                    [-0.5, -0.25],
+                    [0.5, -0.25],
+                    [0.5, 0.25],
+                    [-0.5, 0.25],
+                ],
+            }
+        ],
+    }
+
+
 class Phase125DBasisServiceTests(unittest.TestCase):
     def test_basis_service_parser_rejects_non_finite_values(self) -> None:
         with self.assertRaisesRegex(ValueError, "non-finite"):
@@ -176,7 +195,7 @@ class Phase125DPlaybackServiceTests(unittest.TestCase):
                 handle.write("0 0 0 100\n")
                 handle.write("1 0 0 200\n")
             (ref.path / "spydr3_layout.json").write_text(
-                '{"fixtures": []}', encoding="utf-8"
+                json.dumps(_minimal_direct_layout()), encoding="utf-8"
             )
             (ref.path / "power.json").write_text(
                 json.dumps(

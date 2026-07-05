@@ -5,9 +5,15 @@ import math
 from pathlib import Path
 from typing import Any
 
+from rad_rebuild.radiance.assembly.fspm_panel import build_fspm_panel_metrics
 from rad_rebuild.radiance.assembly.classification import PLACEHOLDER_ASSET_KEY, classify_fixture_group
 from rad_rebuild.radiance.backend.models import RadianceRunRequest
 from rad_rebuild.radiance.config import MODE_COMPETITOR, MODE_HPS, MODE_SMD, RADIANCE_MODE_LABELS
+from rad_rebuild.radiance.engine.plants.artifacts import PLANTS_VIEWER_FILENAME
+from rad_rebuild.radiance.engine.plants.surface_flux import (
+    PLANT_SURFACE_FLUX_FILENAME,
+    PLANT_SURFACE_FLUX_SCHEMA,
+)
 
 SCENE_SCHEMA_VERSION = 3
 SYSTEM_KEY = "proposed_led_system"
@@ -27,6 +33,8 @@ SIMPLE_SYSTEMS: dict[str, dict[str, str]] = {
         "layout_label": "1000W HPS",
     },
 }
+PLANT_VIEWER_RELATIVE_PATH = Path("runtime_state") / PLANTS_VIEWER_FILENAME
+PLANT_SURFACE_FLUX_RELATIVE_PATH = Path("runtime_state") / PLANT_SURFACE_FLUX_FILENAME
 
 ASSET_URLS: dict[str, str] = {
     "manifest": f"{STATIC_ROOT_URL}/manifest.json",
@@ -524,10 +532,126 @@ def _scene_warnings(instances: list[dict[str, Any]]) -> list[str]:
     return warnings
 
 
+def _optional_plant_viewer_payload(workspace_root: Path) -> dict[str, Any] | None:
+    plant_path = workspace_root / PLANT_VIEWER_RELATIVE_PATH
+    if not plant_path.is_file():
+        return None
+    try:
+        payload = json.loads(plant_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise AssemblySceneError("Plant viewer payload is malformed.") from exc
+    if not isinstance(payload, dict):
+        raise AssemblySceneError("Plant viewer payload is malformed.")
+    if payload.get("schema") != "rad_rebuild.fspm.plants.viewer.v1":
+        raise AssemblySceneError("Plant viewer payload has an unsupported schema.")
+    return payload
+
+
+def _optional_plant_surface_flux_payload(workspace_root: Path) -> dict[str, Any] | None:
+    path = workspace_root / PLANT_SURFACE_FLUX_RELATIVE_PATH
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise AssemblySceneError("Plant surface-flux payload is malformed.") from exc
+    if not isinstance(payload, dict):
+        raise AssemblySceneError("Plant surface-flux payload is malformed.")
+    if payload.get("schema") != PLANT_SURFACE_FLUX_SCHEMA:
+        raise AssemblySceneError("Plant surface-flux payload has an unsupported schema.")
+    visualization = payload.get("visualization")
+    compact_visualization: dict[str, Any] = {}
+    if isinstance(visualization, dict):
+        compact_visualization = {
+            key: visualization.get(key)
+            for key in (
+                "color_metric",
+                "color_quantity",
+                "normalization",
+                "color_modes",
+                "leaf_scale",
+                "raw_leaf_surface_flux_scale",
+                "raw_leaf_surface_flux_side_scales",
+                "raw_leaf_surface_flux_summary",
+                "raw_leaf_surface_flux_legend",
+                "raw_leaf_surface_flux_side_legends",
+                "raw_leaf_surface_flux_detail",
+                "leaf_values",
+                "plant_values",
+            )
+            if key in visualization
+        }
+
+    metadata_keys = (
+        "artifact_role",
+        "baseline_transport_scene",
+        "fspm_receiver_transport_scene",
+        "receiver_trace_count",
+        "receiver_sample_count",
+        "receiver_granularity",
+        "receiver_samples_per_leaf",
+        "receiver_generation_basis",
+        "receiver_represented_area_m2",
+        "receiver_sample_area_sum_m2",
+        "receiver_area_basis",
+        "receiver_side_policy",
+        "receiver_rows_per_mesh_surface_row",
+        "normal_generation_basis",
+        "receiver_granularity_role",
+        "raw_leaf_surface_flux_scale",
+        "raw_leaf_surface_flux_side_scales",
+        "raw_leaf_surface_flux_summary",
+        "raw_leaf_surface_flux_side_summaries",
+        "raw_primary_side",
+        "raw_leaf_surface_flux_legend",
+        "raw_leaf_surface_flux_side_legends",
+        "plant_count",
+        "leaf_count",
+        "surface_count",
+        "one_sided_leaf_area_m2",
+        "target",
+        "target_ppfd_umol_m2_s",
+        "target_tolerance_umol_m2_s",
+        "target_classification_basis",
+        "target_classification_basis_label",
+        "target_classification_source",
+        "target_classification_note",
+        "target_basis",
+        "target_basis_label",
+        "target_lower_threshold_umol_m2_s",
+        "target_upper_threshold_umol_m2_s",
+        "target_capping_enabled",
+        "runtime_source",
+    )
+    compact = {
+        "schema": payload.get("schema"),
+        "schema_version": payload.get("schema_version"),
+        "status": payload.get("status"),
+        "method": payload.get("method"),
+        **{key: payload.get(key) for key in metadata_keys if key in payload},
+    }
+    if compact_visualization:
+        compact["visualization"] = compact_visualization
+    return compact
+
+
+def _attach_optional_plants(scene: dict[str, Any], workspace_root: Path) -> dict[str, Any]:
+    plant_payload = _optional_plant_viewer_payload(workspace_root)
+    if plant_payload is not None:
+        surface_flux = _optional_plant_surface_flux_payload(workspace_root)
+        if surface_flux is not None:
+            plant_payload = {**plant_payload, "surface_flux": surface_flux}
+        scene["plants"] = plant_payload
+    fspm_metrics = build_fspm_panel_metrics(workspace_root)
+    if fspm_metrics is not None:
+        scene["fspm_metrics"] = fspm_metrics
+    return scene
+
+
 def _build_smd_scene(workspace_root: Path, req: RadianceRunRequest) -> dict[str, Any]:
     layout = _load_layout(workspace_root / "runtime_state" / "smd_layout.json")
     instances = _instances_from_fixture_groups(layout) or _instances_from_positions(layout)
-    return {
+    return _attach_optional_plants({
         "schema_version": SCENE_SCHEMA_VERSION,
         "system": SYSTEM_KEY,
         "mode": MODE_SMD,
@@ -547,7 +671,7 @@ def _build_smd_scene(workspace_root: Path, req: RadianceRunRequest) -> dict[str,
         "missing_asset_keys": _scene_missing_asset_keys(instances),
         "asset_fallbacks_used": _scene_asset_fallbacks(instances),
         "warnings": _scene_warnings(instances),
-    }
+    }, workspace_root)
 
 
 def _build_simple_fixture_scene(workspace_root: Path, req: RadianceRunRequest) -> dict[str, Any]:
@@ -568,7 +692,7 @@ def _build_simple_fixture_scene(workspace_root: Path, req: RadianceRunRequest) -
         error_prefix=f"Malformed {layout_label} layout",
     )
     assets = {"manifest": f"{_simple_static_root_url(system_key)}/manifest.json"}
-    return {
+    return _attach_optional_plants({
         "schema_version": SCENE_SCHEMA_VERSION,
         "system": system_key,
         "mode": req.mode,
@@ -596,7 +720,7 @@ def _build_simple_fixture_scene(workspace_root: Path, req: RadianceRunRequest) -
         ),
         "asset_fallbacks_used": [],
         "warnings": _scene_warnings(instances),
-    }
+    }, workspace_root)
 
 
 def build_assembly_scene(workspace_root: Path, req: RadianceRunRequest) -> dict[str, Any]:

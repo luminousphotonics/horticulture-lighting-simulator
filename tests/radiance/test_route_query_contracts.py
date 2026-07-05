@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import csv
+from io import StringIO
+import json
 import tempfile
 import unittest
 from urllib.parse import parse_qs, urlparse
@@ -17,20 +20,41 @@ configure_test_runtime()
 
 from rad_rebuild.radiance.backend.routes import artifacts as artifacts_route  # noqa: E402
 from rad_rebuild.radiance.backend.routes import metrics as metrics_route  # noqa: E402
-from rad_rebuild.radiance.config import EXECUTION_MODE_LIVE_DOCKER, MODE_HPS  # noqa: E402
+from rad_rebuild.radiance.assembly.fspm_csv import (  # noqa: E402
+    FSPM_CSV_HEADERS,
+    FSPM_CSV_SCALAR_HEADERS,
+    FSPM_CSV_SPECTRAL_HEADERS,
+    FSPM_CSV_SURFACE_DETAIL_BUCKET_HEADERS,
+    build_fspm_metrics_csv,
+)
+from rad_rebuild.radiance.config import EXECUTION_MODE_LIVE_DOCKER, MODE_HPS, MODE_SMD  # noqa: E402
+from rad_rebuild.radiance.engine.plants.photoreceptor import PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA  # noqa: E402
+from rad_rebuild.radiance.engine.plants.photosynthesis import PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA  # noqa: E402
+from rad_rebuild.radiance.engine.plants.spectral import PLANT_SPECTRAL_RESPONSE_SCHEMA  # noqa: E402
+from rad_rebuild.radiance.engine.plants.spectral_absorption import PLANT_SPECTRAL_ABSORPTION_SCHEMA  # noqa: E402
+from rad_rebuild.radiance.engine.plants.surface_flux import PLANT_SURFACE_FLUX_SCHEMA  # noqa: E402
 from rad_rebuild.web.app import load_web_settings  # noqa: E402
 
 
 class _FakeRequest:
     headers: dict[str, str] = {}
 
-    def __init__(self, session_id: str = "route-contract", method: str = "GET") -> None:
-        self.query_params = {"session_id": session_id}
+    def __init__(
+        self,
+        session_id: str = "route-contract",
+        method: str = "GET",
+        query_params: dict[str, str] | None = None,
+    ) -> None:
+        self.query_params = {"session_id": session_id, **(query_params or {})}
         self.method = method
 
 
-def _request(session_id: str = "route-contract", method: str = "GET") -> Request:
-    return cast(Request, _FakeRequest(session_id, method))
+def _request(
+    session_id: str = "route-contract",
+    method: str = "GET",
+    query_params: dict[str, str] | None = None,
+) -> Request:
+    return cast(Request, _FakeRequest(session_id, method, query_params))
 
 
 class RadianceRouteQueryContractTests(unittest.TestCase):
@@ -105,6 +129,127 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         self.assertEqual(captured.req.hps_ies_variant, "karma")
         self.assertEqual(captured.req.w_min, 10.0)
 
+    def test_metrics_workspace_lookup_preserves_fspm_target_query_fields(self) -> None:
+        captured = SimpleNamespace(req=None)
+
+        def fake_authorize(_request: object, req: object) -> Path:
+            captured.req = req
+            return Path(tempfile.mkdtemp(prefix="rad_rebuild_metrics_fspm_contract_"))
+
+        with (
+            patch.object(
+                metrics_route,
+                "authorize_workspace_from_request",
+                side_effect=fake_authorize,
+            ),
+            patch.object(
+                metrics_route,
+                "get_metrics_payload",
+                return_value={"ok": True},
+            ),
+        ):
+            payload = metrics_route.radiance_metrics(
+                _request(
+                    query_params={
+                        "plants_enabled": "true",
+                        "fspm_target_ppfd_umol_m2_s": "275",
+                        "fspm_target_tolerance_umol_m2_s": "20",
+                    }
+                ),
+                execution_mode=EXECUTION_MODE_LIVE_DOCKER,
+                length_ft=10,
+                width_ft=12,
+                target_ppfd=1000,
+            )
+
+        self.assertEqual(payload, {"ok": True})
+        self.assertTrue(captured.req.plants_enabled)
+        self.assertEqual(captured.req.fspm_target_ppfd_umol_m2_s, 275.0)
+        self.assertEqual(captured.req.fspm_target_tolerance_umol_m2_s, 20.0)
+
+    def test_metrics_response_excludes_mesh_patch_raw_detail_arrays(self) -> None:
+        workspace = Path(tempfile.mkdtemp(prefix="rad_rebuild_metrics_compact_fspm_"))
+        runtime = workspace / "runtime_state"
+        runtime.mkdir(parents=True)
+        (workspace / "ppfd_map.txt").write_text("0 0 0 1000\n", encoding="utf-8")
+        dense_detail = {
+            "mode": "raw_leaf_surface_flux",
+            "visual_granularity": "mesh_patch",
+            "receiver_granularity": "mesh_patch",
+            "encoding": "leaf_major_dense",
+            "leaf_count": 128,
+            "leaf_ids": [f"leaf_{index:03d}" for index in range(128)],
+            "samples_per_leaf": 32,
+            "patches_per_leaf": 16,
+            "sides": ["front", "back"],
+            "top_bottom_support": True,
+            "values_ppfd": {
+                "front": [[float(patch) for patch in range(16)] for _ in range(128)],
+                "back": [[float(patch + 100) for patch in range(16)] for _ in range(128)],
+            },
+            "patch_face_indices": [list(range(16)) for _ in range(128)],
+        }
+        (runtime / "plant_surface_flux.json").write_text(
+            json.dumps(
+                {
+                    "schema": PLANT_SURFACE_FLUX_SCHEMA,
+                    "schema_version": 1,
+                    "artifact_role": "incident_leaf_surface_flux",
+                    "status": "computed",
+                    "method": "radiance_leaf_surface_receiver_sampling_v1",
+                    "plant_count": 1,
+                    "leaf_count": 128,
+                    "surface_count": 2048,
+                    "receiver_sample_count": 4096,
+                    "receiver_granularity": "mesh_patch",
+                    "raw_mean_flux_density_umol_m2_s": 275.0,
+                    "raw_leaf_surface_flux_summary": {
+                        "mean": 275.0,
+                        "p05": 100.0,
+                        "median": 275.0,
+                        "p95": 400.0,
+                        "max": 450.0,
+                    },
+                    "raw_leaf_surface_flux_scale": {
+                        "mode": "raw_leaf_surface_flux",
+                        "target_ppfd_umol_m2_s": 275.0,
+                    },
+                    "visualization": {
+                        "raw_leaf_surface_flux_detail": dense_detail,
+                        "leaf_values": [{"leaf_id": "leaf_000"}],
+                    },
+                    "leaf_summaries": [{"leaf_id": f"leaf_{index:03d}"} for index in range(128)],
+                    "plant_summaries": [{"plant_id": "plant_r000_c000"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with patch.object(
+            metrics_route,
+            "authorize_workspace_from_request",
+            return_value=workspace,
+        ):
+            payload = metrics_route.radiance_metrics(
+                _request(),
+                mode=MODE_SMD,
+                execution_mode=EXECUTION_MODE_LIVE_DOCKER,
+                length_ft=10,
+                width_ft=10,
+                target_ppfd=1000,
+            )
+
+        metrics = payload["metrics"]
+        incident = metrics["plant_incident_surface_flux"]
+        self.assertEqual(incident["receiver_granularity"], "mesh_patch")
+        self.assertEqual(incident["raw_leaf_surface_flux_summary"]["mean"], 275.0)
+        self.assertNotIn("visualization", incident)
+        self.assertNotIn("leaf_summaries", incident)
+        self.assertNotIn("plant_summaries", incident)
+        self.assertNotIn('"raw_leaf_surface_flux_detail":', json.dumps(payload))
+        self.assertIn("raw_leaf_surface_flux_detail_summary", incident)
+        self.assertLess(len(json.dumps(payload, separators=(",", ":")).encode("utf-8")), 250_000)
+
     def test_metrics_rejects_removed_hps_ies_variant(self) -> None:
         with self.assertRaises(HTTPException) as raised:
             metrics_route.radiance_metrics(
@@ -148,7 +293,13 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
             ),
         ):
             response = artifacts_route.radiance_ppfd_csv(
-                _request(),
+                _request(
+                    query_params={
+                        "plants_enabled": "true",
+                        "fspm_target_ppfd_umol_m2_s": "275",
+                        "fspm_target_tolerance_umol_m2_s": "20",
+                    }
+                ),
                 mode=MODE_HPS,
                 execution_mode=EXECUTION_MODE_LIVE_DOCKER,
                 length_ft=10,
@@ -162,6 +313,888 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
         self.assertEqual(Path(response.path), csv_file)
         self.assertEqual(captured.req.hps_ies_variant, "karma")
         self.assertEqual(captured.req.w_min, 10.0)
+        self.assertTrue(captured.req.plants_enabled)
+        self.assertEqual(captured.req.fspm_target_ppfd_umol_m2_s, 275.0)
+        self.assertEqual(captured.req.fspm_target_tolerance_umol_m2_s, 20.0)
+
+    def test_fspm_csv_exports_compact_authorized_summary(self) -> None:
+        captured = SimpleNamespace(req=None)
+
+        def fake_authorize(_request: object, req: object) -> Path:
+            captured.req = req
+            root = Path(tempfile.mkdtemp(prefix="rad_rebuild_fspm_csv_workspace_"))
+            runtime = root / "runtime_state"
+            runtime.mkdir()
+            (runtime / "plant_surface_flux.json").write_text(
+                json.dumps(
+                    {
+                        "schema": PLANT_SURFACE_FLUX_SCHEMA,
+                        "schema_version": 1,
+                        "status": "computed",
+                        "method": "radiance_leaf_surface_receiver_sampling_v1",
+                        "fspm_spectral_transport_mode": "banded_5",
+                        "leaf_radiance_material_mode": "rex_source_weighted_trans",
+                        "leaf_material_profile_id": "rex_green_butterhead_mature_leaf_optics_v1",
+                        "leaf_material_profile_version": "0.2",
+                        "leaf_material_weighting_basis": "band_source_weighted",
+                        "leaf_material_source_spectrum_id": "curve_data_smd",
+                        "leaf_material_source_spectrum_source": "curve_data_spd:/tmp/smd.csv",
+                        "banded_transport_band_count": 5,
+                        "banded_transport_active_trace_count": 5,
+                        "band_scaling_basis": "source_band_photon_fraction_relative_to_par",
+                        "scalar_flux_basis": "par_ppfd_umol_m2_s",
+                        "source_spectrum_basis": "wavelength_resolved_spd",
+                        "receiver_trace_count": 5,
+                        "receiver_sample_count": 3072,
+                        "receiver_granularity": "leaf_quadrature_4",
+                        "receiver_samples_per_leaf": 4.0,
+                        "ppfd_field_summary": {
+                            "baseline_ppfd_transport_basis": "canopy_plane_scalar_par_ppfd",
+                            "baseline_ppfd_rgb_decode_method": "grey_channel_average_after_equality_assertion",
+                            "baseline_source_channel_policy": "r_equals_g_equals_b_scalar_par_ppfd_carrier",
+                            "ppfd_conversion_basis": "radiance_rgb_values_are_scalar_par_ppfd_no_179_luminous_conversion",
+                            "photopic_luminance_weighting_avoided": True,
+                            "uses_179_luminous_efficacy_factor": False,
+                            "uses_falsecolor_or_illuminance_conversion": False,
+                        },
+                        "plant_count": 2,
+                        "leaf_count": 8,
+                        "surface_count": 16,
+                        "one_sided_leaf_area_m2": 0.124,
+                        "target_ppfd_umol_m2_s": 275.0,
+                        "target_tolerance_umol_m2_s": 20.0,
+                        "target_lower_threshold_umol_m2_s": 255.0,
+                        "target_upper_threshold_umol_m2_s": 295.0,
+                        "target_classification_basis": "canopy_plane_equivalent_incident_ppfd",
+                        "target_classification_source": "interpolated_runtime_ppfd_map",
+                        "under_lit_leaf_count": 2,
+                        "target_range_leaf_count": 5,
+                        "over_lit_leaf_count": 1,
+                        "under_lit_leaf_fraction": 0.25,
+                        "target_range_leaf_fraction": 0.625,
+                        "over_lit_leaf_fraction": 0.125,
+                        "under_lit_surface_count": 4,
+                        "target_range_surface_count": 10,
+                        "over_lit_surface_count": 2,
+                        "under_lit_surface_fraction": 0.25,
+                        "target_range_surface_fraction": 0.625,
+                        "over_lit_surface_fraction": 0.125,
+                        "target_capped_incident_flux_total_umol_s": 34.0,
+                        "excess_incident_flux_above_target_umol_s": 4.0,
+                        "deficit_to_target_incident_flux_umol_s": 7.0,
+                        "target_classification_mean_ppfd_umol_m2_s": 274.2,
+                        "raw_mean_flux_density_umol_m2_s": 320.0,
+                        "raw_leaf_surface_flux_summary": {
+                            "mean": 320.0,
+                            "min": 80.0,
+                            "p05": 120.0,
+                            "median": 275.0,
+                            "p95": 420.0,
+                            "max": 500.0,
+                            "mean_percent_of_target": 116.3636363636,
+                            "min_percent_of_target": 29.0909090909,
+                            "p05_percent_of_target": 43.6363636364,
+                            "median_percent_of_target": 100.0,
+                            "p95_percent_of_target": 152.7272727273,
+                            "max_percent_of_target": 181.8181818182,
+                            "bucket_counts": [
+                                {"label": "0-20%", "leaf_count": 0},
+                                {"label": "20-40%", "leaf_count": 1},
+                                {"label": "40-55%", "leaf_count": 1},
+                                {"label": "55-80%", "leaf_count": 1},
+                                {"label": "80-100%", "leaf_count": 1},
+                                {"label": "100-120%", "leaf_count": 2},
+                                {"label": "120-150%", "leaf_count": 1},
+                                {"label": "150%+", "leaf_count": 1},
+                            ],
+                            "summary_granularity": "leaf_average",
+                            "visualization_granularity": "mesh_patch",
+                            "surface_detail_sample_count": 4,
+                            "surface_detail_bucket_counts": [
+                                {"label": "0-20%", "sample_count": 1},
+                                {"label": "20-40%", "sample_count": 0},
+                                {"label": "40-55%", "sample_count": 0},
+                                {"label": "55-80%", "sample_count": 1},
+                                {"label": "80-100%", "sample_count": 1},
+                                {"label": "100-120%", "sample_count": 0},
+                                {"label": "120-150%", "sample_count": 1},
+                                {"label": "150%+", "sample_count": 0},
+                            ],
+                            "units": "umol/m²/s",
+                        },
+                        "target_capped_incident_mean_flux_density_umol_m2_s": 274.2,
+                        "lower_tail_raw_flux_density_umol_m2_s": 150.0,
+                        "lower_tail_target_classification_ppfd_umol_m2_s": 180.0,
+                        "total_incident_photon_flux_umol_s": 60.0,
+                        "total_absorbed_photon_flux_umol_s": 42.0,
+                        "mean_absorbed_fraction_of_incident": 0.7,
+                        "plant_to_plant_absorbed_photon_flux_cv": 0.08,
+                        "plant_to_plant_target_capped_incident_flux_cv": 0.06,
+                        "banded_transport_bands": [
+                            {
+                                "band_id": "blue",
+                                "wavelength_min_nm": 400,
+                                "wavelength_max_nm": 499,
+                                "source_photon_fraction_relative_to_par": 0.2,
+                                "receiver_trace_required": True,
+                                "effective_reflectance": 0.1,
+                                "effective_transmittance": 0.2,
+                                "effective_absorptance": 0.7,
+                                "radiance_primitive": "trans",
+                                "radiance_red": 0.3,
+                                "radiance_green": 0.3,
+                                "radiance_blue": 0.3,
+                                "radiance_trans": 0.66,
+                                "radiance_tspec": 0.0,
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (runtime / "plant_spectral_response.json").write_text(
+                json.dumps(
+                    {
+                        "schema": PLANT_SPECTRAL_RESPONSE_SCHEMA,
+                        "schema_version": 1,
+                        "status": "computed",
+                        "method": "surface_flux_band_weighted_leaf_absorptance_v1",
+                        "plant_count": 2,
+                        "leaf_count": 8,
+                        "surface_count": 16,
+                        "total_absorbed_par_photon_flux_umol_s": 30.0,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (runtime / "plant_photosynthesis_response.json").write_text(
+                json.dumps(
+                    {
+                        "schema": PLANT_PHOTOSYNTHESIS_RESPONSE_SCHEMA,
+                        "schema_version": 2,
+                        "status": "computed",
+                        "method": "absorbed_par_non_rectangular_hyperbola_v2",
+                        "calibration_status": "uncalibrated_model_scaffold",
+                        "area_weighted_mean_local_response_0_1": 0.64,
+                        "local_response_p10_0_1": 0.58,
+                        "plant_to_plant_photosynthetic_response_cv": 0.04,
+                        "nonuniformity_response_retention_0_1": 0.97,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (runtime / "plant_photoreceptor_exposure.json").write_text(
+                json.dumps(
+                    {
+                        "schema": PLANT_PHOTORECEPTOR_EXPOSURE_SCHEMA,
+                        "schema_version": 1,
+                        "status": "computed",
+                        "method": "spectral_band_exposure_inputs_v1",
+                        "plant_count": 2,
+                        "leaf_count": 8,
+                        "surface_count": 16,
+                        "phytochrome_pss_proxy": {"value": None, "status": "not_computed"},
+                        "blue_photon_dose": {"value_umol_m2": None, "status": "not_computed"},
+                        "plant_summaries": [
+                            {
+                                "absorbed_blue_pfd_umol_m2_s": 83.3,
+                                "absorbed_green_pfd_umol_m2_s": 125.0,
+                                "absorbed_red_pfd_umol_m2_s": 208.3,
+                                "absorbed_far_red_pfd_umol_m2_s": 83.3,
+                                "absorbed_blue_fraction_of_par": 0.2,
+                                "absorbed_red_to_far_red_ratio_diagnostic": 2.5,
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (runtime / "plant_spectral_absorption.json").write_text(
+                json.dumps(
+                    {
+                        "schema": PLANT_SPECTRAL_ABSORPTION_SCHEMA,
+                        "schema_version": 1,
+                        "status": "computed",
+                        "method": "banded_5_radiance_leaf_receiver_transport_v1",
+                        "source_surface_flux_method": "radiance_leaf_surface_receiver_sampling_v1",
+                        "fspm_spectral_transport_mode": "banded_5",
+                        "leaf_radiance_material_mode": "rex_source_weighted_trans",
+                        "leaf_material_profile_id": "rex_green_butterhead_mature_leaf_optics_v1",
+                        "leaf_material_profile_version": "0.2",
+                        "leaf_material_weighting_basis": "band_source_weighted",
+                        "leaf_material_source_spectrum_id": "curve_data_smd",
+                        "leaf_material_source_spectrum_source": "curve_data_spd:/tmp/smd.csv",
+                        "banded_transport_band_count": 5,
+                        "banded_transport_active_trace_count": 5,
+                        "band_scaling_basis": "source_band_photon_fraction_relative_to_par",
+                        "receiver_trace_count": 5,
+                        "receiver_sample_count": 3072,
+                        "receiver_granularity": "leaf_quadrature_4",
+                        "optical_profile": {
+                            "profile_id": "rex_green_butterhead_mature_leaf_optics_v1",
+                            "profile_version": "v1",
+                        },
+                        "source_spectrum": {"distribution_id": "curve_data_smd"},
+                        "source_spectral_basis": "wavelength_resolved_spd",
+                        "source_spectrum_basis": "wavelength_resolved_spd",
+                        "scalar_flux_basis": "par_ppfd_umol_m2_s",
+                        "plant_count": 2,
+                        "leaf_count": 8,
+                        "surface_count": 16,
+                        "crop_summary": {
+                            "scalar_incident_par_ppfd_umol_m2_s": 320.0,
+                            "incident_par_ppfd_umol_m2_s": 320.0,
+                            "incident_epar_ppfd_umol_m2_s": 331.0,
+                            "absorbed_par_ppfd_umol_m2_s": 211.0,
+                            "absorbed_epar_ppfd_umol_m2_s": 223.0,
+                            "absorbed_blue_ppfd_umol_m2_s": 42.0,
+                            "absorbed_green_ppfd_umol_m2_s": 55.0,
+                            "absorbed_orange_ppfd_umol_m2_s": 16.0,
+                            "absorbed_red_ppfd_umol_m2_s": 98.0,
+                            "absorbed_far_red_ppfd_umol_m2_s": 12.0,
+                            "target_capped_absorbed_par_ppfd": 194.5,
+                            "target_capped_absorbed_epar_ppfd": 205.4,
+                            "target_capped_absorbed_blue_ppfd": 38.7,
+                            "target_capped_absorbed_green_ppfd": 50.7,
+                            "target_capped_absorbed_orange_ppfd": 14.8,
+                            "target_capped_absorbed_red_ppfd": 90.3,
+                            "target_capped_absorbed_far_red_ppfd": 11.1,
+                            "excess_absorbed_par_ppfd_above_target_cap": 16.5,
+                            "excess_absorbed_epar_ppfd_above_target_cap": 17.6,
+                            "target_capped_absorbed_par_fraction_of_raw": 0.922,
+                            "target_capped_absorbed_epar_fraction_of_raw": 0.921,
+                            "target_effective_absorbed_fraction": 0.659,
+                            "over_target_absorbed_par_fraction_of_raw": 0.078,
+                            "under_target_leaf_fraction": 0.25,
+                            "in_target_leaf_fraction": 0.625,
+                            "over_target_leaf_fraction": 0.125,
+                            "absorbed_fraction": 0.64,
+                            "reflected_fraction": 0.24,
+                            "transmitted_fraction": 0.12,
+                        },
+                        "band_summaries": [
+                            {
+                                "band_id": "blue",
+                                "wavelength_min_nm": 400,
+                                "wavelength_max_nm": 499,
+                                "source_photon_fraction_relative_to_par": 0.2,
+                                "receiver_trace_required": True,
+                                "effective_reflectance": 0.1,
+                                "effective_transmittance": 0.2,
+                                "effective_absorptance": 0.7,
+                                "incident_pfd_umol_m2_s": 60.0,
+                                "absorbed_pfd_umol_m2_s": 42.0,
+                                "reflected_pfd_umol_m2_s": 6.0,
+                                "transmitted_pfd_umol_m2_s": 12.0,
+                            }
+                        ],
+                        "banded_transport_bands": [
+                            {
+                                "band_id": "blue",
+                                "wavelength_min_nm": 400,
+                                "wavelength_max_nm": 499,
+                                "source_photon_fraction_relative_to_par": 0.2,
+                                "receiver_trace_required": True,
+                                "effective_reflectance": 0.1,
+                                "effective_transmittance": 0.2,
+                                "effective_absorptance": 0.7,
+                                "radiance_primitive": "trans",
+                                "radiance_red": 0.3,
+                                "radiance_green": 0.3,
+                                "radiance_blue": 0.3,
+                                "radiance_trans": 0.66,
+                                "radiance_tspec": 0.0,
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            return root
+
+        with patch.object(
+            artifacts_route,
+            "authorize_workspace_from_request",
+            side_effect=fake_authorize,
+        ):
+            response = artifacts_route.radiance_fspm_csv(
+                _request(
+                    session_id="fspm-csv-contract",
+                    query_params={
+                        "plants_enabled": "true",
+                        "plant_seed": "13",
+                        "plant_rows": "2",
+                        "plant_columns": "1",
+                        "plant_leaf_count": "4",
+                        "fspm_target_ppfd_umol_m2_s": "275",
+                        "fspm_target_tolerance_umol_m2_s": "20",
+                    },
+                ),
+                mode=MODE_SMD,
+                execution_mode=EXECUTION_MODE_LIVE_DOCKER,
+                length_ft=10,
+                width_ft=10,
+                target_ppfd=1000,
+                match_system_ppe=True,
+            )
+
+        self.assertEqual(response.media_type, "text/csv")
+        self.assertIn(
+            'attachment; filename="fspm_summary_smd_fspm-csv-contract.csv"',
+            response.headers["content-disposition"],
+        )
+        self.assertTrue(captured.req.match_system_ppe)
+        self.assertTrue(captured.req.plants_enabled)
+        self.assertEqual(captured.req.plant_seed, 13)
+        self.assertEqual(captured.req.plant_rows, 2)
+        self.assertEqual(captured.req.plant_leaf_count, 4)
+        self.assertEqual(captured.req.fspm_target_ppfd_umol_m2_s, 275.0)
+        self.assertEqual(captured.req.fspm_target_tolerance_umol_m2_s, 20.0)
+
+        text = bytes(response.body).decode("utf-8")
+        self.assertNotIn("metric_name", text)
+        self.assertNotIn("bucket_label", text)
+        self.assertNotIn("bucket_min", text)
+        self.assertNotIn("bucket_max", text)
+        self.assertNotIn("plant_id", text)
+        self.assertNotIn("leaf_id", text)
+        self.assertNotIn("surface_id", text)
+        rows = list(csv.DictReader(StringIO(text)))
+        self.assertEqual(
+            list(rows[0].keys()),
+            list(FSPM_CSV_HEADERS[:-1] + FSPM_CSV_SURFACE_DETAIL_BUCKET_HEADERS + ("note",)),
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertNotIn("raw_incident_vs_target_capacity_percent", rows[0])
+        row = rows[0]
+        self.assertEqual(row["run_id"], "fspm-csv-contract")
+        self.assertEqual(row["mode"], MODE_SMD)
+        self.assertEqual(row["system_label"], "Proposed LED System")
+        self.assertEqual(row["artifact_schema"], PLANT_SURFACE_FLUX_SCHEMA)
+        self.assertEqual(row["method"], "radiance_leaf_surface_receiver_sampling_v1")
+        self.assertEqual(row["fspm_spectral_transport_mode"], "banded_5")
+        self.assertEqual(row["leaf_radiance_material_mode"], "rex_source_weighted_trans")
+        self.assertEqual(row["receiver_sample_count"], "3072")
+        self.assertEqual(row["receiver_granularity"], "leaf_quadrature_4")
+        self.assertEqual(row["receiver_samples_per_leaf"], "4")
+        self.assertEqual(row["receiver_trace_count"], "5")
+        self.assertEqual(row["banded_transport_band_count"], "5")
+        self.assertEqual(row["banded_transport_active_trace_count"], "5")
+        self.assertEqual(
+            row["band_scaling_basis"],
+            "source_band_photon_fraction_relative_to_par",
+        )
+        self.assertEqual(row["scalar_flux_basis"], "par_ppfd_umol_m2_s")
+        self.assertEqual(row["source_spectrum_basis"], "wavelength_resolved_spd")
+        self.assertEqual(
+            row["leaf_material_profile_id"],
+            "rex_green_butterhead_mature_leaf_optics_v1",
+        )
+        self.assertEqual(row["leaf_material_profile_version"], "0.2")
+        self.assertEqual(row["leaf_material_weighting_basis"], "band_source_weighted")
+        self.assertEqual(row["leaf_material_source_spectrum_id"], "curve_data_smd")
+        self.assertEqual(
+            row["leaf_material_source_spectrum_source"],
+            "curve_data_spd:/tmp/smd.csv",
+        )
+        self.assertEqual(
+            row["baseline_ppfd_transport_basis"],
+            "canopy_plane_scalar_par_ppfd",
+        )
+        self.assertEqual(
+            row["baseline_ppfd_rgb_decode_method"],
+            "grey_channel_average_after_equality_assertion",
+        )
+        self.assertEqual(
+            row["baseline_source_channel_policy"],
+            "r_equals_g_equals_b_scalar_par_ppfd_carrier",
+        )
+        self.assertEqual(
+            row["ppfd_conversion_basis"],
+            "radiance_rgb_values_are_scalar_par_ppfd_no_179_luminous_conversion",
+        )
+        self.assertEqual(row["photopic_luminance_weighting_avoided"], "True")
+        self.assertEqual(row["uses_179_luminous_efficacy_factor"], "False")
+        self.assertEqual(row["uses_falsecolor_or_illuminance_conversion"], "False")
+        self.assertEqual(row["plant_count"], "2")
+        self.assertEqual(row["leaf_count"], "8")
+        self.assertEqual(row["receiver_surface_count"], "16")
+        self.assertEqual(row["under_lit_leaves"], "2")
+        self.assertEqual(row["target_range_leaves"], "5")
+        self.assertEqual(row["over_lit_leaves"], "1")
+        self.assertEqual(row["under_lit_leaf_percent"], "25")
+        self.assertEqual(row["target_range_leaf_percent"], "62.5")
+        self.assertEqual(row["over_lit_leaf_percent"], "12.5")
+        self.assertEqual(row["under_lit_receiver_surfaces"], "4")
+        self.assertEqual(row["target_range_receiver_surfaces"], "10")
+        self.assertEqual(row["over_lit_receiver_surfaces"], "2")
+        self.assertEqual(row["under_lit_receiver_surface_percent"], "25")
+        self.assertEqual(row["target_range_receiver_surface_percent"], "62.5")
+        self.assertEqual(row["over_lit_receiver_surface_percent"], "12.5")
+        self.assertEqual(
+            row["coverage_basis_label"],
+            "plant_location_canopy_reference_ppfd",
+        )
+        self.assertEqual(
+            row["coverage_source_label"],
+            "baseline PPFD map sampled at leaf XY positions",
+        )
+        self.assertEqual(row["plant_location_under_lit_leaves"], "2")
+        self.assertEqual(row["plant_location_target_range_leaves"], "5")
+        self.assertEqual(row["plant_location_over_lit_leaves"], "1")
+        self.assertEqual(row["mean_plant_location_reference_ppfd_umol_m2_s"], "274.2")
+        self.assertEqual(row["lower_tail_plant_location_reference_ppfd_umol_m2_s"], "180")
+        self.assertEqual(row["target_capped_plant_location_flux_total_umol_s"], "34")
+        self.assertAlmostEqual(
+            float(row["plant_location_target_capacity_flux_umol_s"]),
+            34.1,
+        )
+        self.assertEqual(row["raw_incident_flux_total_umol_s"], "60")
+        self.assertEqual(row["raw_leaf_surface_incident_flux_total_umol_s"], "60")
+        self.assertNotIn("incident_leaf_surface_ppfd_umol_m2_s", row)
+        self.assertNotIn("raw_mean_flux_density_umol_m2_s", row)
+        self.assertEqual(row["raw_leaf_surface_flux_mean_ppfd_umol_m2_s"], "320")
+        self.assertEqual(row["raw_leaf_surface_flux_p05_ppfd_umol_m2_s"], "120")
+        self.assertEqual(row["raw_leaf_surface_flux_p95_ppfd_umol_m2_s"], "420")
+        self.assertEqual(row["raw_leaf_surface_flux_mean_percent_of_target"], "116.363636364")
+        self.assertEqual(row["raw_leaf_surface_flux_p05_percent_of_target"], "43.6363636364")
+        self.assertEqual(row["raw_leaf_summary_granularity"], "leaf_average")
+        self.assertEqual(row["raw_visualization_granularity"], "mesh_patch")
+        self.assertEqual(row["raw_bucket_0_20_leaf_count"], "0")
+        self.assertEqual(row["raw_bucket_20_40_leaf_count"], "1")
+        self.assertEqual(row["raw_bucket_150_plus_leaf_count"], "1")
+        self.assertEqual(row["raw_bucket_0_20_leaf_percent"], "0")
+        self.assertEqual(row["raw_bucket_20_40_leaf_percent"], "12.5")
+        self.assertEqual(row["raw_bucket_40_55_leaf_percent"], "12.5")
+        self.assertEqual(row["raw_bucket_55_80_leaf_percent"], "12.5")
+        self.assertEqual(row["raw_bucket_80_100_leaf_percent"], "12.5")
+        self.assertEqual(row["raw_bucket_100_120_leaf_percent"], "25")
+        self.assertEqual(row["raw_bucket_120_150_leaf_percent"], "12.5")
+        self.assertEqual(row["raw_bucket_150_plus_leaf_percent"], "12.5")
+        self.assertEqual(row["raw_surface_detail_bucket_0_20_sample_count"], "1")
+        self.assertEqual(row["raw_surface_detail_bucket_55_80_sample_count"], "1")
+        self.assertEqual(row["raw_surface_detail_bucket_80_100_sample_count"], "1")
+        self.assertEqual(row["raw_surface_detail_bucket_120_150_sample_count"], "1")
+        self.assertEqual(row["raw_surface_detail_bucket_0_20_sample_percent"], "25")
+        bucket_counts = [
+            float(row["raw_bucket_0_20_leaf_count"] or 0),
+            float(row["raw_bucket_20_40_leaf_count"] or 0),
+            float(row["raw_bucket_40_55_leaf_count"] or 0),
+            float(row["raw_bucket_55_80_leaf_count"] or 0),
+            float(row["raw_bucket_80_100_leaf_count"] or 0),
+            float(row["raw_bucket_100_120_leaf_count"] or 0),
+            float(row["raw_bucket_120_150_leaf_count"] or 0),
+            float(row["raw_bucket_150_plus_leaf_count"] or 0),
+        ]
+        bucket_percents = [
+            float(row["raw_bucket_0_20_leaf_percent"] or 0),
+            float(row["raw_bucket_20_40_leaf_percent"] or 0),
+            float(row["raw_bucket_40_55_leaf_percent"] or 0),
+            float(row["raw_bucket_55_80_leaf_percent"] or 0),
+            float(row["raw_bucket_80_100_leaf_percent"] or 0),
+            float(row["raw_bucket_100_120_leaf_percent"] or 0),
+            float(row["raw_bucket_120_150_leaf_percent"] or 0),
+            float(row["raw_bucket_150_plus_leaf_percent"] or 0),
+        ]
+        self.assertEqual(sum(bucket_counts), float(row["leaf_count"]))
+        self.assertAlmostEqual(sum(bucket_percents), 100.0)
+        self.assertNotIn("raw_absorbed_flux_total_umol_s", row)
+        self.assertNotIn("legacy_broadband_absorbed_flux_total_umol_s", row)
+        self.assertNotIn("absorbed_fraction_percent", row)
+        self.assertEqual(
+            row["spectral_absorption_optical_profile_id"],
+            "rex_green_butterhead_mature_leaf_optics_v1",
+        )
+        self.assertEqual(
+            row["spectral_absorption_source_spectrum_basis"],
+            "wavelength_resolved_spd",
+        )
+        self.assertEqual(
+            row["spectral_absorption_scalar_flux_basis"],
+            "par_ppfd_umol_m2_s",
+        )
+        self.assertEqual(row["modeled_incident_par_ppfd_umol_m2_s"], "320")
+        self.assertEqual(row["modeled_incident_epar_ppfd_umol_m2_s"], "331")
+        self.assertEqual(row["target_capped_absorbed_par_ppfd"], "194.5")
+        self.assertEqual(row["target_capped_absorbed_epar_ppfd"], "205.4")
+        self.assertEqual(row["target_capped_absorbed_blue_ppfd"], "38.7")
+        self.assertEqual(row["target_capped_absorbed_green_ppfd"], "50.7")
+        self.assertEqual(row["target_capped_absorbed_orange_ppfd"], "14.8")
+        self.assertEqual(row["target_capped_absorbed_red_ppfd"], "90.3")
+        self.assertEqual(row["target_capped_absorbed_far_red_ppfd"], "11.1")
+        self.assertEqual(row["excess_absorbed_par_ppfd_above_target_cap"], "16.5")
+        self.assertEqual(row["excess_absorbed_epar_ppfd_above_target_cap"], "17.6")
+        self.assertEqual(row["target_capped_absorbed_par_fraction_of_raw"], "0.922")
+        self.assertEqual(row["target_capped_absorbed_epar_fraction_of_raw"], "0.921")
+        self.assertEqual(row["target_effective_absorbed_fraction"], "0.659")
+        self.assertEqual(row["over_target_absorbed_par_fraction_of_raw"], "0.078")
+        self.assertEqual(row["under_target_leaf_fraction"], "0.25")
+        self.assertEqual(row["in_target_leaf_fraction"], "0.625")
+        self.assertEqual(row["over_target_leaf_fraction"], "0.125")
+        self.assertEqual(row["modeled_absorbed_par_ppfd_umol_m2_s"], "211")
+        self.assertEqual(row["modeled_absorbed_epar_ppfd_umol_m2_s"], "223")
+        self.assertEqual(row["modeled_absorbed_blue_ppfd_umol_m2_s"], "42")
+        self.assertEqual(row["modeled_absorbed_green_ppfd_umol_m2_s"], "55")
+        self.assertEqual(row["modeled_absorbed_orange_ppfd_umol_m2_s"], "16")
+        self.assertEqual(row["modeled_absorbed_red_ppfd_umol_m2_s"], "98")
+        self.assertEqual(row["modeled_absorbed_far_red_ppfd_umol_m2_s"], "12")
+        self.assertEqual(row["modeled_absorbed_fraction_percent"], "64")
+        self.assertEqual(row["modeled_reflected_fraction_percent"], "24")
+        self.assertEqual(row["modeled_transmitted_fraction_percent"], "12")
+        band_rows = json.loads(row["banded_transport_band_summaries_json"])
+        self.assertEqual(len(band_rows), 1)
+        self.assertEqual(band_rows[0]["band_id"], "blue")
+        self.assertEqual(band_rows[0]["wavelength_min_nm"], 400)
+        self.assertEqual(band_rows[0]["wavelength_max_nm"], 499)
+        self.assertEqual(
+            band_rows[0]["source_photon_fraction_relative_to_par"],
+            0.2,
+        )
+        self.assertTrue(band_rows[0]["receiver_trace_required"])
+        self.assertEqual(band_rows[0]["effective_reflectance"], 0.1)
+        self.assertEqual(band_rows[0]["effective_transmittance"], 0.2)
+        self.assertEqual(band_rows[0]["effective_absorptance"], 0.7)
+        self.assertEqual(band_rows[0]["incident_pfd_umol_m2_s"], 60.0)
+        self.assertEqual(band_rows[0]["absorbed_pfd_umol_m2_s"], 42.0)
+        self.assertEqual(band_rows[0]["reflected_pfd_umol_m2_s"], 6.0)
+        self.assertEqual(band_rows[0]["transmitted_pfd_umol_m2_s"], 12.0)
+        self.assertEqual(band_rows[0]["radiance_primitive"], "trans")
+        self.assertNotIn("surface_id", row["banded_transport_band_summaries_json"])
+        self.assertAlmostEqual(
+            float(row["target_capped_plant_location_fraction_of_raw_percent"]),
+            34.0 / 60.0 * 100.0,
+        )
+        self.assertAlmostEqual(
+            float(row["target_capped_plant_location_fraction_of_capacity_percent"]),
+            34.0 / 34.1 * 100.0,
+        )
+        self.assertAlmostEqual(
+            float(row["excess_above_target_fraction_of_raw_percent"]),
+            4.0 / 60.0 * 100.0,
+        )
+        self.assertAlmostEqual(
+            float(row["deficit_to_target_capacity_percent"]),
+            7.0 / 34.1 * 100.0,
+        )
+        self.assertNotIn("raw_plant_to_plant_absorption_cv_percent", row)
+        self.assertEqual(row["target_capped_plant_location_plant_to_plant_cv_percent"], "6")
+        self.assertEqual(row["blue_pfd_umol_m2_s"], "83.3")
+        self.assertEqual(row["blue_fraction_of_par_percent"], "20")
+        self.assertEqual(row["red_to_far_red_diagnostic"], "2.5")
+        self.assertEqual(row["phytochrome_pss_proxy"], "")
+        self.assertEqual(row["blue_dose_mol_m2"], "")
+        self.assertEqual(row["photosynthetic_light_response_mean"], "0.64")
+        self.assertEqual(row["photosynthetic_light_response_lower_tail"], "0.58")
+        self.assertEqual(row["photosynthetic_light_response_cv_percent"], "4")
+        self.assertEqual(row["nonuniformity_response_retention"], "0.97")
+        self.assertEqual(row["calibration_status"], "uncalibrated_model_scaffold")
+        self.assertNotIn("target_classification_basis", row)
+        self.assertNotIn("target_classification_source", row)
+        self.assertIn(
+            "Raw receiver incident flux is physical receiver accounting",
+            row["note"],
+        )
+        self.assertIn("not target-equivalent PPFD classification", row["note"])
+        for key, value in row.items():
+            if key in {
+                "run_id",
+                "mode",
+                "system_label",
+                "method",
+                "artifact_schema",
+                "receiver_granularity",
+                "receiver_side_policy",
+                "receiver_area_basis",
+                "fspm_spectral_transport_mode",
+                "leaf_radiance_material_mode",
+                "band_scaling_basis",
+                "scalar_flux_basis",
+                "source_spectrum_basis",
+                "leaf_material_profile_id",
+                "leaf_material_profile_version",
+                "leaf_material_weighting_basis",
+                "leaf_material_source_spectrum_id",
+                "leaf_material_source_spectrum_source",
+                "baseline_ppfd_transport_basis",
+                "baseline_ppfd_rgb_decode_method",
+                "baseline_source_channel_policy",
+                "ppfd_conversion_basis",
+                "photopic_luminance_weighting_avoided",
+                "uses_179_luminous_efficacy_factor",
+                "uses_falsecolor_or_illuminance_conversion",
+                "coverage_basis_label",
+                "coverage_source_label",
+                "raw_leaf_summary_granularity",
+                "raw_visualization_granularity",
+                "spectral_absorption_optical_profile_id",
+                "spectral_absorption_source_spectrum_basis",
+                "spectral_absorption_scalar_flux_basis",
+                "banded_transport_band_summaries_json",
+                "calibration_status",
+                "note",
+            }:
+                continue
+            if value:
+                self.assertRegex(value, r"^-?\d+(?:\.\d+)?(?:e[+-]?\d+)?$", key)
+        self.assertNotRegex(text.lower(), r"yield|biomass|harvest|crop output|growth prediction")
+
+    def test_fspm_csv_exports_mesh_patch_front_back_raw_summary(self) -> None:
+        workspace = Path(tempfile.mkdtemp(prefix="rad_rebuild_fspm_csv_sides_"))
+        runtime = workspace / "runtime_state"
+        runtime.mkdir()
+        (runtime / "plant_surface_flux.json").write_text(
+            json.dumps(
+                {
+                    "schema": PLANT_SURFACE_FLUX_SCHEMA,
+                    "schema_version": 1,
+                    "status": "computed",
+                    "method": "radiance_leaf_surface_receiver_sampling_v1",
+                    "plant_count": 1,
+                    "leaf_count": 2,
+                    "surface_count": 4,
+                    "receiver_sample_count": 8,
+                    "receiver_granularity": "mesh_patch",
+                    "receiver_side_policy": "front_and_back_per_mesh_surface_row",
+                    "one_sided_leaf_area_m2": 0.1,
+                    "target_ppfd_umol_m2_s": 100.0,
+                    "raw_primary_side": "front",
+                    "raw_leaf_surface_flux_side_scales": {
+                        "front": {
+                            "anchors": [
+                                {"percent": 0},
+                                {"percent": 20},
+                                {"percent": 40},
+                                {"percent": 55},
+                                {"percent": 80},
+                                {"percent": 100},
+                                {"percent": 120},
+                                {"percent": 150},
+                            ]
+                        },
+                        "back": {
+                            "anchors": [
+                                {"percent": 0},
+                                {"percent": 2},
+                                {"percent": 5},
+                                {"percent": 10},
+                                {"percent": 20},
+                                {"percent": 35},
+                                {"percent": 50},
+                                {"percent": 75},
+                            ]
+                        },
+                    },
+                    "raw_leaf_surface_flux_summary": {
+                        "mean": 90.0,
+                        "summary_granularity": "leaf_average",
+                        "visualization_granularity": "mesh_patch",
+                        "bucket_counts": [{"label": "80-100%", "leaf_count": 2}],
+                    },
+                    "raw_leaf_surface_flux_side_summaries": {
+                        "front": {
+                            "mean": 100.0,
+                            "min": 80.0,
+                            "p05": 82.0,
+                            "median": 100.0,
+                            "p95": 118.0,
+                            "max": 120.0,
+                            "mean_percent_of_target": 100.0,
+                            "min_percent_of_target": 80.0,
+                            "p05_percent_of_target": 82.0,
+                            "median_percent_of_target": 100.0,
+                            "p95_percent_of_target": 118.0,
+                            "max_percent_of_target": 120.0,
+                            "raw_incident_flux_umol_s": 10.0,
+                            "bucket_counts": [
+                                {"label": "80-100%", "sample_count": 1, "sample_percent": 25},
+                                {"label": "100-120%", "sample_count": 3, "sample_percent": 75},
+                            ],
+                        },
+                        "back": {
+                            "mean": 10.0,
+                            "min": 2.0,
+                            "p05": 2.4,
+                            "median": 10.0,
+                            "p95": 17.6,
+                            "max": 18.0,
+                            "mean_percent_of_target": 10.0,
+                            "min_percent_of_target": 2.0,
+                            "p05_percent_of_target": 2.4,
+                            "median_percent_of_target": 10.0,
+                            "p95_percent_of_target": 17.6,
+                            "max_percent_of_target": 18.0,
+                            "raw_incident_flux_umol_s": 1.0,
+                            "bucket_counts": [
+                                {"label": "2-5%", "sample_count": 1, "sample_percent": 25},
+                                {"label": "5-10%", "sample_count": 1, "sample_percent": 25},
+                                {"label": "10-20%", "sample_count": 2, "sample_percent": 50},
+                            ],
+                        },
+                        "two_sided": {
+                            "total_raw_incident_flux_umol_s": 11.0,
+                            "backside_contribution_percent": 9.0909090909,
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        rows = list(
+            csv.DictReader(
+                StringIO(
+                    build_fspm_metrics_csv(
+                        workspace,
+                        run_id="run-side",
+                        mode=MODE_SMD,
+                    )
+                )
+            )
+        )
+
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["raw_primary_side"], "front")
+        self.assertEqual(row["front_raw_mean_ppfd"], "100")
+        self.assertEqual(row["back_raw_mean_ppfd"], "10")
+        self.assertEqual(row["front_raw_bucket_100_120_count"], "3")
+        self.assertEqual(row["back_raw_bucket_10_20_count"], "2")
+        self.assertEqual(row["front_raw_incident_flux_umol_s"], "10")
+        self.assertEqual(row["back_raw_incident_flux_umol_s"], "1")
+        self.assertEqual(row["total_two_sided_raw_incident_flux_umol_s"], "11")
+        self.assertEqual(row["backside_contribution_percent"], "9.0909090909")
+        self.assertEqual(row["front_color_scale_anchors_percent"], "[0,20,40,55,80,100,120,150]")
+        self.assertEqual(row["back_color_scale_anchors_percent"], "[0,2,5,10,20,35,50,75]")
+        self.assertNotIn("values_ppfd", row)
+
+    def test_fspm_csv_missing_optional_artifacts_uses_blank_cells(self) -> None:
+        def fake_authorize(_request: object, _req: object) -> Path:
+            root = Path(tempfile.mkdtemp(prefix="rad_rebuild_fspm_csv_minimal_"))
+            runtime = root / "runtime_state"
+            runtime.mkdir()
+            (runtime / "plant_surface_flux.json").write_text(
+                json.dumps(
+                    {
+                        "schema": PLANT_SURFACE_FLUX_SCHEMA,
+                        "status": "computed",
+                        "method": "radiance_leaf_surface_receiver_sampling_v1",
+                        "plant_count": 1,
+                        "leaf_count": 2,
+                        "surface_count": 4,
+                        "one_sided_leaf_area_m2": 0.0,
+                        "target_ppfd_umol_m2_s": 300.0,
+                        "target_tolerance_umol_m2_s": 30.0,
+                        "target_lower_threshold_umol_m2_s": 270.0,
+                        "target_upper_threshold_umol_m2_s": 330.0,
+                        "under_lit_leaf_count": 0,
+                        "target_range_leaf_count": 2,
+                        "over_lit_leaf_count": 0,
+                        "under_lit_leaf_fraction": 0.0,
+                        "target_range_leaf_fraction": 1.0,
+                        "over_lit_leaf_fraction": 0.0,
+                        "total_incident_photon_flux_umol_s": 8.0,
+                        "raw_leaf_surface_flux_summary": {
+                            "mean": 320.0,
+                            "min": 240.0,
+                            "p05": 250.0,
+                            "median": 320.0,
+                            "p95": 390.0,
+                            "max": 400.0,
+                            "mean_percent_of_target": 106.6666666667,
+                            "min_percent_of_target": 80.0,
+                            "p05_percent_of_target": 83.3333333333,
+                            "median_percent_of_target": 106.6666666667,
+                            "p95_percent_of_target": 130.0,
+                            "max_percent_of_target": 133.3333333333,
+                            "bucket_counts": [
+                                {"label": "0-20%", "leaf_count": 0},
+                                {"label": "20-40%", "leaf_count": 0},
+                                {"label": "40-55%", "leaf_count": 0},
+                                {"label": "55-80%", "leaf_count": 0},
+                                {"label": "80-100%", "leaf_count": 1},
+                                {"label": "100-120%", "leaf_count": 0},
+                                {"label": "120-150%", "leaf_count": 1},
+                                {"label": "150%+", "leaf_count": 0},
+                            ],
+                            "summary_granularity": "leaf_average",
+                            "visualization_granularity": "leaf_average",
+                        },
+                        "total_absorbed_photon_flux_umol_s": 5.6,
+                        "mean_absorbed_fraction_of_incident": 0.7,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            return root
+
+        with patch.object(
+            artifacts_route,
+            "authorize_workspace_from_request",
+            side_effect=fake_authorize,
+        ):
+            response = artifacts_route.radiance_fspm_csv(
+                _request(session_id="minimal-fspm-csv"),
+                mode=MODE_SMD,
+                execution_mode=EXECUTION_MODE_LIVE_DOCKER,
+                length_ft=10,
+                width_ft=10,
+                target_ppfd=1000,
+            )
+
+        rows = list(csv.DictReader(StringIO(bytes(response.body).decode("utf-8"))))
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(list(row.keys()), list(FSPM_CSV_SCALAR_HEADERS))
+        self.assertEqual(row["plant_count"], "1")
+        self.assertEqual(row["target_range_leaf_percent"], "100")
+        self.assertEqual(row["plant_location_target_capacity_flux_umol_s"], "0")
+        self.assertEqual(
+            row["target_capped_plant_location_fraction_of_capacity_percent"],
+            "",
+        )
+        self.assertEqual(row["deficit_to_target_capacity_percent"], "")
+        self.assertEqual(row["raw_leaf_summary_granularity"], "leaf_average")
+        self.assertEqual(row["raw_visualization_granularity"], "leaf_average")
+        self.assertEqual(row["raw_bucket_80_100_leaf_count"], "1")
+        self.assertEqual(row["raw_bucket_120_150_leaf_count"], "1")
+        self.assertEqual(row["raw_bucket_80_100_leaf_percent"], "50")
+        self.assertEqual(row["raw_bucket_120_150_leaf_percent"], "50")
+        scalar_bucket_counts = [
+            float(row["raw_bucket_0_20_leaf_count"] or 0),
+            float(row["raw_bucket_20_40_leaf_count"] or 0),
+            float(row["raw_bucket_40_55_leaf_count"] or 0),
+            float(row["raw_bucket_55_80_leaf_count"] or 0),
+            float(row["raw_bucket_80_100_leaf_count"] or 0),
+            float(row["raw_bucket_100_120_leaf_count"] or 0),
+            float(row["raw_bucket_120_150_leaf_count"] or 0),
+            float(row["raw_bucket_150_plus_leaf_count"] or 0),
+        ]
+        scalar_bucket_percents = [
+            float(row["raw_bucket_0_20_leaf_percent"] or 0),
+            float(row["raw_bucket_20_40_leaf_percent"] or 0),
+            float(row["raw_bucket_40_55_leaf_percent"] or 0),
+            float(row["raw_bucket_55_80_leaf_percent"] or 0),
+            float(row["raw_bucket_80_100_leaf_percent"] or 0),
+            float(row["raw_bucket_100_120_leaf_percent"] or 0),
+            float(row["raw_bucket_120_150_leaf_percent"] or 0),
+            float(row["raw_bucket_150_plus_leaf_percent"] or 0),
+        ]
+        self.assertEqual(sum(scalar_bucket_counts), float(row["leaf_count"]))
+        self.assertAlmostEqual(sum(scalar_bucket_percents), 100.0)
+        for spectral_header in FSPM_CSV_SPECTRAL_HEADERS:
+            self.assertNotIn(spectral_header, row)
+        self.assertEqual(row["baseline_ppfd_rgb_decode_method"], "")
+        self.assertNotIn("calibration_status", row)
+
+    def test_fspm_csv_export_has_single_header_for_manual_combining(self) -> None:
+        header = ",".join(FSPM_CSV_HEADERS)
+        body = ",".join("" for _ in FSPM_CSV_HEADERS)
+        exported_text = f"{header}\n{body}\n"
+
+        self.assertEqual(exported_text.count(header), 1)
+        rows = list(csv.DictReader(StringIO(exported_text)))
+        self.assertEqual(len(rows), 1)
+        self.assertNotEqual(rows[0]["run_id"], "run_id")
 
     def test_scatter_request_workspace_lookup_preserves_karma_hps_ies_variant(
         self,
@@ -265,7 +1298,13 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
             ),
         ):
             payload = artifacts_route.radiance_images(
-                _request(),
+                _request(
+                    query_params={
+                        "plants_enabled": "true",
+                        "fspm_target_ppfd_umol_m2_s": "275",
+                        "fspm_target_tolerance_umol_m2_s": "20",
+                    }
+                ),
                 mode=MODE_HPS,
                 execution_mode=EXECUTION_MODE_LIVE_DOCKER,
                 length_ft=10,
@@ -278,12 +1317,17 @@ class RadianceRouteQueryContractTests(unittest.TestCase):
 
         self.assertEqual(captured.req.hps_ies_variant, "karma")
         self.assertEqual(captured.req.w_min, 10.0)
+        self.assertTrue(captured.req.plants_enabled)
+        self.assertEqual(captured.req.fspm_target_ppfd_umol_m2_s, 275.0)
+        self.assertEqual(captured.req.fspm_target_tolerance_umol_m2_s, 20.0)
         overlay_query = parse_qs(urlparse(payload["overlay"]).query)
         annot_query = parse_qs(urlparse(payload["annot"]).query)
         self.assertEqual(overlay_query["hps_ies_variant"], ["karma"])
         self.assertEqual(annot_query["hps_ies_variant"], ["karma"])
         self.assertEqual(overlay_query["w_min"], ["10"])
         self.assertEqual(annot_query["w_min"], ["10"])
+        self.assertEqual(overlay_query["fspm_target_ppfd_umol_m2_s"], ["275"])
+        self.assertEqual(annot_query["fspm_target_tolerance_umol_m2_s"], ["20"])
 
     def test_image_workspace_lookup_preserves_karma_hps_ies_variant(self) -> None:
         captured = SimpleNamespace(req=None)

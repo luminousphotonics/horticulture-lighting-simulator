@@ -73,6 +73,7 @@ class RadianceSettings:
     job_log_max_lines: int
     job_log_max_bytes: int
     job_timeout_s: float
+    local_live_job_timeout_s: float | None
     job_sse_client_limit: int
     file_cache_max_entries: int
     precomputed_mode: PrecomputedMode | None
@@ -158,6 +159,25 @@ def _bool(env: Mapping[str, str], name: str, default: bool = False) -> bool:
     raise ValueError(f"{name} must be a boolean flag.")
 
 
+def _optional_timeout_seconds(
+    env: Mapping[str, str],
+    name: str,
+    default: float,
+) -> float | None:
+    raw = env.get(name, "").strip().lower()
+    if not raw:
+        return default
+    if raw in {"0", "none"}:
+        return None
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a positive integer seconds value, 0, or none.") from exc
+    if value <= 0:
+        raise ValueError(f"{name} must be a positive integer seconds value, 0, or none.")
+    return float(value)
+
+
 def _csv_tuple(raw: str) -> tuple[str, ...]:
     return tuple(item.strip() for item in raw.split(",") if item.strip() and item.strip() != "*")
 
@@ -195,6 +215,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> RadianceSettings:
     if production_deployment:
         precomputed_mode = PrecomputedMode.ONLY
     configured_origins = _csv_tuple(source.get(ENV_RADIANCE_CORS_ALLOW_ORIGINS, ""))
+    job_timeout_s = _float(source, "RADIANCE_JOB_TIMEOUT_S", 900.0, minimum=0.0)
     return RadianceSettings(
         paths=paths,
         docker_image=source.get(ENV_RADIANCE_IMAGE, DEFAULT_DOCKER_IMAGE).strip() or DEFAULT_DOCKER_IMAGE,
@@ -211,7 +232,12 @@ def load_settings(env: Mapping[str, str] | None = None) -> RadianceSettings:
         job_worker_count=_int(source, "RADIANCE_JOB_WORKER_COUNT", 2, minimum=1),
         job_log_max_lines=_int(source, "RADIANCE_JOB_LOG_MAX_LINES", 2000, minimum=1),
         job_log_max_bytes=_int(source, "RADIANCE_JOB_LOG_MAX_BYTES", 2_000_000, minimum=1024),
-        job_timeout_s=_float(source, "RADIANCE_JOB_TIMEOUT_S", 900.0, minimum=0.0),
+        job_timeout_s=job_timeout_s,
+        local_live_job_timeout_s=_optional_timeout_seconds(
+            source,
+            "RAD_REBUILD_LIVE_JOB_TIMEOUT_SECONDS",
+            job_timeout_s,
+        ),
         job_sse_client_limit=_int(source, "RADIANCE_JOB_SSE_CLIENT_LIMIT", 16, minimum=1),
         file_cache_max_entries=_int(source, "RADIANCE_FILE_CACHE_MAX_ENTRIES", 4096, minimum=1),
         precomputed_mode=precomputed_mode,

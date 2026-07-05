@@ -20,6 +20,21 @@ export function sceneUrlFromQuery(queryString) {
   return scene;
 }
 
+export function fspmCsvUrlFromSceneUrl(sceneUrl) {
+  if (!sceneUrl.startsWith(ALLOWED_SCENE_PREFIX)) {
+    throw new Error("The FSPM export URL cannot be derived from this scene URL.");
+  }
+  const parsed = new URL(sceneUrl, window.location.origin);
+  if (parsed.origin !== window.location.origin) {
+    throw new Error("The FSPM export URL must use the viewer origin.");
+  }
+  if (parsed.pathname !== "/radiance-api/radiance/assembly-scene") {
+    throw new Error("The FSPM export URL must be derived from the assembly scene route.");
+  }
+  parsed.pathname = "/radiance-api/radiance/fspm-csv";
+  return `${parsed.pathname}${parsed.search}`;
+}
+
 async function readJson(response) {
   const contentType = response.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {

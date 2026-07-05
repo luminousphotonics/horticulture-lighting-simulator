@@ -110,6 +110,25 @@ export const appState = {
  * @property {HTMLElement} radTargetField
  * @property {HTMLElement} radPeakCappingField
  * @property {HTMLInputElement} radPeakCapping
+ * @property {HTMLElement} radMatchSystemPpeField
+ * @property {HTMLInputElement} radMatchSystemPpe
+ * @property {HTMLFieldSetElement} radFspmFieldset
+ * @property {HTMLElement} radFspmLegend
+ * @property {HTMLElement} radFspmLiveNote
+ * @property {HTMLElement} radFspmPrecomputedNote
+ * @property {HTMLInputElement} radPlantsEnabled
+ * @property {HTMLInputElement} radPlantSeed
+ * @property {HTMLInputElement} radPlantRows
+ * @property {HTMLInputElement} radPlantColumns
+ * @property {HTMLInputElement} radPlantSpacingM
+ * @property {HTMLInputElement} radPlantHeightM
+ * @property {HTMLInputElement} radPlantCanopyRadiusM
+ * @property {HTMLInputElement} radPlantLeafCount
+ * @property {HTMLInputElement} radPlantGrowthStage
+ * @property {HTMLSelectElement} radFspmReceiverGranularity
+ * @property {HTMLInputElement} radFspmMultispectralMode
+ * @property {HTMLInputElement} radFspmTargetPpfd
+ * @property {HTMLInputElement} radFspmTargetTolerance
  * @property {HTMLElement} radVisualNote
  * @property {HTMLImageElement} radImgOverlay
  * @property {HTMLImageElement} radImgAnnot
@@ -214,6 +233,25 @@ export const els = /** @type {Els} */ ({
   radTargetField: byId("rad-target-field"),
   radPeakCappingField: byId("rad-peak-capping-field"),
   radPeakCapping: byId("rad-peak-capping"),
+  radMatchSystemPpeField: byId("rad-match-system-ppe-field"),
+  radMatchSystemPpe: byId("rad-match-system-ppe"),
+  radFspmFieldset: byId("rad-fspm-fieldset"),
+  radFspmLegend: byId("rad-fspm-legend"),
+  radFspmLiveNote: byId("rad-fspm-live-note"),
+  radFspmPrecomputedNote: byId("rad-fspm-precomputed-note"),
+  radPlantsEnabled: byId("rad-plants-enabled"),
+  radPlantSeed: byId("rad-plant-seed"),
+  radPlantRows: byId("rad-plant-rows"),
+  radPlantColumns: byId("rad-plant-columns"),
+  radPlantSpacingM: byId("rad-plant-spacing-m"),
+  radPlantHeightM: byId("rad-plant-height-m"),
+  radPlantCanopyRadiusM: byId("rad-plant-canopy-radius-m"),
+  radPlantLeafCount: byId("rad-plant-leaf-count"),
+  radPlantGrowthStage: byId("rad-plant-growth-stage"),
+  radFspmReceiverGranularity: byId("rad-fspm-receiver-granularity"),
+  radFspmMultispectralMode: byId("rad-fspm-multispectral-mode"),
+  radFspmTargetPpfd: byId("rad-fspm-target-ppfd"),
+  radFspmTargetTolerance: byId("rad-fspm-target-tolerance"),
   radVisualNote: byId("rad-visual-note"),
   radImgOverlay: byId("rad-img-overlay"),
   radImgAnnot: byId("rad-img-annot"),

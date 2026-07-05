@@ -133,7 +133,34 @@ class Phase07JobServiceTests(unittest.TestCase):
                 owner_session="owner-a",
             )
             timed_out = _wait_for_status(service, job.id, {JobState.TIMED_OUT.value})
-            self.assertEqual(timed_out.failure, {"kind": "timeout", "timeout_s": 0.2})
+            self.assertIsNotNone(timed_out.failure)
+            assert timed_out.failure is not None
+            self.assertEqual(timed_out.failure["kind"], "timeout")
+            self.assertEqual(timed_out.failure["timeout_s"], 0.2)
+            self.assertEqual(timed_out.failure["stage"], "radiance")
+            self.assertEqual(timed_out.failure["active_command"], job.command)
+            elapsed_s = timed_out.failure["elapsed_s"]
+            assert isinstance(elapsed_s, int | float)
+            self.assertGreaterEqual(float(elapsed_s), 0.0)
+            tail = service.tail(job.id, cursor=0, limit=20, owner_session="owner-a")
+            logs = "\n".join(tail.lines)
+            self.assertIn("Job timeout: 0.2s.", logs)
+            self.assertIn("Job timed out after", logs)
+            self.assertIn("while running radiance:", logs)
+        finally:
+            service.shutdown()
+
+    def test_explicit_none_timeout_disables_default_job_timeout(self) -> None:
+        service = self._service(timeout_s=5.0)
+        try:
+            job = service.submit(
+                _python_cmd("print('no-timeout', flush=True)"),
+                self.root,
+                owner_session="owner-a",
+                timeout_s=None,
+            )
+            self.assertIsNone(job.timeout_s)
+            _wait_for_status(service, job.id, {JobState.SUCCEEDED.value})
         finally:
             service.shutdown()
 

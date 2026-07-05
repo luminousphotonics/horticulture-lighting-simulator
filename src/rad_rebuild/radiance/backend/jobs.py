@@ -31,6 +31,7 @@ ACTIVE_STATES = {
     JobState.CANCELLING.value,
 }
 COMPLETED_JOB_RETENTION_S = get_settings().completed_job_retention_s
+_DEFAULT_JOB_TIMEOUT = object()
 
 _ENV_EXACT_ALLOWLIST = {
     "ALIGN_LONG_AXIS_X",
@@ -79,6 +80,7 @@ _ENV_PREFIX_ALLOWLIST = (
     "BOARD_",
     "GRID_",
     "COMPETITOR_",
+    "FSPM_",
     "DRIVER_",
     "DOCKER_",
     "DROOP_",
@@ -672,7 +674,7 @@ class JobService:
         owner_session: str = "anon",
         request_fingerprint: str = "",
         kind: str = "radiance",
-        timeout_s: float | None = None,
+        timeout_s: float | None | object = _DEFAULT_JOB_TIMEOUT,
         on_complete: Callable[[JobRecord], None] | None = None,
     ) -> JobRecord:
         self.start()
@@ -683,6 +685,9 @@ class JobService:
         job_id = str(uuid.uuid4())
         repository_log_dir = getattr(self.repository, "log_dir", _default_log_dir())
         log_path = Path(repository_log_dir) / f"{job_id}.log"
+        effective_timeout_s = (
+            self.default_timeout_s if timeout_s is _DEFAULT_JOB_TIMEOUT else timeout_s
+        )
         record = JobRecord(
             id=job_id,
             status=JobState.QUEUED.value,
@@ -699,7 +704,11 @@ class JobService:
             started_at=None,
             finished_at=None,
             updated_at=now,
-            timeout_s=timeout_s if timeout_s is not None else self.default_timeout_s,
+            timeout_s=(
+                float(effective_timeout_s)
+                if isinstance(effective_timeout_s, (int, float))
+                else None
+            ),
             failure=None,
             log_path=log_path,
         )
@@ -772,6 +781,8 @@ class JobService:
 
     def _run_subprocess(self, record: JobRecord, handle: _ProcessHandle) -> tuple[int | None, str, dict[str, object] | None]:
         self.append_log(record.id, "system", f"Job started: {' '.join(record.command)}")
+        timeout_label = "disabled" if record.timeout_s is None else f"{record.timeout_s:g}s"
+        self.append_log(record.id, "system", f"Job timeout: {timeout_label}.")
         try:
             if os.name == "nt":
                 # Commands are argv lists built by backend route adapters, never shell strings.
@@ -802,6 +813,7 @@ class JobService:
             return -1, JobState.FAILED.value, {"kind": "start_failed", "message": str(exc)}
 
         handle.process = proc
+        started_at = time.time()
         readers = [
             threading.Thread(target=self._read_stream, args=(record.id, "stdout", proc.stdout), daemon=True),
             threading.Thread(target=self._read_stream, args=(record.id, "stderr", proc.stderr), daemon=True),
@@ -827,8 +839,23 @@ class JobService:
                 break
             if deadline is not None and time.time() >= deadline:
                 _terminate_process_tree(proc)
+                elapsed_s = max(0.0, time.time() - started_at)
                 status = JobState.TIMED_OUT.value
-                failure = {"kind": "timeout", "timeout_s": record.timeout_s}
+                failure = {
+                    "kind": "timeout",
+                    "timeout_s": record.timeout_s,
+                    "elapsed_s": elapsed_s,
+                    "stage": record.kind,
+                    "active_command": record.command,
+                }
+                self.append_log(
+                    record.id,
+                    "system",
+                    (
+                        f"Job timed out after {elapsed_s:.1f}s while running "
+                        f"{record.kind}: {' '.join(record.command)}"
+                    ),
+                )
                 break
             time.sleep(0.05)
 

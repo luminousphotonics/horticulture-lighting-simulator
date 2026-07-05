@@ -105,6 +105,16 @@ class _BackpressureJobService:
         raise JobBackpressureError("queue full")
 
 
+class _CapturingJobService:
+    def __init__(self) -> None:
+        self.submit_kwargs: dict[str, object] | None = None
+
+    def submit(self, *args: object, **kwargs: object) -> JobRecord:
+        del args
+        self.submit_kwargs = kwargs
+        return _job("captured-job", JobState.QUEUED.value)
+
+
 class _ReproduceJobService:
     def submit(self, *args: object, **kwargs: object) -> JobRecord:
         return _job("reproduce-job", JobState.QUEUED.value)
@@ -200,6 +210,75 @@ def test_radiance_run_backpressure_uses_structured_detail() -> None:
             }
         else:
             raise AssertionError("Expected run backpressure to raise HTTPException")
+
+
+def test_live_local_run_uses_configured_local_timeout() -> None:
+    lease = SimpleNamespace(
+        staging_workspace=Path(tempfile.mkdtemp(prefix="rad_rebuild_live_timeout_")),
+        artifact_token="artifact-token",
+    )
+    service = _CapturingJobService()
+    with (
+        patch.object(runs_route, "maybe_cleanup_runtime_state", lambda: None),
+        patch.object(runs_route, "assert_live_execution_allowed", lambda _req, _session: None),
+        patch.object(runs_route, "allocate_workspace_for_run", return_value=lease),
+        patch.object(runs_route, "_visualize_command", return_value=(["true"], "visuals")),
+        patch.object(runs_route, "_make_env_base", return_value={}),
+        patch.object(
+            runs_route,
+            "get_settings",
+            return_value=SimpleNamespace(local_live_job_timeout_s=3600.0),
+        ),
+    ):
+        result = runs_route.run_radiance(
+            RadianceRunRequest(
+                action="visualize",
+                mode="SMD",
+                execution_mode="live_local",
+                length_ft=10,
+                width_ft=10,
+                target_ppfd=1000,
+            ),
+            _request(job_service=service),
+        )
+
+    assert result["job_id"] == "captured-job"
+    assert service.submit_kwargs is not None
+    assert service.submit_kwargs["timeout_s"] == 3600.0
+
+
+def test_live_local_run_can_disable_local_timeout() -> None:
+    lease = SimpleNamespace(
+        staging_workspace=Path(tempfile.mkdtemp(prefix="rad_rebuild_live_timeout_none_")),
+        artifact_token="artifact-token",
+    )
+    service = _CapturingJobService()
+    with (
+        patch.object(runs_route, "maybe_cleanup_runtime_state", lambda: None),
+        patch.object(runs_route, "assert_live_execution_allowed", lambda _req, _session: None),
+        patch.object(runs_route, "allocate_workspace_for_run", return_value=lease),
+        patch.object(runs_route, "_visualize_command", return_value=(["true"], "visuals")),
+        patch.object(runs_route, "_make_env_base", return_value={}),
+        patch.object(
+            runs_route,
+            "get_settings",
+            return_value=SimpleNamespace(local_live_job_timeout_s=None),
+        ),
+    ):
+        runs_route.run_radiance(
+            RadianceRunRequest(
+                action="visualize",
+                mode="SMD",
+                execution_mode="live_local",
+                length_ft=10,
+                width_ft=10,
+                target_ppfd=1000,
+            ),
+            _request(job_service=service),
+        )
+
+    assert service.submit_kwargs is not None
+    assert service.submit_kwargs["timeout_s"] is None
 
 
 def test_job_tail_response_contract() -> None:

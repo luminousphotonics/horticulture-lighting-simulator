@@ -12,6 +12,27 @@ from typing import Annotated, Any, Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
+from rad_rebuild.radiance.engine.plants.config import PlantGeometryConfig
+from rad_rebuild.radiance.engine.plants.leaf_materials import (
+    DEFAULT_FSPM_LEAF_RADIANCE_MATERIAL_MODE,
+    DEFAULT_FSPM_SPECTRAL_TRANSPORT_MODE,
+    FSPM_LEAF_RADIANCE_MATERIAL_MODES,
+    FSPM_SPECTRAL_TRANSPORT_MODES,
+    normalize_fspm_spectral_transport_mode,
+    normalize_leaf_radiance_material_mode,
+)
+from rad_rebuild.radiance.engine.plants.generator import fit_plant_geometry_config_to_room
+from rad_rebuild.radiance.engine.plants.optical_profiles import (
+    REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
+    list_leaf_optical_profiles,
+)
+from rad_rebuild.radiance.engine.plants.surface_flux import (
+    DEFAULT_FSPM_RECEIVER_GRANULARITY,
+    FSPM_RECEIVER_GRANULARITIES,
+    normalize_receiver_granularity,
+)
+from rad_rebuild.radiance.fspm_targets import optional_positive_finite_float
+
 
 class DomainValueError(ValueError):
     """Raised when an external contract value cannot be canonicalized."""
@@ -136,6 +157,18 @@ LayoutModeValue: TypeAlias = Annotated[str, Field(json_schema_extra={"enum": [mo
 BasisBackendValue: TypeAlias = Annotated[str, Field(json_schema_extra={"enum": [backend.value for backend in BasisBackend]})]
 OverlayValue: TypeAlias = Annotated[str, Field(json_schema_extra={"enum": [overlay.value for overlay in Overlay]})]
 JobStateValue: TypeAlias = Annotated[str, Field(json_schema_extra={"enum": [state.value for state in JobState]})]
+FspmReceiverGranularityValue: TypeAlias = Annotated[
+    str,
+    Field(json_schema_extra={"enum": sorted(FSPM_RECEIVER_GRANULARITIES)}),
+]
+FspmLeafRadianceMaterialModeValue: TypeAlias = Annotated[
+    str,
+    Field(json_schema_extra={"enum": sorted(FSPM_LEAF_RADIANCE_MATERIAL_MODES)}),
+]
+FspmSpectralTransportModeValue: TypeAlias = Annotated[
+    str,
+    Field(json_schema_extra={"enum": sorted(FSPM_SPECTRAL_TRANSPORT_MODES)}),
+]
 
 _SYSTEM_MODE_ALIASES = {
     "smd": SystemMode.SMD,
@@ -410,6 +443,28 @@ class RadianceRunRequest(StrictBoundaryModel):
     hps_input_watts: FiniteHpsInputWatts = 1045.0
     hps_ies_variant: str = Field(default="karma", max_length=32)
     dialux_sensor_grid: bool = False
+    plants_enabled: bool = False
+    plant_seed: int | None = None
+    plant_rows: int | None = None
+    plant_columns: int | None = None
+    plant_spacing_m: float | None = None
+    plant_height_m: float | None = None
+    plant_canopy_radius_m: float | None = None
+    plant_leaf_count: int | None = None
+    plant_growth_stage: float | None = None
+    fspm_receiver_granularity: FspmReceiverGranularityValue = DEFAULT_FSPM_RECEIVER_GRANULARITY
+    fspm_leaf_optical_profile_id: str = Field(
+        default=REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
+        max_length=128,
+    )
+    fspm_leaf_radiance_material_mode: FspmLeafRadianceMaterialModeValue = (
+        DEFAULT_FSPM_LEAF_RADIANCE_MATERIAL_MODE
+    )
+    fspm_spectral_transport_mode: FspmSpectralTransportModeValue = (
+        DEFAULT_FSPM_SPECTRAL_TRANSPORT_MODE
+    )
+    fspm_target_ppfd_umol_m2_s: float | None = None
+    fspm_target_tolerance_umol_m2_s: float | None = None
 
     @field_validator(
         "length_ft",
@@ -431,10 +486,43 @@ class RadianceRunRequest(StrictBoundaryModel):
     def finite_numbers(cls, value: object, info: ValidationInfo) -> float:
         return _finite_number(value, str(info.field_name))
 
+    @field_validator(
+        "fspm_target_ppfd_umol_m2_s",
+        "fspm_target_tolerance_umol_m2_s",
+        mode="before",
+    )
+    @classmethod
+    def finite_optional_fspm_target_numbers(
+        cls,
+        value: object,
+        info: ValidationInfo,
+    ) -> float | None:
+        return optional_positive_finite_float(str(info.field_name), value)
+
     @field_validator("subpatch_grid", "smd_base_ring", mode="before")
     @classmethod
     def finite_ints(cls, value: object, info: ValidationInfo) -> int:
         return _finite_int(value, str(info.field_name))
+
+    @field_validator("plant_seed", "plant_rows", "plant_columns", "plant_leaf_count", mode="before")
+    @classmethod
+    def finite_optional_plant_ints(cls, value: object, info: ValidationInfo) -> int | None:
+        if value is None:
+            return None
+        return _finite_int(value, str(info.field_name))
+
+    @field_validator(
+        "plant_spacing_m",
+        "plant_height_m",
+        "plant_canopy_radius_m",
+        "plant_growth_stage",
+        mode="before",
+    )
+    @classmethod
+    def finite_optional_plant_numbers(cls, value: object, info: ValidationInfo) -> float | None:
+        if value is None:
+            return None
+        return _finite_number(value, str(info.field_name))
 
     @field_validator("action", mode="before")
     @classmethod
@@ -471,6 +559,37 @@ class RadianceRunRequest(StrictBoundaryModel):
     def valid_overlay(cls, value: object) -> str:
         return canonicalize_overlay(_raw_str(value)).value
 
+    @field_validator("fspm_receiver_granularity", mode="before")
+    @classmethod
+    def valid_fspm_receiver_granularity(cls, value: object) -> str:
+        return normalize_receiver_granularity(value)
+
+    @field_validator("fspm_leaf_radiance_material_mode", mode="before")
+    @classmethod
+    def valid_fspm_leaf_radiance_material_mode(cls, value: object) -> str:
+        return normalize_leaf_radiance_material_mode(value)
+
+    @field_validator("fspm_spectral_transport_mode", mode="before")
+    @classmethod
+    def valid_fspm_spectral_transport_mode(cls, value: object) -> str:
+        return normalize_fspm_spectral_transport_mode(value)
+
+    @field_validator("fspm_leaf_optical_profile_id", mode="before")
+    @classmethod
+    def valid_fspm_leaf_optical_profile_id(cls, value: object) -> str:
+        profile_id = str(
+            REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1 if value is None else _raw_str(value)
+        ).strip()
+        if not profile_id:
+            profile_id = REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1
+        if profile_id not in list_leaf_optical_profiles():
+            allowed = ", ".join(list_leaf_optical_profiles())
+            raise ValueError(
+                f"Unsupported FSPM_LEAF_OPTICAL_PROFILE_ID: {profile_id!r}. "
+                f"Expected one of: {allowed}."
+            )
+        return profile_id
+
     @field_validator("hps_ies_variant", mode="before")
     @classmethod
     def valid_hps_ies_variant(cls, value: object) -> str:
@@ -491,7 +610,61 @@ class RadianceRunRequest(StrictBoundaryModel):
             raise ValueError("match_system_ppe is not valid for 1000W HPS mode.")
         if self.mode == MODE_HPS and self.hps_coverage_ft not in {4.0, 5.0}:
             raise ValueError("hps_coverage_ft must be one of: 4.0, 5.0.")
+        if self.plants_enabled:
+            try:
+                plant_geometry_config_from_request(self)
+            except ValueError as exc:
+                raise ValueError(f"Invalid plant geometry config: {exc}") from exc
         return self
+
+
+def _request_value(source: Any, field_name: str, default: Any) -> Any:
+    getter = source.get if isinstance(source, dict) else lambda name, fallback=None: getattr(source, name, fallback)
+    value = getter(field_name, None)
+    return default if value is None else value
+
+
+def plant_geometry_config_from_request(source: Any) -> PlantGeometryConfig:
+    """Resolve optional backend request plant fields into the Phase 01 config."""
+
+    defaults = PlantGeometryConfig()
+    target_spacing_m = _request_value(source, "plant_spacing_m", defaults.plant_spacing_m)
+    length_ft = _request_value(source, "length_ft", None)
+    width_ft = _request_value(source, "width_ft", None)
+    explicit_rows = _request_value(source, "plant_rows", None)
+    explicit_columns = _request_value(source, "plant_columns", None)
+    config = PlantGeometryConfig(
+        seed=_request_value(source, "plant_seed", defaults.seed),
+        plant_grid_rows=_request_value(source, "plant_rows", defaults.plant_grid_rows),
+        plant_grid_columns=_request_value(
+            source,
+            "plant_columns",
+            defaults.plant_grid_columns,
+        ),
+        plant_spacing_m=target_spacing_m,
+        plant_height_m=_request_value(source, "plant_height_m", defaults.plant_height_m),
+        canopy_radius_m=_request_value(
+            source,
+            "plant_canopy_radius_m",
+            defaults.canopy_radius_m,
+        ),
+        leaf_count_per_plant=_request_value(
+            source,
+            "plant_leaf_count",
+            defaults.leaf_count_per_plant,
+        ),
+        growth_stage=_request_value(source, "plant_growth_stage", defaults.growth_stage),
+        optical=defaults.optical,
+    )
+    if length_ft is None or width_ft is None:
+        return config
+    return fit_plant_geometry_config_to_room(
+        config,
+        length_ft=length_ft,
+        width_ft=width_ft,
+        rows=explicit_rows,
+        columns=explicit_columns,
+    )
 
 
 class ElectricalCostStage(StrictBoundaryModel):
@@ -712,6 +885,8 @@ class AssemblySceneResponse(StrictBoundaryModel):
     missing_asset_keys: list[str]
     asset_fallbacks_used: list[AssemblyAssetFallbackResponse]
     warnings: list[str]
+    plants: JsonObject | None = None
+    fspm_metrics: JsonObject | None = None
 
 
 class ElectricalEstimateStageResponse(StrictBoundaryModel):
@@ -777,6 +952,16 @@ class RuntimeLocalModeStatusResponse(StrictBoundaryModel):
     setup_commands: list[RuntimeSetupCommandResponse]
 
 
+
+class RuntimePrivatePhotometryStatusResponse(StrictBoundaryModel):
+    enabled: bool
+    available: bool
+    reason: str | None = None
+    supported_private_modes: list[SystemModeValue]
+    missing_env_vars: list[str]
+    missing_files: list[SystemModeValue]
+
+
 class RuntimeModesStatusResponse(StrictBoundaryModel):
     precomputed: RuntimePrecomputedModeStatusResponse
     live_docker: RuntimeDockerModeStatusResponse
@@ -787,6 +972,7 @@ class RuntimeStatusResponse(StrictBoundaryModel):
     live_execution_enabled: bool
     live_supported_modes: list[SystemModeValue]
     live_unsupported_mode_message: str
+    private_photometry: RuntimePrivatePhotometryStatusResponse
     modes: RuntimeModesStatusResponse
 
 

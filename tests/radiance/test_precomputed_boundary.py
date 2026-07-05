@@ -11,6 +11,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import numpy as np
@@ -24,8 +25,9 @@ from rad_rebuild.radiance.engine.simulation import precomputed_playback  # noqa:
 from rad_rebuild.radiance.engine.simulation import precompute_sweep  # noqa: E402
 from rad_rebuild.radiance.backend import env as backend_env  # noqa: E402
 from rad_rebuild.radiance.backend import runtime as backend_runtime  # noqa: E402
-from rad_rebuild.radiance.backend.models import RadianceRunRequest  # noqa: E402
+from rad_rebuild.radiance.backend.models import RadianceRunRequest, request_with_updates  # noqa: E402
 from rad_rebuild.radiance.config import MODE_COMPETITOR, MODE_HPS, MODE_SMD  # noqa: E402
+from rad_rebuild.radiance.domain import plant_geometry_config_from_request  # noqa: E402
 from rad_rebuild.radiance.paths import RADIANCE_DATA_ROOT  # noqa: E402
 from rad_rebuild.radiance.engine.emitters.hps_generation.profile import (  # noqa: E402
     DEFAULT_IES_VARIANT as DEFAULT_HPS_IES_VARIANT,
@@ -34,16 +36,34 @@ from rad_rebuild.radiance.engine.emitters.hps_generation.profile import (  # noq
     NOMINAL_INPUT_WATTS as DEFAULT_HPS_INPUT_WATTS,
 )
 from rad_rebuild.radiance.engine.simulation.precomputed_dataset import (  # noqa: E402
+    PRECOMPUTED_FSPM_RECEIVER_GRANULARITY,
+    PRECOMPUTED_FSPM_SPECTRAL_TRANSPORT_MODE,
+    PRECOMPUTED_PLANT_SPACING_M,
     SCHEMA_VERSION,
+    build_precomputed_plant_receiver_payload,
     bundle_complete,
     bundle_ref,
+    canonical_plant_enabled_precomputed_request,
     canonical_competitor_layout,
     default_precomputed_root,
+    inspect_precomputed_plant_receiver_bundle,
+    load_precomputed_plant_receiver_npz_compact,
+    load_precomputed_plant_receiver_npz,
     load_manifest,
     PRECOMPUTED_ROOT_ENV,
     params_match,
+    precomputed_plant_density,
     request_params_for_mode,
     resolve_precomputed_root,
+    build_smd_precomputed_plant_receiver_basis_payload,
+    validate_mesh_patch_plant_receiver_payload,
+    write_precomputed_plant_receiver_npz,
+)
+from rad_rebuild.radiance.engine.plants import generate_plant_scene  # noqa: E402
+from rad_rebuild.radiance.engine.plants.absorption import leaf_absorption_surfaces  # noqa: E402
+from rad_rebuild.radiance.engine.plants.surface_flux import (  # noqa: E402
+    RADIANCE_RECEIVER_METHOD,
+    build_plant_surface_flux_payload,
 )
 
 
@@ -55,6 +75,188 @@ GENERATION_SCRIPT = (
 
 def _basis_sha256(basis: np.ndarray) -> str:
     return hashlib.sha256(np.asarray(basis, dtype=np.float64).tobytes()).hexdigest()
+
+
+def _mesh_patch_surface_flux_fixture(*, front: float = 12.0, back: float = 18.0) -> dict[str, object]:
+    return {
+        "receiver_granularity": "mesh_patch",
+        "receiver_generation_basis": "one_mesh_patch_centroid_nearest_leaf_area_centroid",
+        "receiver_area_basis": "mesh_patch_area",
+        "receiver_side_policy": "front_and_back_per_mesh_surface_row",
+        "normal_generation_basis": "mesh_patch_face_normal",
+        "receiver_granularity_role": "high_resolution_reference",
+        "fspm_spectral_transport_mode": "scalar_source_weighted",
+        "plant_count": 1,
+        "leaf_count": 1,
+        "surface_count": 1,
+        "receiver_sample_count": 2,
+        "surface_summaries": [
+            {
+                "surface_id": "plant_r000_c000_leaf_000_face_0000",
+                "plant_id": "plant_r000_c000",
+                "leaf_id": "plant_r000_c000_leaf_000",
+                "leaf_index": 0,
+                "face_index": 0,
+                "area_m2": 0.01,
+                "incident_photon_flux_density_umol_m2_s": front + back,
+                "receiver_sample_count": 2,
+                "receiver_rows_per_mesh_surface_row": 2,
+                "receiver_sides": ["front", "back"],
+                "side_summaries": [
+                    {
+                        "sample_id": "plant_r000_c000_leaf_000_face_0000_front",
+                        "side": "front",
+                        "incident_photon_flux_density_umol_m2_s": front,
+                        "normal": [0.0, 0.0, 1.0],
+                    },
+                    {
+                        "sample_id": "plant_r000_c000_leaf_000_face_0000_back",
+                        "side": "back",
+                        "incident_photon_flux_density_umol_m2_s": back,
+                        "normal": [0.0, 0.0, -1.0],
+                    },
+                ],
+            }
+        ],
+    }
+
+
+def _mesh_patch_surface_flux_fixture_for_request(
+    req: RadianceRunRequest,
+    *,
+    front: float = 12.0,
+    back: float = 18.0,
+) -> dict[str, object]:
+    scene = generate_plant_scene(plant_geometry_config_from_request(req))
+    surface_summaries: list[dict[str, object]] = []
+    for surface in leaf_absorption_surfaces(scene):
+        surface_summaries.append(
+            {
+                "surface_id": surface.surface_id,
+                "plant_id": surface.plant_id,
+                "leaf_id": surface.leaf_id,
+                "leaf_index": surface.leaf_index,
+                "face_index": surface.face_index,
+                "area_m2": surface.area_m2,
+                "incident_photon_flux_density_umol_m2_s": front + back,
+                "receiver_sample_count": 2,
+                "receiver_rows_per_mesh_surface_row": 2,
+                "receiver_sides": ["front", "back"],
+                "side_summaries": [
+                    {
+                        "sample_id": f"{surface.surface_id}_front",
+                        "side": "front",
+                        "incident_photon_flux_density_umol_m2_s": front,
+                        "normal": [0.0, 0.0, 1.0],
+                    },
+                    {
+                        "sample_id": f"{surface.surface_id}_back",
+                        "side": "back",
+                        "incident_photon_flux_density_umol_m2_s": back,
+                        "normal": [0.0, 0.0, -1.0],
+                    },
+                ],
+            }
+        )
+    return {
+        **_mesh_patch_surface_flux_fixture(front=front, back=back),
+        "surface_count": len(surface_summaries),
+        "receiver_sample_count": len(surface_summaries) * 2,
+        "surface_summaries": surface_summaries,
+    }
+
+
+def _minimal_direct_layout() -> dict[str, object]:
+    return {
+        "units": "meters",
+        "z": 0.4572,
+        "fixtures": [
+            {
+                "cx": 0.0,
+                "cy": 0.0,
+                "body_corners": [
+                    [-0.5, -0.25],
+                    [0.5, -0.25],
+                    [0.5, 0.25],
+                    [-0.5, 0.25],
+                ],
+            }
+        ],
+    }
+
+
+def _write_synthetic_mesh_patch_receiver_bundle(
+    bundle: Path,
+    *,
+    include_samples: bool = True,
+) -> dict[str, object]:
+    receiver_metadata = {
+        "receiver_granularity": "mesh_patch",
+        "surface_receiver_encoding": "plant_grid_indices_v1",
+        "receiver_sample_encoding": "mesh_patch_side_samples_v1" if include_samples else None,
+        "surface_count": 2,
+        "receiver_sample_count": 4 if include_samples else 0,
+    }
+    receiver_metadata = {key: value for key, value in receiver_metadata.items() if value is not None}
+    receiver_arrays: dict[str, Any] = {
+        "metadata_json": np.frombuffer(
+            json.dumps(receiver_metadata, sort_keys=True, separators=(",", ":")).encode(
+                "utf-8"
+            ),
+            dtype=np.uint8,
+        ),
+        "plant_row": np.array([0, 0], dtype=np.uint16),
+        "plant_column": np.array([0, 0], dtype=np.uint16),
+        "leaf_index": np.array([0, 1], dtype=np.uint16),
+        "face_index": np.array([0, 0], dtype=np.uint16),
+        "stored_ppfd_umol_m2_s": np.array([15.0, 25.0], dtype=np.float64),
+    }
+    if include_samples:
+        receiver_arrays.update(
+            {
+                "sample_id": np.array(
+                    [
+                        "plant_r000_c000_leaf_000_face_0000_front",
+                        "plant_r000_c000_leaf_000_face_0000_back",
+                        "plant_r000_c000_leaf_001_face_0000_front",
+                        "plant_r000_c000_leaf_001_face_0000_back",
+                    ]
+                ),
+                "sample_surface_id": np.array(
+                    [
+                        "plant_r000_c000_leaf_000_face_0000",
+                        "plant_r000_c000_leaf_000_face_0000",
+                        "plant_r000_c000_leaf_001_face_0000",
+                        "plant_r000_c000_leaf_001_face_0000",
+                    ]
+                ),
+                "sample_side": np.array(["front", "back", "front", "back"]),
+                "sample_leaf_index": np.array([0, 0, 1, 1], dtype=np.uint16),
+                "sample_face_index": np.array([0, 0, 0, 0], dtype=np.uint16),
+                "sample_stored_ppfd_umol_m2_s": np.array(
+                    [10.0, 5.0, 12.0, 13.0],
+                    dtype=np.float64,
+                ),
+            }
+        )
+    np.savez_compressed(bundle / "plant_receiver.npz", **receiver_arrays)
+    basis_rows = 4 if include_samples else 2
+    np.savez_compressed(
+        bundle / "plant_receiver_basis_A.npz",
+        plant_receiver_basis_A=np.ones((basis_rows, 1), dtype=np.float64),
+    )
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "mode": MODE_SMD,
+        "request_params": {
+            "plants_enabled": True,
+            "fspm_receiver_granularity": "mesh_patch",
+        },
+        "artifacts": {
+            "plant_receiver_npz": "plant_receiver.npz",
+            "plant_receiver_basis_A_npz": "plant_receiver_basis_A.npz",
+        },
+    }
 
 
 class PrecomputedBoundaryTests(unittest.TestCase):
@@ -80,6 +282,443 @@ class PrecomputedBoundaryTests(unittest.TestCase):
                 env = backend_env._base_env()
 
             self.assertEqual(env[PRECOMPUTED_ROOT_ENV], tmp)
+
+    def test_precomputed_plant_density_uses_40cm_grid(self) -> None:
+        self.assertEqual(precomputed_plant_density(10, 10), (8, 8))
+        self.assertEqual(precomputed_plant_density(10, 11), (8, 8))
+        self.assertEqual(precomputed_plant_density(10, 12), (9, 8))
+        self.assertEqual(precomputed_plant_density(12, 10), (9, 8))
+        self.assertEqual(precomputed_plant_density(12, 12), (9, 9))
+        self.assertEqual(precomputed_plant_density(20, 20), (15, 15))
+        self.assertEqual(precomputed_plant_density(30, 30), (23, 23))
+
+    def test_canonical_plant_enabled_precomputed_request_contract(self) -> None:
+        req = RadianceRunRequest(
+            action="uniformity",
+            mode=MODE_SMD,
+            length_ft=10.0,
+            width_ft=10.0,
+            target_ppfd=750.0,
+            fspm_target_ppfd_umol_m2_s=275.0,
+            fspm_target_tolerance_umol_m2_s=25.0,
+        )
+
+        plant_req = canonical_plant_enabled_precomputed_request(req)
+
+        self.assertTrue(plant_req.plants_enabled)
+        self.assertEqual(plant_req.plant_rows, 8)
+        self.assertEqual(plant_req.plant_columns, 8)
+        self.assertEqual(plant_req.plant_spacing_m, PRECOMPUTED_PLANT_SPACING_M)
+        self.assertEqual(plant_req.sim_mode, "standard")
+        self.assertTrue(plant_req.match_system_ppe)
+        self.assertEqual(
+            plant_req.fspm_receiver_granularity,
+            PRECOMPUTED_FSPM_RECEIVER_GRANULARITY,
+        )
+        self.assertEqual(
+            plant_req.fspm_spectral_transport_mode,
+            PRECOMPUTED_FSPM_SPECTRAL_TRANSPORT_MODE,
+        )
+        self.assertEqual(plant_req.plant_seed, req.plant_seed)
+        self.assertEqual(plant_req.plant_height_m, req.plant_height_m)
+        self.assertEqual(plant_req.plant_canopy_radius_m, req.plant_canopy_radius_m)
+        self.assertEqual(plant_req.plant_leaf_count, req.plant_leaf_count)
+        self.assertEqual(plant_req.plant_growth_stage, req.plant_growth_stage)
+
+    def test_canonical_plant_request_uses_unique_rectangle_orientation(self) -> None:
+        req = RadianceRunRequest(
+            action="uniformity",
+            mode=MODE_SMD,
+            length_ft=10.0,
+            width_ft=11.0,
+        )
+
+        plant_req = canonical_plant_enabled_precomputed_request(req)
+
+        self.assertEqual((plant_req.length_ft, plant_req.width_ft), (11.0, 10.0))
+        self.assertEqual(plant_req.plant_rows, 8)
+        self.assertEqual(plant_req.plant_columns, 8)
+        self.assertEqual(
+            request_params_for_mode(plant_req)["plant_rows"],
+            8,
+        )
+        self.assertEqual(
+            request_params_for_mode(plant_req)["plant_columns"],
+            8,
+        )
+
+    def test_request_params_include_plant_identity_fields_when_enabled(self) -> None:
+        req = canonical_plant_enabled_precomputed_request(
+            RadianceRunRequest(
+                action="uniformity",
+                mode=MODE_SMD,
+                length_ft=10.0,
+                width_ft=10.0,
+                target_ppfd=800.0,
+                fspm_target_ppfd_umol_m2_s=250.0,
+                fspm_target_tolerance_umol_m2_s=15.0,
+            )
+        )
+
+        params = request_params_for_mode(req)
+
+        self.assertEqual(params["plants_enabled"], True)
+        self.assertEqual(params["plant_seed"], 1)
+        self.assertEqual(params["plant_rows"], 8)
+        self.assertEqual(params["plant_columns"], 8)
+        self.assertEqual(params["plant_spacing_m"], 0.4)
+        self.assertEqual(params["plant_height_m"], 0.16)
+        self.assertEqual(params["plant_canopy_radius_m"], 0.18)
+        self.assertEqual(params["plant_leaf_count"], 12)
+        self.assertEqual(params["plant_growth_stage"], 1.0)
+        self.assertEqual(params["match_system_ppe"], True)
+        self.assertEqual(params["smd_model"], "legacy")
+        self.assertEqual(params["fspm_receiver_granularity"], "mesh_patch")
+        self.assertEqual(
+            params["fspm_spectral_transport_mode"],
+            "scalar_source_weighted",
+        )
+        self.assertEqual(
+            params["fspm_leaf_radiance_material_mode"],
+            "rex_source_weighted_trans",
+        )
+        self.assertNotIn("target_ppfd", params)
+        self.assertNotIn("fspm_target_ppfd_umol_m2_s", params)
+        self.assertNotIn("fspm_target_tolerance_umol_m2_s", params)
+
+    def test_bundle_identity_excludes_runtime_targets_for_plant_contract(self) -> None:
+        base = canonical_plant_enabled_precomputed_request(
+            RadianceRunRequest(
+                action="uniformity",
+                mode=MODE_SMD,
+                length_ft=10.0,
+                width_ft=10.0,
+                target_ppfd=700.0,
+                fspm_target_ppfd_umol_m2_s=240.0,
+                fspm_target_tolerance_umol_m2_s=10.0,
+            )
+        )
+        changed_targets = canonical_plant_enabled_precomputed_request(
+            RadianceRunRequest(
+                action="uniformity",
+                mode=MODE_SMD,
+                length_ft=10.0,
+                width_ft=10.0,
+                target_ppfd=1200.0,
+                fspm_target_ppfd_umol_m2_s=320.0,
+                fspm_target_tolerance_umol_m2_s=35.0,
+            )
+        )
+        changed_geometry = canonical_plant_enabled_precomputed_request(
+            RadianceRunRequest(
+                action="uniformity",
+                mode=MODE_SMD,
+                length_ft=10.0,
+                width_ft=10.0,
+                plant_seed=2,
+            )
+        )
+        manifest = {"request_params": request_params_for_mode(base)}
+
+        self.assertTrue(params_match(manifest, request_params_for_mode(changed_targets)))
+        self.assertFalse(params_match(manifest, request_params_for_mode(changed_geometry)))
+
+    def test_mesh_patch_precomputed_receiver_npz_preserves_side_samples(self) -> None:
+        payload = build_precomputed_plant_receiver_payload(
+            _mesh_patch_surface_flux_fixture(),
+            value_semantics="smd_receiver_basis",
+        )
+        with tempfile.TemporaryDirectory(prefix="rad_rebuild_receiver_npz_") as tmp:
+            path = write_precomputed_plant_receiver_npz(
+                Path(tmp) / "plant_receiver.npz",
+                payload,
+            )
+            loaded = load_precomputed_plant_receiver_npz(path)
+
+        self.assertEqual(len(loaded["surface_receivers"]), 1)
+        self.assertEqual(len(loaded["receiver_samples"]), 2)
+        self.assertEqual(
+            [row["side"] for row in loaded["receiver_samples"]],
+            ["front", "back"],
+        )
+        self.assertEqual(
+            [row["stored_ppfd_umol_m2_s"] for row in loaded["receiver_samples"]],
+            [12.0, 18.0],
+        )
+
+    def test_mesh_patch_validation_rejects_surface_only_receiver_payload(self) -> None:
+        payload = build_precomputed_plant_receiver_payload(
+            {
+                **_mesh_patch_surface_flux_fixture(),
+                "surface_summaries": [
+                    {
+                        "surface_id": "plant_r000_c000_leaf_000_face_0000",
+                        "incident_photon_flux_density_umol_m2_s": 30.0,
+                    }
+                ],
+            },
+            value_semantics="smd_receiver_basis",
+        )
+
+        reasons = validate_mesh_patch_plant_receiver_payload(
+            payload,
+            basis_row_count=1,
+        )
+
+        self.assertIn(
+            "mesh_patch plant receiver payload is missing receiver_samples.",
+            reasons,
+        )
+
+    def test_mesh_patch_precomputed_receiver_basis_uses_side_sample_rows(self) -> None:
+        col_0 = build_precomputed_plant_receiver_payload(
+            _mesh_patch_surface_flux_fixture(front=1.0, back=2.0),
+            value_semantics="smd_receiver_basis",
+        )
+        col_1 = build_precomputed_plant_receiver_payload(
+            _mesh_patch_surface_flux_fixture(front=3.0, back=4.0),
+            value_semantics="smd_receiver_basis",
+        )
+
+        receiver_payload, basis = build_smd_precomputed_plant_receiver_basis_payload(
+            [col_0, col_1],
+            basis_metadata={"n_vars": 2},
+        )
+
+        self.assertEqual(basis.shape, (2, 2))
+        self.assertEqual(basis.tolist(), [[1.0, 3.0], [2.0, 4.0]])
+        self.assertEqual(len(receiver_payload["surface_receivers"]), 1)
+        self.assertEqual(len(receiver_payload["receiver_samples"]), 2)
+        self.assertEqual(
+            receiver_payload["basis_metadata"]["plant_receiver_basis_shape"],
+            [2, 2],
+        )
+
+    def test_mesh_patch_bundle_inspector_reports_side_sample_arrays_and_basis_rows(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="rad_rebuild_receiver_bundle_") as tmp:
+            bundle = Path(tmp)
+            manifest = _write_synthetic_mesh_patch_receiver_bundle(bundle)
+
+            with patch(
+                "rad_rebuild.radiance.engine.simulation.precomputed_dataset."
+                "load_precomputed_plant_receiver_npz",
+                side_effect=AssertionError("inspector must not hydrate receiver rows"),
+            ):
+                result = inspect_precomputed_plant_receiver_bundle(bundle, manifest)
+
+        self.assertTrue(result["ok"], result["reasons"])
+        self.assertEqual(result["surface_row_count"], 2)
+        self.assertEqual(result["receiver_sample_count"], 4)
+        self.assertEqual(result["basis_row_count"], 4)
+        self.assertTrue(result["side_sample_arrays_exist"])
+        self.assertEqual(result["receiver_sides"], ["back", "front"])
+
+    def test_mesh_patch_bundle_inspector_fails_surface_only_npz(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="rad_rebuild_receiver_bundle_bad_") as tmp:
+            bundle = Path(tmp)
+            manifest = _write_synthetic_mesh_patch_receiver_bundle(
+                bundle,
+                include_samples=False,
+            )
+
+            with patch(
+                "rad_rebuild.radiance.engine.simulation.precomputed_dataset."
+                "load_precomputed_plant_receiver_npz",
+                side_effect=AssertionError("inspector must not hydrate receiver rows"),
+            ):
+                result = inspect_precomputed_plant_receiver_bundle(bundle, manifest)
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["surface_row_count"], 2)
+        self.assertEqual(result["receiver_sample_count"], 0)
+        self.assertEqual(result["basis_row_count"], 2)
+        self.assertFalse(result["side_sample_arrays_exist"])
+        self.assertIn(
+            "plant_receiver.npz is missing side-specific sample arrays.",
+            result["reasons"],
+        )
+        self.assertIn(
+            "receiver sample count must be 2 * mesh surface row count (4); got 0.",
+            result["reasons"],
+        )
+
+    def test_precomputed_playback_mesh_patch_samples_materialize_dense_detail(self) -> None:
+        req = RadianceRunRequest(
+            action="uniformity",
+            mode=MODE_SMD,
+            length_ft=10.0,
+            width_ft=10.0,
+            plants_enabled=True,
+            plant_rows=1,
+            plant_columns=1,
+            fspm_receiver_granularity="mesh_patch",
+            fspm_spectral_transport_mode="scalar_source_weighted",
+        )
+        receiver_payload = build_precomputed_plant_receiver_payload(
+            _mesh_patch_surface_flux_fixture_for_request(req, front=12.0, back=18.0),
+            value_semantics="smd_receiver_basis",
+        )
+        runtime_values = [12.0, 18.0] * int(receiver_payload["surface_count"])
+
+        scene, rows = precomputed_playback._plant_receiver_surface_flux_rows(
+            req,
+            receiver_payload,
+            runtime_values,
+        )
+        payload = build_plant_surface_flux_payload(
+            scene,
+            rows,
+            method=RADIANCE_RECEIVER_METHOD,
+            source_ppfd_map="ppfd_map.txt",
+            receiver_sample_count=len(runtime_values),
+            receiver_granularity="mesh_patch",
+            receiver_rows_per_mesh_surface_row=2.0,
+        )
+
+        self.assertEqual(rows[0]["receiver_sample_count"], 2)
+        self.assertEqual(rows[0]["receiver_sides"], ["front", "back"])
+        self.assertEqual(len(rows[0]["side_summaries"]), 2)
+        detail = payload["visualization"]["raw_leaf_surface_flux_detail"]
+        self.assertEqual(detail["receiver_granularity"], "mesh_patch")
+        self.assertEqual(detail["visual_granularity"], "leaf_average")
+
+    def test_compact_mesh_patch_npz_arrays_build_leaf_major_dense_detail(self) -> None:
+        receiver_payload = build_precomputed_plant_receiver_payload(
+            _mesh_patch_surface_flux_fixture(front=12.0, back=18.0),
+            value_semantics="smd_receiver_basis",
+        )
+        with tempfile.TemporaryDirectory(prefix="rad_rebuild_compact_detail_") as tmp:
+            receiver_path = write_precomputed_plant_receiver_npz(
+                Path(tmp) / "plant_receiver.npz",
+                receiver_payload,
+            )
+            compact = load_precomputed_plant_receiver_npz_compact(receiver_path)
+
+        detail = precomputed_playback._dense_mesh_patch_detail_from_arrays(
+            compact,
+            [12.0, 18.0],
+            leaf_count=1,
+        )
+
+        self.assertIsNotNone(detail)
+        assert detail is not None
+        self.assertEqual(detail["mode"], "raw_leaf_surface_flux")
+        self.assertEqual(detail["visual_granularity"], "mesh_patch")
+        self.assertEqual(detail["encoding"], "leaf_major_dense")
+        self.assertEqual(detail["leaf_count"], 1)
+        self.assertEqual(detail["leaf_ids"], ["plant_r000_c000_leaf_000"])
+        self.assertEqual(detail["patches_per_leaf"], 1)
+        self.assertEqual(detail["patch_face_indices"], [[0]])
+        self.assertEqual(detail["sides"], ["front", "back"])
+        self.assertTrue(detail["top_bottom_support"])
+        self.assertEqual(detail["values_ppfd"]["front"], [[12.0]])
+        self.assertEqual(detail["values_ppfd"]["back"], [[18.0]])
+
+    def test_compact_mesh_patch_dense_detail_uses_leaf_ids_not_local_leaf_index(self) -> None:
+        compact = {
+            "schema": "rad_rebuild.precomputed.plant_receiver.v1",
+            "schema_version": 1,
+            "receiver_granularity": "mesh_patch",
+            "_sample_arrays": {
+                "leaf_index": np.array([0, 0, 0, 0], dtype=np.int32),
+                "leaf_id": np.array(["leaf_a", "leaf_a", "leaf_b", "leaf_b"]),
+                "face_index": np.array([0, 0, 0, 0], dtype=np.int32),
+                "side": np.array(["front", "back", "front", "back"]),
+                "stored_ppfd_umol_m2_s": np.array(
+                    [10.0, 1.0, 20.0, 2.0],
+                    dtype=np.float64,
+                ),
+            },
+        }
+
+        detail = precomputed_playback._dense_mesh_patch_detail_from_arrays(
+            compact,
+            [10.0, 1.0, 20.0, 2.0],
+            leaf_count=2,
+            leaf_ids=["leaf_a", "leaf_b"],
+        )
+
+        self.assertIsNotNone(detail)
+        assert detail is not None
+        self.assertEqual(detail["leaf_ids"], ["leaf_a", "leaf_b"])
+        self.assertEqual(detail["values_ppfd"]["front"], [[10.0], [20.0]])
+        self.assertEqual(detail["values_ppfd"]["back"], [[1.0], [2.0]])
+
+    def test_runtime_receiver_artifact_stays_summary_only_for_compact_mesh_patch(
+        self,
+    ) -> None:
+        receiver_payload = build_precomputed_plant_receiver_payload(
+            _mesh_patch_surface_flux_fixture(front=12.0, back=18.0),
+            value_semantics="smd_receiver_basis",
+        )
+        with tempfile.TemporaryDirectory(prefix="rad_rebuild_runtime_receiver_") as tmp:
+            root = Path(tmp)
+            receiver_path = write_precomputed_plant_receiver_npz(
+                root / "plant_receiver.npz",
+                receiver_payload,
+            )
+            compact = load_precomputed_plant_receiver_npz_compact(receiver_path)
+            precomputed_playback._write_runtime_plant_receiver_payload(
+                root,
+                compact,
+                [12.0, 18.0],
+            )
+            runtime_payload = json.loads(
+                (root / "runtime_state" / "plant_receiver.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+
+        self.assertEqual(runtime_payload["runtime_receiver_sample_count"], 2)
+        self.assertNotIn("receiver_samples", runtime_payload)
+        self.assertNotIn("surface_receivers", runtime_payload)
+
+    def test_precomputed_playback_target_classification_prefers_baseline_map(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="rad_rebuild_target_map_") as tmp:
+            workspace = Path(tmp)
+
+            self.assertIsNone(
+                precomputed_playback._target_classification_map_for_playback(workspace)
+            )
+            (workspace / "ppfd_map.txt").write_text("0 0 0 275\n", encoding="utf-8")
+
+            self.assertEqual(
+                precomputed_playback._target_classification_map_for_playback(workspace),
+                workspace / "ppfd_map.txt",
+            )
+
+    def test_proposed_precomputed_contract_forces_matched_ppe_smd_identity(
+        self,
+    ) -> None:
+        req = RadianceRunRequest(
+            action="all",
+            mode=MODE_SMD,
+            execution_mode="precomputed",
+            length_ft=10.0,
+            width_ft=10.0,
+            target_ppfd=750.0,
+            match_system_ppe=True,
+            plants_enabled=True,
+            fspm_target_ppfd_umol_m2_s=275.0,
+            fspm_target_tolerance_umol_m2_s=20.0,
+        )
+
+        params = request_params_for_mode(
+            canonical_plant_enabled_precomputed_request(req)
+        )
+
+        self.assertEqual(params["match_system_ppe"], True)
+        self.assertEqual(params["smd_model"], "legacy")
+        self.assertEqual(params["plants_enabled"], True)
+        self.assertEqual(params["plant_rows"], 8)
+        self.assertEqual(params["plant_columns"], 8)
+        self.assertEqual(
+            params["fspm_spectral_transport_mode"],
+            PRECOMPUTED_FSPM_SPECTRAL_TRANSPORT_MODE,
+        )
+        self.assertNotIn("target_ppfd", params)
+        self.assertNotIn("fspm_target_ppfd_umol_m2_s", params)
+        self.assertNotIn("fspm_target_tolerance_umol_m2_s", params)
 
     def test_manifest_schema_loading_for_tiny_temp_bundle(self) -> None:
         with tempfile.TemporaryDirectory(prefix="rad_rebuild_manifest_fixture_") as tmp:
@@ -149,7 +788,7 @@ class PrecomputedBoundaryTests(unittest.TestCase):
                 ref.path.mkdir(parents=True)
                 (ref.path / "ppfd_map.txt.gz").write_bytes(b"tiny")
                 (ref.path / "hps_layout.json").write_text(
-                    '{"fixtures": []}', encoding="utf-8"
+                    json.dumps(_minimal_direct_layout()), encoding="utf-8"
                 )
                 (ref.path / "power.json").write_text("{}", encoding="utf-8")
                 ref.manifest_path.write_text(
@@ -209,7 +848,7 @@ class PrecomputedBoundaryTests(unittest.TestCase):
             ref.path.mkdir(parents=True)
             (ref.path / "ppfd_map.txt.gz").write_bytes(b"tiny")
             (ref.path / "hps_layout.json").write_text(
-                '{"fixtures": []}', encoding="utf-8"
+                json.dumps(_minimal_direct_layout()), encoding="utf-8"
             )
             (ref.path / "power.json").write_text("{}", encoding="utf-8")
             ref.manifest_path.write_text(
@@ -254,6 +893,131 @@ class PrecomputedBoundaryTests(unittest.TestCase):
             self.assertEqual(matched.hps_z_m, DEFAULT_HPS_MOUNT_Z_M)
             self.assertEqual(matched.hps_fixture_ppf, DEFAULT_HPS_FIXTURE_PPF)
             self.assertEqual(matched.hps_input_watts, DEFAULT_HPS_INPUT_WATTS)
+            self.assertIsNotNone(bundle)
+            assert bundle is not None
+            self.assertEqual(bundle[0], ref.path)
+
+    def test_precomputed_lookup_normalizes_disabled_plants_to_bundle_contract(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory(
+            prefix="rad_rebuild_plant_contract_lookup_"
+        ) as tmp:
+            dataset_root = Path(tmp)
+            user_req = RadianceRunRequest(
+                action="all",
+                mode=MODE_SMD,
+                execution_mode="precomputed",
+                length_ft=10.0,
+                width_ft=10.0,
+                plants_enabled=False,
+                fspm_target_ppfd_umol_m2_s=250.0,
+                fspm_target_tolerance_umol_m2_s=15.0,
+            )
+            bundle_req = canonical_plant_enabled_precomputed_request(user_req)
+            ref = bundle_ref(
+                Path("/unused-engine-root"),
+                bundle_req.mode,
+                bundle_req.length_ft,
+                bundle_req.width_ft,
+                dataset_root,
+                req=bundle_req,
+            )
+            self.assertIsNotNone(ref)
+            assert ref is not None
+            ref.path.mkdir(parents=True)
+            basis = np.array([[100.0]], dtype=float)
+            np.save(ref.path / "basis_A.npy", basis)
+            (ref.path / "basis_manifest.json").write_text(
+                json.dumps(
+                    {
+                        "n_points": 1,
+                        "n_vars": 1,
+                        "n_rings": 1,
+                        "layout_modules": 1,
+                        "basis_unit_w_per_module": 1.0,
+                        "variables": "rings",
+                        "ring_indices": [0],
+                        "matrix_sha256": _basis_sha256(basis),
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (ref.path / "smd_layout.json").write_text(
+                '{"version": 2, "units": "meters", "positions": []}',
+                encoding="utf-8",
+            )
+            np.savez_compressed(
+                ref.path / "plant_receiver.npz",
+                plant_row=np.array([0], dtype=np.uint16),
+                plant_column=np.array([0], dtype=np.uint16),
+                leaf_index=np.array([0], dtype=np.uint16),
+                face_index=np.array([0], dtype=np.uint16),
+                stored_ppfd_umol_m2_s=np.array([0.0], dtype=np.float64),
+                metadata_json=np.frombuffer(
+                    json.dumps(
+                        {
+                            "schema": "rad_rebuild.precomputed.plant_receiver.v1",
+                            "schema_version": 1,
+                            "value_semantics": "smd_receiver_basis",
+                            "surface_receiver_encoding": "plant_grid_indices_v1",
+                        },
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode("utf-8"),
+                    dtype=np.uint8,
+                ),
+            )
+            np.savez_compressed(
+                ref.path / "plant_receiver_basis_A.npz",
+                plant_receiver_basis_A=np.array([[0.0]], dtype=np.float64),
+            )
+            ref.manifest_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": SCHEMA_VERSION,
+                        "mode": bundle_req.mode,
+                        "dims_ft": {"length_ft": 10, "width_ft": 10},
+                        "request_params": request_params_for_mode(bundle_req),
+                        "artifacts": {
+                            "basis_A_npy": "basis_A.npy",
+                            "basis_manifest_json": "basis_manifest.json",
+                            "layout_json": "smd_layout.json",
+                            "plant_receiver_npz": "plant_receiver.npz",
+                            "plant_receiver_basis_A_npz": "plant_receiver_basis_A.npz",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with patch.dict(
+                os.environ, {"RADIANCE_PRECOMPUTED_ROOT": str(dataset_root)}
+            ):
+                matched = backend_runtime.precomputed_request_for_available_bundle(
+                    user_req
+                )
+                bundle = backend_runtime.precomputed_bundle(user_req)
+
+            self.assertIsNotNone(matched)
+            assert matched is not None
+            self.assertTrue(matched.plants_enabled)
+            self.assertEqual(matched.plant_rows, 8)
+            self.assertEqual(matched.plant_columns, 8)
+            self.assertEqual(matched.plant_spacing_m, PRECOMPUTED_PLANT_SPACING_M)
+            self.assertEqual(matched.fspm_receiver_granularity, "mesh_patch")
+            self.assertEqual(
+                request_params_for_mode(matched),
+                request_params_for_mode(
+                    canonical_plant_enabled_precomputed_request(
+                        request_with_updates(
+                            user_req,
+                            fspm_target_ppfd_umol_m2_s=100.0,
+                            fspm_target_tolerance_umol_m2_s=40.0,
+                        )
+                    )
+                ),
+            )
             self.assertIsNotNone(bundle)
             assert bundle is not None
             self.assertEqual(bundle[0], ref.path)
@@ -460,6 +1224,8 @@ class PrecomputedBoundaryTests(unittest.TestCase):
 
         dims = precompute_sweep._sweep_dims(args)
 
+        self.assertFalse(args.plants_enabled)
+        self.assertEqual(args.fspm_receiver_granularity, "mesh_patch")
         self.assertEqual(args.length_min, 10)
         self.assertEqual(args.width_min, 10)
         self.assertEqual(args.length_max, 30)
@@ -468,6 +1234,129 @@ class PrecomputedBoundaryTests(unittest.TestCase):
         self.assertEqual(dims[-1], (30, 30))
         self.assertEqual(len(dims), 231)
         self.assertTrue(all(10 <= width <= length <= 30 for length, width in dims))
+        self.assertIn((20, 10), dims)
+        self.assertNotIn((10, 20), dims)
+        self.assertEqual(len({frozenset(dim) for dim in dims}), len(dims))
+
+    def test_precompute_sweep_dry_run_excludes_mirrored_rectangles(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="rad_rebuild_unique_rect_plan_") as tmp:
+            dataset_root = Path(tmp) / "planned-precomputed"
+            argv = [
+                "precompute_sweep.py",
+                "--dry-run",
+                "--dataset-root",
+                str(dataset_root),
+                "--length-min",
+                "10",
+                "--length-max",
+                "20",
+                "--width-min",
+                "10",
+                "--width-max",
+                "20",
+                "--modes",
+                "SMD",
+            ]
+            output = io.StringIO()
+            with patch.object(sys, "argv", argv), redirect_stdout(output):
+                precompute_sweep.main()
+
+            text = output.getvalue()
+            self.assertIn("Planned room sizes: 66", text)
+            self.assertIn("DRY-RUN SMD 10x10", text)
+            self.assertIn("DRY-RUN SMD 20x10", text)
+            self.assertIn("DRY-RUN SMD 20x20", text)
+            self.assertNotIn("DRY-RUN SMD 10x20", text)
+            self.assertFalse(dataset_root.exists())
+
+    def test_precompute_sweep_parser_accepts_mesh_patch_receiver_granularity(self) -> None:
+        argv = [
+            "precompute_sweep.py",
+            "--plants-enabled",
+            "--fspm-receiver-granularity",
+            "mesh_patch",
+        ]
+
+        with patch.object(sys, "argv", argv):
+            args = precompute_sweep.parse_args()
+
+        self.assertEqual(args.fspm_receiver_granularity, "mesh_patch")
+
+    def test_precompute_sweep_parser_rejects_invalid_receiver_granularity(self) -> None:
+        argv = [
+            "precompute_sweep.py",
+            "--plants-enabled",
+            "--fspm-receiver-granularity",
+            "leaf_centroid",
+        ]
+
+        with patch.object(sys, "argv", argv):
+            with self.assertRaises(SystemExit):
+                precompute_sweep.parse_args()
+
+    def test_precompute_sweep_plant_dry_run_shows_density(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="rad_rebuild_plant_sweep_plan_") as tmp:
+            dataset_root = Path(tmp) / "planned-precomputed"
+            argv = [
+                "precompute_sweep.py",
+                "--dry-run",
+                "--plants-enabled",
+                "--dataset-root",
+                str(dataset_root),
+                "--length-min",
+                "10",
+                "--length-max",
+                "30",
+                "--width-min",
+                "10",
+                "--width-max",
+                "30",
+                "--step",
+                "20",
+                "--square-only",
+                "--modes",
+                "SMD",
+            ]
+            output = io.StringIO()
+            with patch.object(sys, "argv", argv), redirect_stdout(output):
+                precompute_sweep.main()
+
+            text = output.getvalue()
+            self.assertIn("Planned bundles: 2", text)
+            self.assertIn("DRY-RUN SMD 10x10 plants=8x8 spacing=0.4m", text)
+            self.assertIn("DRY-RUN SMD 30x30 plants=23x23 spacing=0.4m", text)
+            self.assertFalse(dataset_root.exists())
+
+    def test_precompute_sweep_plant_smd_request_uses_matched_ppe_contract(self) -> None:
+        args = precompute_sweep.PrecomputeSweepConfig(
+            modes=(MODE_SMD,),
+            plants_enabled=True,
+        ).to_namespace()
+
+        req = precompute_sweep._req_for(MODE_SMD, 10, 10, args)
+        params = request_params_for_mode(req)
+
+        self.assertTrue(req.match_system_ppe)
+        self.assertEqual(req.sim_mode, "standard")
+        self.assertTrue(req.plants_enabled)
+        self.assertEqual(req.fspm_receiver_granularity, "mesh_patch")
+        self.assertEqual(req.fspm_spectral_transport_mode, "scalar_source_weighted")
+        self.assertEqual(params["match_system_ppe"], True)
+        self.assertEqual(params["smd_model"], "legacy")
+        self.assertEqual(params["fspm_receiver_granularity"], "mesh_patch")
+
+    def test_precompute_sweep_plant_request_allows_explicit_leaf_quadrature(self) -> None:
+        args = precompute_sweep.PrecomputeSweepConfig(
+            modes=(MODE_SMD,),
+            plants_enabled=True,
+            fspm_receiver_granularity="leaf_quadrature_4",
+        ).to_namespace()
+
+        req = precompute_sweep._req_for(MODE_SMD, 10, 10, args)
+        params = request_params_for_mode(req)
+
+        self.assertEqual(req.fspm_receiver_granularity, "leaf_quadrature_4")
+        self.assertEqual(params["fspm_receiver_granularity"], "leaf_quadrature_4")
 
     def _run_generation_profile(self, profile: str, *extra_args: str) -> str:
         with tempfile.TemporaryDirectory(prefix="rad_rebuild_profile_plan_") as tmp:
@@ -590,7 +1479,7 @@ class PrecomputedBoundaryTests(unittest.TestCase):
                 handle.write("0 0 0 100\n")
                 handle.write("1 0 0 200\n")
             (bundle_dir / "spydr3_layout.json").write_text(
-                '{"fixtures": []}', encoding="utf-8"
+                json.dumps(_minimal_direct_layout()), encoding="utf-8"
             )
             (bundle_dir / "power.json").write_text(
                 json.dumps(
@@ -672,7 +1561,8 @@ class PrecomputedBoundaryTests(unittest.TestCase):
                 handle.write("0 0 0 100\n")
                 handle.write("1 0 0 200\n")
             (bundle_dir / "hps_layout.json").write_text(
-                json.dumps({"fixtures": [], "nx": 0, "ny": 0}), encoding="utf-8"
+                json.dumps({**_minimal_direct_layout(), "nx": 1, "ny": 1}),
+                encoding="utf-8",
             )
             (bundle_dir / "power.json").write_text(
                 json.dumps(

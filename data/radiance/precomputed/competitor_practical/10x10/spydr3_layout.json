@@ -38,11 +38,9 @@
   "fixture_ppe_umol_j": 2.8,
   "fixture_input_w_reference": 800.0,
   "ies_mode": true,
-  "ies_file": "/workspace/data/radiance/ies_sources/qube_660w_8bar.ies",
+  "ies_file": "/home/austin/Desktop/ies_sources/qube_660w_8bar.ies",
   "fixture_emitter_interpretation": "single_whole_fixture_ies_emitter",
   "reference_geometry": "8_bar_non_emitting_overlay_geometry",
-  "legacy_sr3h47_surrogate_available": true,
-  "legacy_sr3h47_surrogate_active": false,
   "room": {
     "L": 3.048,
     "W": 3.048
@@ -789,7 +787,7 @@
   "ies_source_geometry": "single_downward_flatcorr_aperture",
   "ies_source_geometry_note": "The ies2rad six-face luminous box is rewritten into a single downward flatcorr aperture so the whole-fixture photometry is emitted from one downward-facing horticultural luminaire aperture rather than from top and side faces.",
   "ies_source_aperture": {
-    "name": "qube_660w_8bar.d",
+    "name": "'qube_660w_8bar.d'",
     "length_m": 1.19,
     "width_m": 1.087,
     "z_m": -0.054,
@@ -800,7 +798,7 @@
   "ies_baseline_ppf_umol_s": 1585.9333362563937,
   "ies_lm_to_umol": 0.014931905120142065,
   "ies_lm_to_umol_method": "digitized relative SPD (qube_660w_spd.csv, wavelength-weighted PAR/lumen)",
-  "ies_spd_path": "/workspace/data/radiance/curve_data/conventional/qube_660w_spd.csv",
+  "ies_spd_path": "/home/austin/Desktop/hls-fspm/data/radiance/curve_data/conventional/qube_660w_spd.csv",
   "ies_dims_m": [
     1.087,
     1.19,
@@ -812,7 +810,7 @@
   "ies_target_radiant_w": 481.01288677334077,
   "ies_scale": 1.4124175012851015,
   "spd_metrics": {
-    "spd_path": "/workspace/data/radiance/curve_data/conventional/qube_660w_spd.csv",
+    "spd_path": "/home/austin/Desktop/hls-fspm/data/radiance/curve_data/conventional/qube_660w_spd.csv",
     "sample_count": 401,
     "total_relative_power_area": 158.0193175649567,
     "par_relative_power_area": 156.68228732700126,

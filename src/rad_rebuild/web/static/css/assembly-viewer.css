@@ -53,7 +53,7 @@ body {
 .assembly-viewer__toolbar,
 .assembly-viewer__status,
 .assembly-viewer__perf,
-.assembly-viewer__dev-panel {
+.assembly-viewer__fspm-panel {
     position: absolute;
     z-index: 2;
     border: 1px solid var(--assembly-border);
@@ -108,7 +108,8 @@ button:focus-visible {
 }
 
 .assembly-viewer__heatmap-controls,
-.assembly-viewer__fixture-controls {
+.assembly-viewer__fixture-controls,
+.assembly-viewer__plant-controls {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
@@ -120,9 +121,14 @@ button:focus-visible {
     font-weight: 700;
 }
 
+.assembly-viewer__plant-controls[hidden] {
+    display: none;
+}
+
 .assembly-viewer__toggle,
 .assembly-viewer__opacity,
-.assembly-viewer__height-control {
+.assembly-viewer__height-control,
+.assembly-viewer__select {
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
@@ -140,6 +146,18 @@ button:focus-visible {
     accent-color: var(--assembly-accent);
 }
 
+.assembly-viewer__select select {
+    min-height: 2rem;
+    max-width: 12rem;
+    border: 1px solid rgba(104, 212, 186, 0.38);
+    border-radius: 8px;
+    background: rgba(7, 12, 18, 0.78);
+    color: var(--assembly-text);
+    font: inherit;
+    font-weight: 700;
+    padding: 0.25rem 0.45rem;
+}
+
 .assembly-viewer__fixture-controls output {
     min-width: 10.2rem;
     color: var(--assembly-accent);
@@ -153,7 +171,8 @@ button:focus-visible {
 }
 
 input:disabled,
-button:disabled {
+button:disabled,
+select:disabled {
     cursor: not-allowed;
     opacity: 0.55;
 }
@@ -161,6 +180,106 @@ button:disabled {
 .assembly-viewer__heatmap-status {
     min-width: 4.4rem;
     color: var(--assembly-accent);
+}
+
+.assembly-viewer__plant-status {
+    min-width: 5.2rem;
+    color: var(--assembly-accent);
+}
+
+.assembly-viewer__plant-legend {
+    flex-basis: 100%;
+    color: var(--assembly-muted);
+    font-size: 0.74rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.assembly-viewer__plant-legend-header {
+    align-items: baseline;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem 0.55rem;
+    justify-content: center;
+    margin-bottom: 0.35rem;
+}
+
+.assembly-viewer__plant-legend-header strong {
+    color: var(--assembly-text);
+}
+
+.assembly-viewer__plant-legend-control {
+    align-items: center;
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-bottom: 0.35rem;
+}
+
+.assembly-viewer__plant-legend-control select {
+    max-width: 8rem;
+    min-height: 1.65rem;
+    border: 1px solid rgba(237, 244, 251, 0.22);
+    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.92);
+    color: var(--assembly-text);
+    font: inherit;
+}
+
+.assembly-viewer__plant-legend-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.7rem;
+    justify-content: center;
+    margin-bottom: 0.35rem;
+}
+
+.assembly-viewer__plant-legend-meta span {
+    align-items: baseline;
+    display: inline-flex;
+    gap: 0.25rem;
+    white-space: nowrap;
+}
+
+.assembly-viewer__plant-legend-meta b {
+    color: var(--assembly-text);
+}
+
+.assembly-viewer__plant-legend-gradient {
+    height: 0.55rem;
+    max-width: 30rem;
+    margin: 0 auto;
+    border: 1px solid rgba(237, 244, 251, 0.18);
+    border-radius: 999px;
+    background: linear-gradient(90deg, #2563eb 0%, #06b6d4 16.666%, #22c55e 30%, #22c55e 46.666%, #eab308 60%, #f97316 76.666%, #dc2626 100%);
+}
+
+.assembly-viewer__plant-legend-ticks,
+.assembly-viewer__plant-legend-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.55rem;
+    justify-content: center;
+    margin-top: 0.35rem;
+}
+
+.assembly-viewer__plant-legend-ticks span {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+    white-space: nowrap;
+}
+
+.assembly-viewer__plant-legend-chips span {
+    align-items: center;
+    display: inline-flex;
+    gap: 0.3rem;
+    white-space: nowrap;
+}
+
+.assembly-viewer__plant-legend-chips i {
+    width: 0.72rem;
+    height: 0.72rem;
+    border: 1px solid rgba(237, 244, 251, 0.24);
+    border-radius: 999px;
 }
 
 .assembly-viewer__heatmap-status[data-state="error"] {
@@ -248,16 +367,51 @@ dd {
     font-size: 0.75rem;
 }
 
-.assembly-viewer__dev-panel {
+.assembly-viewer__fspm-panel {
     top: 5.9rem;
     left: 1rem;
-    width: min(24rem, calc(100% - 2rem));
+    width: min(28rem, calc(100% - 2rem));
     max-height: calc(100% - 14rem);
     overflow: auto;
     padding: 0.75rem;
 }
 
-.assembly-viewer__dev-panel h2 {
+.assembly-viewer__fspm-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.65rem;
+}
+
+.assembly-viewer__fspm-header h2 {
+    margin: 0;
+    color: var(--assembly-accent);
+    font-size: 0.82rem;
+}
+
+.assembly-viewer__fspm-header button {
+    min-height: 2rem;
+    padding: 0.32rem 0.6rem;
+    white-space: nowrap;
+}
+
+.assembly-viewer__fspm-export-status {
+    margin: 0 0 0.65rem;
+    color: var(--assembly-muted);
+    font-size: 0.76rem;
+}
+
+.assembly-viewer__fspm-export-status[data-state="error"] {
+    color: var(--assembly-error);
+}
+
+.assembly-viewer__fspm-export-status[data-state="ready"] {
+    color: var(--assembly-accent);
+}
+
+.assembly-viewer__fspm-panel h2,
+.assembly-viewer__fspm-panel h3 {
     margin: 0.75rem 0 0.55rem;
     color: var(--assembly-muted);
     font-size: 0.72rem;
@@ -265,18 +419,24 @@ dd {
     text-transform: uppercase;
 }
 
-.assembly-viewer__dev-panel h2:first-child {
-    margin-top: 0;
+.assembly-viewer__fspm-content {
+    display: grid;
+    gap: 0.8rem;
 }
 
-.assembly-viewer__dev-panel ul {
+.assembly-viewer__fspm-section {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.assembly-viewer__fspm-panel ul {
     display: grid;
     gap: 0.35rem;
     margin: 0;
     padding: 0;
 }
 
-.assembly-viewer__dev-panel li {
+.assembly-viewer__fspm-panel li {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -289,15 +449,19 @@ dd {
     padding: 0.18rem 0;
 }
 
-.assembly-viewer__warnings {
-    margin-top: 0.7rem;
-    color: #ffd28c;
-    font-size: 0.78rem;
-    line-height: 1.45;
+.assembly-viewer__fspm-panel strong {
+    text-align: right;
 }
 
-.assembly-viewer__warnings p {
-    margin: 0.35rem 0 0;
+.assembly-viewer__fspm-note {
+    border: 1px solid rgba(104, 212, 186, 0.22);
+    border-radius: 8px;
+    margin: 0;
+    padding: 0.55rem;
+    background: rgba(104, 212, 186, 0.08);
+    color: var(--assembly-muted);
+    font-size: 0.78rem;
+    line-height: 1.45;
 }
 
 @media (max-width: 760px) {
@@ -307,7 +471,8 @@ dd {
     }
 
     .assembly-viewer__heatmap-controls,
-    .assembly-viewer__fixture-controls {
+    .assembly-viewer__fixture-controls,
+    .assembly-viewer__plant-controls {
         justify-content: flex-start;
         min-width: 0;
     }
@@ -320,7 +485,7 @@ dd {
         justify-content: flex-start;
     }
 
-    .assembly-viewer__dev-panel {
+    .assembly-viewer__fspm-panel {
         top: 12rem;
         max-height: calc(100% - 20rem);
     }

@@ -161,7 +161,7 @@
       ]
     }
   ],
-  "surrogate_assumptions": {
+  "ies_profile": {
     "variant": "karma",
     "profile_version": "glh_karma_8_hps1000_research_primary_v1",
     "label": "1000W HPS KARMA research comparator",
@@ -178,23 +178,17 @@
     "nominal_fixture_ppf_umol_s": 1797.3999999999999,
     "nominal_input_watts": 1045.0,
     "nominal_fixture_ppe_umol_per_j": 1.72,
-    "requires_manual_aperture": false,
-    "default_effective_aperture_length_in": null,
-    "default_effective_aperture_width_in": null,
-    "default_effective_aperture_z_offset_in": null,
     "lamp_orientation": "horizontal_x"
   },
   "model_label": "1000W HPS KARMA research comparator IES+SPD comparator",
   "fixture_emitter_interpretation": "single_whole_fixture_ies_emitter",
   "reference_geometry": "fixture body outline and lamp axis retained in layout JSON only",
-  "legacy_surrogate_available": true,
-  "legacy_surrogate_active": false,
   "ies_mode": true,
   "ies_variant": "karma",
   "ies_variant_profile": "glh_karma_8_hps1000_research_primary_v1",
   "directional_model": "whole_fixture_ies_photometry",
-  "ies_file": "/workspace/data/radiance/ies_sources/GLH-KARMA-8-HPS1000.IES",
-  "ies_spd_path": "/workspace/data/radiance/curve_data/hps/DEhps_1000w_spd.csv",
+  "ies_file": "/home/austin/Desktop/ies_sources/GLH-KARMA-8-HPS1000.IES",
+  "ies_spd_path": "/home/austin/Desktop/hls-fspm/data/radiance/curve_data/hps/DEhps_1000w_spd.csv",
   "ies_rot_x_deg": 0.0,
   "ies_rot_z_deg": 0.0,
   "ies_header_summary": {
@@ -214,16 +208,12 @@
   "ies_source_correction_function": "flatcorr",
   "ies_source_primitive_type": "polygon",
   "ies_source_primitive_count": 1,
-  "ies_source_geometry_note": "The OG horticultural IES provides a usable luminous opening, so the native ies2rad source polygon is retained as the active emitter.",
+  "ies_source_geometry_note": "The KARMA horticultural IES provides a usable luminous opening, so the native ies2rad source primitive is retained as the active emitter.",
   "ies_source_aperture": {
-    "name": "GLH-KARMA-8-HPS1000.d",
+    "name": "'GLH-KARMA-8-HPS1000.d'",
     "length_m": 0.798576,
     "width_m": 0.603504,
     "z_offset_m": -0.00025,
-    "builder_thickness_m": 0.001,
-    "length_in": 23.999999999999996,
-    "width_in": 16.0,
-    "z_offset_in": -1.4999999999999998,
     "primitive_count_replaced": 1,
     "faces_removed": 0,
     "manual_aperture": false
@@ -231,10 +221,6 @@
   "bare_lamp_reference": {
     "ppf_umol_s": 2000.0,
     "total_luminous_flux_lm": 144400.0
-  },
-  "legacy_surrogate_reference": {
-    "fixture_ppf_umol_s": 1806.0,
-    "input_watts": 1050.0
   },
   "ies_lm_to_umol": 0.012497775752480587,
   "ies_lm_to_umol_method": "digitized relative SPD (DEhps_1000w_spd.csv, wavelength-aware PAR/lumen bridge)",
@@ -257,9 +243,10 @@
     "par_photon_umol_per_radiant_w": 4.6200104136698545,
     "umol_per_lumen": 0.012497775752480587
   },
-  "normalization_path_summary": "IES total luminaire lumens x SPD-derived umol/lm gives the pre-normalization fixture PPF. That result is then normalized to the explicit fixture anchor rather than inheriting the legacy 2050 umol/s surrogate.",
+  "normalization_path_summary": "IES total luminaire lumens x SPD-derived umol/lm gives the pre-normalization fixture PPF. That result is then normalized to the explicit fixture anchor rather than inheriting a source-file lumen default.",
   "active_ies_geometry_builder": "native IES luminous opening dimensions",
-  "legacy_conflicts": [
-    "Legacy surrogate default was 1806.0 umol/s; the active IES comparator anchor is 1797.400 umol/s from explicit HPS_FIXTURE_PPF override."
-  ]
+  "anchor_notes": [],
+  "baseline_source_channel_policy": "r_equals_g_equals_b_scalar_par_ppfd_carrier",
+  "hps_ies_light_rgb_normalization": "arithmetic_mean_to_scalar_grey_par_ppfd_carrier",
+  "hps_ies_light_rgb_normalized": true
 }

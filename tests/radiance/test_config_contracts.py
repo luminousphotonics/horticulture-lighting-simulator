@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from rad_rebuild.radiance import config
+from rad_rebuild.radiance.settings import load_settings
 
 
 class RadianceConfigContractTests(unittest.TestCase):
@@ -65,6 +66,39 @@ class RadianceConfigContractTests(unittest.TestCase):
 
     def test_docker_default_image_is_stable(self) -> None:
         self.assertEqual(config.DEFAULT_DOCKER_IMAGE, "rad-rebuild-radiance:local")
+
+    def test_local_live_job_timeout_defaults_to_existing_job_timeout(self) -> None:
+        settings = load_settings({})
+
+        self.assertEqual(settings.job_timeout_s, 900.0)
+        self.assertEqual(settings.local_live_job_timeout_s, 900.0)
+
+    def test_local_live_job_timeout_follows_configured_job_timeout_by_default(self) -> None:
+        settings = load_settings({"RADIANCE_JOB_TIMEOUT_S": "123"})
+
+        self.assertEqual(settings.job_timeout_s, 123.0)
+        self.assertEqual(settings.local_live_job_timeout_s, 123.0)
+
+    def test_local_live_job_timeout_accepts_override_and_disable_values(self) -> None:
+        self.assertEqual(
+            load_settings({"RAD_REBUILD_LIVE_JOB_TIMEOUT_SECONDS": "1800"}).local_live_job_timeout_s,
+            1800.0,
+        )
+        self.assertIsNone(
+            load_settings({"RAD_REBUILD_LIVE_JOB_TIMEOUT_SECONDS": "0"}).local_live_job_timeout_s
+        )
+        self.assertIsNone(
+            load_settings({"RAD_REBUILD_LIVE_JOB_TIMEOUT_SECONDS": "none"}).local_live_job_timeout_s
+        )
+
+    def test_local_live_job_timeout_rejects_invalid_values(self) -> None:
+        for raw in ("-1", "1.5", "not-a-timeout"):
+            with self.subTest(raw=raw):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "RAD_REBUILD_LIVE_JOB_TIMEOUT_SECONDS must be a positive integer",
+                ):
+                    load_settings({"RAD_REBUILD_LIVE_JOB_TIMEOUT_SECONDS": raw})
 
 
 if __name__ == "__main__":

@@ -19,6 +19,11 @@ from typing import Any, Iterator
 
 from fastapi import HTTPException
 
+from rad_rebuild.radiance.domain import plant_geometry_config_from_request
+from rad_rebuild.radiance.fspm_targets import (
+    resolve_fspm_target_ppfd,
+    resolve_fspm_target_tolerance,
+)
 from rad_rebuild.radiance.config import (
     COMPETITOR_FIXTURE_PPE_UMOL_PER_J,
     COMPETITOR_FIXTURE_PPF_UMOL_S,
@@ -123,6 +128,23 @@ REQUEST_FINGERPRINT_FIELDS = (
     "hps_input_watts",
     "hps_ies_variant",
     "dialux_sensor_grid",
+)
+PLANT_REQUEST_FINGERPRINT_FIELDS = (
+    "plants_enabled",
+    "plant_seed",
+    "plant_rows",
+    "plant_columns",
+    "plant_spacing_m",
+    "plant_height_m",
+    "plant_canopy_radius_m",
+    "plant_leaf_count",
+    "plant_growth_stage",
+    "fspm_receiver_granularity",
+    "fspm_leaf_optical_profile_id",
+    "fspm_leaf_radiance_material_mode",
+    "fspm_spectral_transport_mode",
+    "fspm_target_ppfd_umol_m2_s",
+    "fspm_target_tolerance_umol_m2_s",
 )
 
 
@@ -400,6 +422,52 @@ def canonical_request_fingerprint_payload(source: Any) -> dict[str, object]:
     missing = set(REQUEST_FINGERPRINT_FIELDS) - set(fields)
     if missing:
         raise RuntimeError(f"Request fingerprint payload missing fields: {sorted(missing)}")
+    if _canonical_bool(getter("plants_enabled", False)):
+        plant_config = plant_geometry_config_from_request(source)
+        fields.update(
+            {
+                "plants_enabled": True,
+                "plant_seed": plant_config.seed,
+                "plant_rows": plant_config.plant_grid_rows,
+                "plant_columns": plant_config.plant_grid_columns,
+                "plant_spacing_m": _canonical_number(
+                    "plant_spacing_m",
+                    plant_config.plant_spacing_m,
+                ),
+                "plant_height_m": _canonical_number(
+                    "plant_height_m",
+                    plant_config.plant_height_m,
+                ),
+                "plant_canopy_radius_m": _canonical_number(
+                    "plant_canopy_radius_m",
+                    plant_config.canopy_radius_m,
+                ),
+                "plant_leaf_count": plant_config.leaf_count_per_plant,
+                "plant_growth_stage": _canonical_number(
+                    "plant_growth_stage",
+                    plant_config.growth_stage,
+                ),
+                "fspm_receiver_granularity": str(getter("fspm_receiver_granularity", "")),
+                "fspm_leaf_optical_profile_id": str(getter("fspm_leaf_optical_profile_id", "")),
+                "fspm_leaf_radiance_material_mode": str(
+                    getter("fspm_leaf_radiance_material_mode", "")
+                ),
+                "fspm_spectral_transport_mode": str(getter("fspm_spectral_transport_mode", "")),
+                "fspm_target_ppfd_umol_m2_s": _canonical_number(
+                    "fspm_target_ppfd_umol_m2_s",
+                    resolve_fspm_target_ppfd(
+                        getter("fspm_target_ppfd_umol_m2_s", None),
+                        fallback_target_ppfd=getter("target_ppfd", None),
+                    ),
+                ),
+                "fspm_target_tolerance_umol_m2_s": _canonical_number(
+                    "fspm_target_tolerance_umol_m2_s",
+                    resolve_fspm_target_tolerance(
+                        getter("fspm_target_tolerance_umol_m2_s", None)
+                    ),
+                ),
+            }
+        )
     return payload
 
 
@@ -748,7 +816,10 @@ def _required_workspace_outputs(req: Any) -> tuple[str, ...]:
     action = str(getattr(req, "action", "")).strip().lower()
     if action == "visualize":
         return ()
-    return ("ppfd_map.txt",)
+    required = ["ppfd_map.txt"]
+    if bool(getattr(req, "plants_enabled", False)):
+        required.append("runtime_state/plant_surface_flux.json")
+    return tuple(required)
 
 
 def _can_reuse_committed_workspace(req: Any | None) -> bool:
@@ -758,6 +829,46 @@ def _can_reuse_committed_workspace(req: Any | None) -> bool:
         getattr(req, "execution_mode", DEFAULT_EXECUTION_MODE)
     )
     return execution_mode == EXECUTION_MODE_PRECOMPUTED
+
+
+def _requires_mesh_patch_plant_detail(req: Any | None) -> bool:
+    if req is None:
+        return False
+    execution_mode = canonicalize_execution_mode(
+        getattr(req, "execution_mode", DEFAULT_EXECUTION_MODE)
+    )
+    return (
+        execution_mode == EXECUTION_MODE_PRECOMPUTED
+        and bool(getattr(req, "plants_enabled", False))
+        and str(getattr(req, "fspm_receiver_granularity", "")) == "mesh_patch"
+    )
+
+
+def _workspace_has_mesh_patch_plant_detail(workspace_root: Path) -> bool:
+    path = workspace_root / "runtime_state" / "plant_surface_flux.json"
+    payload = _read_json(path)
+    if not isinstance(payload, dict):
+        return False
+    if payload.get("receiver_granularity") != "mesh_patch":
+        return False
+    visualization = payload.get("visualization")
+    if not isinstance(visualization, dict):
+        return False
+    detail = visualization.get("raw_leaf_surface_flux_detail")
+    if not isinstance(detail, dict):
+        return False
+    values = detail.get("values_ppfd")
+    sides = detail.get("sides")
+    return (
+        detail.get("visual_granularity") == "mesh_patch"
+        and detail.get("encoding") == "leaf_major_dense"
+        and detail.get("top_bottom_support") is True
+        and isinstance(values, dict)
+        and isinstance(values.get("front"), list)
+        and isinstance(values.get("back"), list)
+        and isinstance(sides, list)
+        and {"front", "back"}.issubset({str(side) for side in sides})
+    )
 
 
 def commit_staged_workspace(lease: WorkspaceLease, runtime_identity: dict[str, object], req: Any | None = None) -> None:
@@ -782,14 +893,30 @@ def commit_staged_workspace(lease: WorkspaceLease, runtime_identity: dict[str, o
                     state["failure_reason"] = f"required output missing: {relpath}"
                     _write_state(lease.record_root, state, WorkspaceState.FAILED)
                     raise RuntimeError(f"Required workspace output missing: {relpath}")
+            if (
+                _requires_mesh_patch_plant_detail(request_obj)
+                and not _workspace_has_mesh_patch_plant_detail(lease.staging_workspace)
+            ):
+                state["failure_reason"] = (
+                    "precomputed mesh_patch plant surface detail is missing or malformed"
+                )
+                _write_state(lease.record_root, state, WorkspaceState.FAILED)
+                raise RuntimeError(
+                    "Precomputed mesh_patch plant surface detail is missing or malformed."
+                )
         manifest = _workspace_manifest(lease.staging_workspace)
         if not _validate_workspace_manifest(lease.staging_workspace, manifest):
             state["failure_reason"] = "integrity manifest verification failed"
             _write_state(lease.record_root, state, WorkspaceState.FAILED)
             raise RuntimeError("Workspace integrity verification failed.")
         _write_state(lease.record_root, state, WorkspaceState.VERIFIED)
+        committed_reusable = _can_reuse_committed_workspace(request_obj)
+        if committed_reusable and _requires_mesh_patch_plant_detail(request_obj):
+            committed_reusable = _workspace_has_mesh_patch_plant_detail(
+                lease.committed_workspace
+            )
         if (
-            _can_reuse_committed_workspace(request_obj)
+            committed_reusable
             and lease.committed_workspace.exists()
             and _workspace_integrity_current(lease.record_root, lease.committed_workspace)
             and _state_runtime_identity(state) == runtime_identity

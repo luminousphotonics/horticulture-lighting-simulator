@@ -157,6 +157,37 @@ class Phase06WorkspaceStoreTests(unittest.TestCase):
         self.assertFalse(second.staging_workspace.exists())
         self.assertTrue((second.record_root / "quarantine").exists())
 
+    def test_plant_enabled_run_requires_surface_flux_artifact(self) -> None:
+        req = self._request(
+            execution_mode=EXECUTION_MODE_LIVE_DOCKER,
+            plants_enabled=True,
+        )
+        lease = allocate_workspace_for_run("browser-a", req)
+        self._write_minimal_workspace(lease.staging_workspace)
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "Required workspace output missing: runtime_state/plant_surface_flux.json",
+        ):
+            commit_staged_workspace(lease, {"runtime": "missing-surface-flux"}, req)
+
+    def test_plant_enabled_run_commits_when_surface_flux_artifact_exists(self) -> None:
+        req = self._request(
+            execution_mode=EXECUTION_MODE_LIVE_DOCKER,
+            plants_enabled=True,
+        )
+        lease = allocate_workspace_for_run("browser-a", req)
+        self._write_minimal_workspace(lease.staging_workspace)
+        (lease.staging_workspace / "runtime_state" / "plant_surface_flux.json").write_text(
+            "{}", encoding="utf-8"
+        )
+
+        commit_staged_workspace(lease, {"runtime": "surface-flux"}, req)
+
+        self.assertTrue(
+            (lease.committed_workspace / "runtime_state" / "plant_surface_flux.json").is_file()
+        )
+
     def test_session_bound_token_is_required_for_private_workspace_reads(self) -> None:
         req = self._request()
         lease = allocate_workspace_for_run("browser-a", req)

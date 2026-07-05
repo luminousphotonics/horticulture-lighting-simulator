@@ -46,16 +46,27 @@ from rad_rebuild.radiance.paths import (
 )
 
 from rad_rebuild.radiance.engine.simulation.precomputed_dataset import (
+    PRECOMPUTED_PLANT_RECEIVER_BASIS_NPZ_ARTIFACT_KEY,
+    PRECOMPUTED_PLANT_RECEIVER_BASIS_NPZ_FILENAME,
+    PRECOMPUTED_PLANT_RECEIVER_BASIS_NPY_FILENAME,
+    PRECOMPUTED_PLANT_RECEIVER_NPZ_ARTIFACT_KEY,
+    PRECOMPUTED_PLANT_RECEIVER_NPZ_FILENAME,
+    PRECOMPUTED_PLANT_RECEIVER_JSON_FILENAME,
+    PRECOMPUTED_FSPM_RECEIVER_GRANULARITY,
     SCHEMA_VERSION,
+    SUPPORTED_PRECOMPUTED_FSPM_RECEIVER_GRANULARITIES,
     BundleRef,
     bundle_complete,
     bundle_ref,
+    canonical_plant_enabled_precomputed_request,
     canonical_competitor_layout,
     canonical_mode,
     load_manifest,
     params_match,
     request_params_for_mode,
     resolve_precomputed_root,
+    validate_mesh_patch_plant_receiver_payload,
+    write_precomputed_plant_receiver_npz,
 )
 from rad_rebuild.radiance.engine.simulation.precomputed_integrity import (
     PrecomputedIntegrityError,
@@ -136,6 +147,8 @@ class PrecomputeSweepConfig:
     hps_fixture_ppf: float | None = None
     hps_input_watts: float | None = None
     dialux_sensor_grid: bool = False
+    plants_enabled: bool = False
+    fspm_receiver_granularity: str = PRECOMPUTED_FSPM_RECEIVER_GRANULARITY
     force: bool = False
     dry_run: bool = False
 
@@ -170,6 +183,8 @@ class PrecomputeSweepConfig:
             hps_fixture_ppf=args.hps_fixture_ppf,
             hps_input_watts=args.hps_input_watts,
             dialux_sensor_grid=bool(args.dialux_sensor_grid),
+            plants_enabled=bool(args.plants_enabled),
+            fspm_receiver_granularity=str(args.fspm_receiver_granularity),
             force=bool(args.force),
             dry_run=bool(args.dry_run),
         )
@@ -199,6 +214,8 @@ class PrecomputeSweepConfig:
             hps_fixture_ppf=self.hps_fixture_ppf,
             hps_input_watts=self.hps_input_watts,
             dialux_sensor_grid=self.dialux_sensor_grid,
+            plants_enabled=self.plants_enabled,
+            fspm_receiver_granularity=self.fspm_receiver_granularity,
             force=self.force,
             dry_run=self.dry_run,
         )
@@ -213,6 +230,10 @@ class PrecomputeJobSpec:
     competitor_layout: str | None = None
     hps_coverage_ft: float | None = None
     hps_ies_variant: str | None = None
+    plants_enabled: bool = False
+    plant_rows: int | None = None
+    plant_columns: int | None = None
+    plant_spacing_m: float | None = None
 
 
 class PrecomputeModeJob(TypedDict):
@@ -350,6 +371,21 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--hps-fixture-ppf", type=float, default=None)
     ap.add_argument("--hps-input-watts", type=float, default=None)
     ap.add_argument("--dialux-sensor-grid", action="store_true", default=False)
+    ap.add_argument(
+        "--plants-enabled",
+        action="store_true",
+        default=False,
+        help=(
+            "Plan future plant-enabled precomputed bundles using the canonical "
+            "FSPM plant contract."
+        ),
+    )
+    ap.add_argument(
+        "--fspm-receiver-granularity",
+        default=PRECOMPUTED_FSPM_RECEIVER_GRANULARITY,
+        choices=list(SUPPORTED_PRECOMPUTED_FSPM_RECEIVER_GRANULARITIES),
+        help="Plant receiver granularity for plant-enabled precomputed bundles.",
+    )
     ap.add_argument("--force", action="store_true", default=False)
     ap.add_argument(
         "--dry-run",
@@ -389,7 +425,7 @@ def _req_for(
     )
     hps_variant = normalize_hps_ies_variant(hps_ies_variant)
     hps_fixture_ppf, hps_input_watts = _hps_power_defaults(hps_variant, args)
-    return RadianceRunRequest(
+    req = RadianceRunRequest(
         action="competitor" if canonical == MODE_COMPETITOR else "uniformity",
         mode=canonical,
         length_ft=float(length_ft),
@@ -416,6 +452,12 @@ def _req_for(
         hps_ies_variant=hps_variant,
         dialux_sensor_grid=args.dialux_sensor_grid,
     )
+    if bool(getattr(args, "plants_enabled", False)):
+        req = canonical_plant_enabled_precomputed_request(
+            req,
+            receiver_granularity=str(getattr(args, "fspm_receiver_granularity", "")),
+        )
+    return req
 
 
 def _run_script(script_path: Path, env: dict[str, str]) -> None:
@@ -427,6 +469,29 @@ def _run_script(script_path: Path, env: dict[str, str]) -> None:
     subprocess.check_call(  # nosec B603
         cmd, cwd=ROOT, env=env
     )
+
+
+def _with_active_python(env: Mapping[str, str]) -> dict[str, str]:
+    tuned = dict(env)
+    python = sys.executable
+    tuned["PY"] = python
+    tuned["PYTHON"] = python
+    tuned["PYTHON_BIN"] = python
+    tuned["PYTHON_CMD"] = python
+    tuned["RADIANCE_PY"] = python
+    tuned["FSPM_PRECOMPUTED_SCALAR_ONLY"] = "1"
+    return tuned
+
+
+def _active_python_path() -> Path:
+    python = Path(sys.executable).expanduser()
+    if not python.is_absolute():
+        python = Path.cwd() / python
+    if not python.is_file():
+        raise RuntimeError(f"Active Python interpreter not found: {python}")
+    if not os.access(python, os.X_OK):
+        raise RuntimeError(f"Active Python interpreter is not executable: {python}")
+    return python
 
 
 def _parse_kv_file(path: Path) -> dict[str, str]:
@@ -590,6 +655,7 @@ def _generate_competitor_bundle(
     bundle_dir: Path, req: RadianceRunRequest, env: dict[str, str]
 ) -> None:
     bundle_dir.mkdir(parents=True, exist_ok=True)
+    env = _with_active_python(env)
     env["AUTO_DIM"] = "0"
     _run_script(SCRIPT_ROOT / "run_simulation_spydr3.sh", env)
 
@@ -628,13 +694,16 @@ def _generate_competitor_bundle(
     )
 
     manifest = _bundle_manifest_base(MODE_COMPETITOR, req)
+    artifacts = {
+        "ppfd_map_txt_gz": "ppfd_map.txt.gz",
+        "layout_json": "spydr3_layout.json",
+        "power_json": "power.json",
+    }
+    if bool(getattr(req, "plants_enabled", False)):
+        _copy_plant_receiver_npz_artifact(bundle_dir, artifacts)
     manifest.update(
         {
-            "artifacts": {
-                "ppfd_map_txt_gz": "ppfd_map.txt.gz",
-                "layout_json": "spydr3_layout.json",
-                "power_json": "power.json",
-            },
+            "artifacts": artifacts,
             "stats": {
                 "base_mean_ppfd": mean_ppfd,
                 "base_peak_ppfd": peak_ppfd,
@@ -651,6 +720,7 @@ def _generate_hps_bundle(
     bundle_dir: Path, req: RadianceRunRequest, env: dict[str, str]
 ) -> None:
     bundle_dir.mkdir(parents=True, exist_ok=True)
+    env = _with_active_python(env)
     env["AUTO_DIM"] = "0"
     _run_script(SCRIPT_ROOT / "run_simulation_hps.sh", env)
 
@@ -672,13 +742,16 @@ def _generate_hps_bundle(
     )
 
     manifest = _bundle_manifest_base(MODE_HPS, req)
+    artifacts = {
+        "ppfd_map_txt_gz": "ppfd_map.txt.gz",
+        "layout_json": "hps_layout.json",
+        "power_json": "power.json",
+    }
+    if bool(getattr(req, "plants_enabled", False)):
+        _copy_plant_receiver_npz_artifact(bundle_dir, artifacts)
     manifest.update(
         {
-            "artifacts": {
-                "ppfd_map_txt_gz": "ppfd_map.txt.gz",
-                "layout_json": "hps_layout.json",
-                "power_json": "power.json",
-            },
+            "artifacts": artifacts,
             "stats": {
                 "base_mean_ppfd": mean_ppfd,
                 "point_count": int(data.shape[0]),
@@ -743,16 +816,110 @@ def _hps_power_payload(power_meta: Mapping[str, str]) -> JsonObject:
     }
 
 
+def _copy_plant_receiver_npz_artifact(
+    bundle_dir: Path,
+    artifacts: dict[str, str],
+    *,
+    source_dir: Path | None = None,
+) -> None:
+    source_root = ROOT / "runtime_state" if source_dir is None else source_dir
+    source = source_root / PRECOMPUTED_PLANT_RECEIVER_JSON_FILENAME
+    if not source.is_file():
+        raise RuntimeError(
+            "Plant-enabled precomputed generation did not produce "
+            f"{PRECOMPUTED_PLANT_RECEIVER_JSON_FILENAME}."
+        )
+    payload = load_json_object(source)
+    mesh_patch_errors = validate_mesh_patch_plant_receiver_payload(payload)
+    if mesh_patch_errors:
+        raise RuntimeError(
+            "Invalid mesh_patch plant receiver precomputed artifact: "
+            + "; ".join(mesh_patch_errors)
+        )
+    write_precomputed_plant_receiver_npz(
+        bundle_dir / PRECOMPUTED_PLANT_RECEIVER_NPZ_FILENAME,
+        payload,
+    )
+    artifacts[PRECOMPUTED_PLANT_RECEIVER_NPZ_ARTIFACT_KEY] = (
+        PRECOMPUTED_PLANT_RECEIVER_NPZ_FILENAME
+    )
+
+
+def _copy_smd_plant_receiver_artifacts(
+    bundle_dir: Path,
+    artifacts: dict[str, str],
+    *,
+    basis: np.ndarray[Any, Any],
+) -> None:
+    receiver_json = RADIANCE_BASIS_OUTPUT_ROOT / PRECOMPUTED_PLANT_RECEIVER_JSON_FILENAME
+    receiver_basis = RADIANCE_BASIS_OUTPUT_ROOT / PRECOMPUTED_PLANT_RECEIVER_BASIS_NPY_FILENAME
+    if not receiver_json.is_file() or not receiver_basis.is_file():
+        raise RuntimeError(
+            "Plant-enabled SMD precomputed generation did not produce compact "
+            "plant receiver basis artifacts."
+        )
+    plant_basis = np.load(receiver_basis)
+    if plant_basis.ndim != 2:
+        raise RuntimeError("plant_receiver_basis_A.npy must be a 2D matrix.")
+    if plant_basis.shape[1] != basis.shape[1]:
+        raise RuntimeError(
+            "plant_receiver_basis_A columns must match canopy basis_A columns."
+        )
+    receiver_payload = load_json_object(receiver_json)
+    basis_manifest = load_json_object(RADIANCE_BASIS_OUTPUT_ROOT / "basis_manifest.json")
+    mesh_patch_errors = validate_mesh_patch_plant_receiver_payload(
+        receiver_payload,
+        basis_row_count=int(plant_basis.shape[0]),
+    )
+    if mesh_patch_errors:
+        raise RuntimeError(
+            "Invalid mesh_patch plant receiver precomputed artifacts: "
+            + "; ".join(mesh_patch_errors)
+        )
+    receiver_basis_meta = receiver_payload.get("basis_metadata")
+    if not isinstance(receiver_basis_meta, Mapping):
+        raise RuntimeError("plant_receiver.json is missing SMD basis_metadata.")
+    for key in (
+        "variables",
+        "ring_indices",
+        "module_indices",
+        "outer_ring_index",
+        "outer_ring_indices",
+        "variable_groups",
+        "basis_matrix_sha256",
+    ):
+        if key in receiver_basis_meta or key in basis_manifest:
+            if receiver_basis_meta.get(key) != basis_manifest.get(key):
+                raise RuntimeError(
+                    f"plant receiver basis metadata mismatch for {key!r}."
+                )
+    write_precomputed_plant_receiver_npz(
+        bundle_dir / PRECOMPUTED_PLANT_RECEIVER_NPZ_FILENAME,
+        receiver_payload,
+    )
+    np.savez_compressed(
+        bundle_dir / PRECOMPUTED_PLANT_RECEIVER_BASIS_NPZ_FILENAME,
+        plant_receiver_basis_A=plant_basis,
+    )
+    artifacts[PRECOMPUTED_PLANT_RECEIVER_NPZ_ARTIFACT_KEY] = (
+        PRECOMPUTED_PLANT_RECEIVER_NPZ_FILENAME
+    )
+    artifacts[PRECOMPUTED_PLANT_RECEIVER_BASIS_NPZ_ARTIFACT_KEY] = (
+        PRECOMPUTED_PLANT_RECEIVER_BASIS_NPZ_FILENAME
+    )
+
+
 def _generate_smd_bundle(
     bundle_dir: Path, req: RadianceRunRequest, env: dict[str, str]
 ) -> None:
     bundle_dir.mkdir(parents=True, exist_ok=True)
-    _run_script(SCRIPT_ROOT / "run_basis_extraction.sh", env)
+    env = _with_active_python(env)
+    basis_env = dict(env)
+    if bool(getattr(req, "plants_enabled", False)):
+        basis_env["FSPM_PRECOMPUTE_PLANT_RECEIVER_BASIS"] = "1"
+    _run_script(SCRIPT_ROOT / "run_basis_extraction.sh", basis_env)
 
-    try:
-        py = resolve_executable(env.get("PY") or sys.executable, env=env)
-    except ExecutableResolutionError as exc:
-        raise RuntimeError(str(exc)) from exc
+    py = _active_python_path()
     subprocess.check_call(  # nosec B603
         [str(py), "-m", "rad_rebuild.radiance.engine.emitters.generate_emitters_smd"],
         cwd=ROOT,
@@ -783,6 +950,8 @@ def _generate_smd_bundle(
     if basis_backend_log.exists():
         shutil.copyfile(basis_backend_log, bundle_dir / "basis_backend_log.json")
         artifacts["basis_backend_log_json"] = "basis_backend_log.json"
+    if bool(getattr(req, "plants_enabled", False)):
+        _copy_smd_plant_receiver_artifacts(bundle_dir, artifacts, basis=basis)
 
     manifest = _bundle_manifest_base(MODE_SMD, req)
     manifest.update(
@@ -926,6 +1095,10 @@ def plan_precompute_sweep(config: PrecomputeSweepConfig) -> PrecomputePlan:
                     hps_ies_variant=None
                     if job["hps_ies_variant"] is None
                     else str(job["hps_ies_variant"]),
+                    plants_enabled=bool(req.plants_enabled),
+                    plant_rows=req.plant_rows,
+                    plant_columns=req.plant_columns,
+                    plant_spacing_m=req.plant_spacing_m,
                 )
             )
     return PrecomputePlan(
@@ -947,7 +1120,16 @@ def _print_precompute_dry_run(plan: PrecomputePlan) -> None:
             if item.target_path is not None
             else "unsupported non-integer dimensions"
         )
-        print(f"DRY-RUN {item.label} {item.room[0]}x{item.room[1]} -> {target}")
+        plant_suffix = ""
+        if item.plants_enabled:
+            plant_suffix = (
+                f" plants={item.plant_rows}x{item.plant_columns}"
+                f" spacing={float(item.plant_spacing_m or 0.0):g}m"
+            )
+        print(
+            f"DRY-RUN {item.label} {item.room[0]}x{item.room[1]}"
+            f"{plant_suffix} -> {target}"
+        )
 
 
 def _new_bundle_transaction_id() -> str:

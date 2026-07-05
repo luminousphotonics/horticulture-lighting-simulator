@@ -1,6 +1,7 @@
 {
   "artifacts": {
     "layout_json": "spydr3_layout.json",
+    "plant_receiver_npz": "plant_receiver.npz",
     "power_json": "power.json",
     "ppfd_map_txt_gz": "ppfd_map.txt.gz"
   },
@@ -8,15 +9,28 @@
     "length_ft": 10,
     "width_ft": 10
   },
-  "generated_at": "2026-06-16T16:52:01.212353+00:00",
+  "generated_at": "2026-07-05T11:11:12.223075+00:00",
   "mode": "Competitor",
   "request_params": {
     "dialux_sensor_grid": false,
+    "fspm_leaf_optical_profile_id": "rex_green_butterhead_mature_leaf_optics_v1",
+    "fspm_leaf_radiance_material_mode": "rex_source_weighted_trans",
+    "fspm_receiver_granularity": "mesh_patch",
+    "fspm_spectral_transport_mode": "scalar_source_weighted",
     "gap_source": "smd_exact_tiled_clear_gap_v1",
     "layout_policy": "practical",
     "mount_z_m": 0.4572,
     "outer_margin_in": 1.0,
     "packing_profile": "smd_gap_threshold_v1",
+    "plant_canopy_radius_m": 0.18,
+    "plant_columns": 8,
+    "plant_growth_stage": 1.0,
+    "plant_height_m": 0.16,
+    "plant_leaf_count": 12,
+    "plant_rows": 8,
+    "plant_seed": 1,
+    "plant_spacing_m": 0.4,
+    "plants_enabled": true,
     "sensor_grid_profile": "adaptive_centered_v1",
     "sensor_grid_spacing_m": 0.25,
     "sp_ppe": 2.8,
@@ -26,8 +40,8 @@
   },
   "schema_version": 1,
   "stats": {
-    "base_mean_ppfd": 467.732896031746,
-    "base_peak_ppfd": 718.73815,
+    "base_mean_ppfd": 467.0214650226757,
+    "base_peak_ppfd": 713.0114,
     "point_count": 441
   }
 }

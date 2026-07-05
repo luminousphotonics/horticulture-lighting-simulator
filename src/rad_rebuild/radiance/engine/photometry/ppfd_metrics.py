@@ -44,6 +44,7 @@ ScalarMetricKey = Literal[
     "watts_in",
     "ppf_emitted",
     "capture_frac",
+    "plane_utilization",
     "full_run_deuc_elec",
     "setpoint_ppfd",
     "cap_scale",
@@ -148,7 +149,9 @@ def _add_power_metrics(
         if emitted > 0:
             out["ppf_emitted"] = emitted
             if "ppf_out" in out:
-                out["capture_frac"] = metric_float(out, "ppf_out") / emitted
+                utilization = metric_float(out, "ppf_out") / emitted
+                out["capture_frac"] = utilization
+                out["plane_utilization"] = utilization
     if "ppf_out" in out and "watts_in" in out:
         watts_in = metric_float(out, "watts_in")
         if watts_in > 0:

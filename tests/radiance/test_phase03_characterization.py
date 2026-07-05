@@ -37,6 +37,7 @@ from rad_rebuild.radiance.engine.photometry.ppfd_metrics import compute_ppfd_met
 from rad_rebuild.radiance.engine.simulation.precomputed_dataset import (
     bundle_mode_dirname,
     bundle_ref,
+    canonical_plant_enabled_precomputed_request,
     load_manifest,
     params_match,
     request_params_for_mode,
@@ -304,7 +305,13 @@ def test_ppfd_metrics_contract_uses_documented_tolerances() -> None:
 @pytest.mark.parametrize(
     ("mode", "request_factory", "expected_dir"),
     (
-        (MODE_SMD, lambda: _smd_request(length_ft=10, width_ft=10), "smd"),
+        (
+            MODE_SMD,
+            lambda: canonical_plant_enabled_precomputed_request(
+                _smd_request(length_ft=10, width_ft=10)
+            ),
+            "smd",
+        ),
         (
             MODE_COMPETITOR,
             lambda: _competitor_request(

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import platform
 import secrets
@@ -16,10 +17,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, overload
 
 import numpy as np
 
+from rad_rebuild.radiance.assembly.fspm_panel import write_fspm_panel_metrics_artifact
 from rad_rebuild.radiance.engine.emitters.generate_emitters_smd import _compute_positions_from_env
 from rad_rebuild.radiance.engine.emitters.smd_generation.solution_metadata import (
     build_smd_runtime_fingerprint_from_basis_manifest,
@@ -34,7 +36,85 @@ from rad_rebuild.radiance.engine.optimization.solve_uniformity import (
     solution_coefficients_from_json,
 )
 from rad_rebuild.radiance.engine.photometry.ppfd_metrics import compute_ppfd_metrics, format_ppfd_metrics_line
+from rad_rebuild.radiance.engine.plants.artifacts import (
+    PlantArtifactPaths,
+    write_plant_artifacts,
+)
+from rad_rebuild.radiance.engine.plants.config import (
+    PlantGeometryConfig,
+    PlantOpticalAssumptions,
+)
+from rad_rebuild.radiance.engine.plants.generator import (
+    fit_plant_geometry_config_to_room,
+    generate_plant_scene,
+)
+from rad_rebuild.radiance.engine.plants.leaf_materials import (
+    FSPM_LEAF_RADIANCE_MATERIAL_MODE_ENV,
+    FSPM_SPECTRAL_TRANSPORT_MODE_ENV,
+    LEAF_RADIANCE_MATERIAL_MODE_OPAQUE_OCCLUDER,
+    LEAF_RADIANCE_MATERIAL_MODE_REX_SOURCE_WEIGHTED_TRANS,
+    PAR_BAND_IDS,
+    SPECTRAL_TRANSPORT_MODE_BANDED_5,
+    build_banded_5_transport_material_plan,
+    fit_diffuse_trans_material,
+    normalize_fspm_spectral_transport_mode,
+    normalize_leaf_radiance_material_mode,
+    opaque_leaf_material_metadata,
+    par_source_weighted_leaf_coefficients,
+    radiance_trans_material_definition,
+    rex_source_weighted_leaf_material_metadata,
+)
+from rad_rebuild.radiance.engine.plants.optical_profiles import (
+    REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1,
+)
+from rad_rebuild.radiance.engine.plants.photomorphogenesis import (
+    PhotomorphogenesisResponseParameters,
+    write_plant_photomorphogenesis_response_artifact,
+)
+from rad_rebuild.radiance.engine.plants.photoreceptor import (
+    write_plant_photoreceptor_exposure_artifact,
+)
+from rad_rebuild.radiance.engine.plants.photosynthesis import (
+    PhotosynthesisResponseParameters,
+    write_plant_photosynthesis_response_artifact,
+)
+from rad_rebuild.radiance.engine.plants.radiance_export import export_scene_to_radiance
+from rad_rebuild.radiance.engine.plants.spectral import (
+    fixture_spectral_distribution_from_curve_data,
+    default_leafy_green_spectral_bands,
+    parse_spectral_photon_fraction_overrides,
+    write_banded_plant_spectral_response_artifact,
+    write_plant_spectral_response_artifact,
+)
+from rad_rebuild.radiance.engine.plants.spectral_absorption import (
+    PLANT_SPECTRAL_ABSORPTION_FILENAME,
+    leaf_optical_profile_from_env,
+    wavelength_photon_distribution_from_band_fractions,
+    wavelength_photon_distribution_from_curve_data,
+    write_banded_plant_spectral_absorption_artifact,
+    write_plant_spectral_absorption_artifact,
+)
+from rad_rebuild.radiance.engine.plants.surface_flux import (
+    FSPM_RECEIVER_GRANULARITY_ENV,
+    RADIANCE_RECEIVER_METHOD,
+    build_radiance_receiver_samples,
+    build_radiance_receiver_surface_flux_rows,
+    normalize_receiver_granularity,
+    parse_rtrace_receiver_output,
+    receiver_sample_input_text,
+    write_radiance_receiver_plant_surface_flux_artifact,
+)
 from rad_rebuild.radiance.engine.simulation.basis_backends import canonicalize_basis_backend
+from rad_rebuild.radiance.engine.simulation.precomputed_dataset import (
+    PRECOMPUTED_PLANT_RECEIVER_JSON_FILENAME,
+    build_precomputed_plant_receiver_payload,
+    build_smd_precomputed_plant_receiver_basis_payload,
+    write_precomputed_plant_receiver_payload,
+)
+from rad_rebuild.radiance.fspm_targets import (
+    resolve_fspm_target_ppfd,
+    resolve_fspm_target_tolerance,
+)
 from rad_rebuild.radiance.paths import REPO_ROOT
 
 
@@ -502,6 +582,15 @@ def _run_basis(config: UniformityConfig) -> int:
 
 def _run_smd_simulation(config: UniformityConfig) -> int:
     env = dict(config.env)
+    for key in (
+        "FSPM_SKIP_DURING_BASIS",
+        "SMD_BASIS_MODE",
+        "BASIS_MODE",
+        "SMD_BASIS_RING",
+        "SMD_BASIS_MODULE_IDX",
+        "SMD_BASIS_OUTER_MODULE_IDX",
+    ):
+        env.pop(key, None)
     env.update(
         {
             "USE_RING_POWERS_JSON": "1",
@@ -785,6 +874,22 @@ class RuntimeConfig:
     env: dict[str, str]
 
 
+@dataclass(frozen=True)
+class FspmReceiverPlantMaterial:
+    radiance_path: Path
+    metadata: dict[str, Any]
+
+
+FSPM_RTRACE_PROFILE_ENV = "FSPM_RTRACE_PROFILE"
+FSPM_RTRACE_NPROC_ENV = "FSPM_RTRACE_NPROC"
+FSPM_RTRACE_AMBIENT_MODE_ENV = "FSPM_RTRACE_AMBIENT_MODE"
+FSPM_RTRACE_AMBIENT_MODE_DEFAULT = "default"
+FSPM_RTRACE_AMBIENT_MODE_PER_BAND_AF = "per_band_af"
+FSPM_RTRACE_AMBIENT_MODES = frozenset(
+    {FSPM_RTRACE_AMBIENT_MODE_DEFAULT, FSPM_RTRACE_AMBIENT_MODE_PER_BAND_AF}
+)
+
+
 def _runtime_config(raw_env: Mapping[str, str] | None = None, *, smd_defaults: bool = False) -> RuntimeConfig:
     env = dict(os.environ if raw_env is None else raw_env)
     repo_root = REPO_ROOT
@@ -834,6 +939,1483 @@ def _bool_env(env: Mapping[str, str], key: str, default: str = "0") -> bool:
 
 def _float_env(env: Mapping[str, str], key: str, default: str = "0") -> float:
     return float(_env_text(env, key, default))
+
+
+def _optional_float_env(env: Mapping[str, str], key: str) -> float | None:
+    raw = env.get(key)
+    if raw is None or not raw.strip():
+        return None
+    return float(raw)
+
+
+def _int_env(env: Mapping[str, str], key: str, default: int) -> int:
+    try:
+        return int(_env_text(env, key, str(default)))
+    except ValueError as exc:
+        raise ValueError(f"{key} must be an integer") from exc
+
+
+def _strict_binary_env(env: Mapping[str, str], key: str, default: str = "0") -> bool:
+    raw = _env_text(env, key, default).strip()
+    if raw == "0":
+        return False
+    if raw == "1":
+        return True
+    raise ValueError(f"{key} must be 0 or 1")
+
+
+def _optional_positive_int_env(env: Mapping[str, str], key: str) -> int | None:
+    raw = env.get(key)
+    if raw is None or not raw.strip():
+        return None
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{key} must be a positive integer") from exc
+    if value < 1:
+        raise ValueError(f"{key} must be a positive integer")
+    return value
+
+
+def _float_range_env(
+    env: Mapping[str, str],
+    min_key: str,
+    max_key: str,
+    default: tuple[float, float],
+) -> tuple[float, float]:
+    return (
+        _float_env(env, min_key, str(default[0])),
+        _float_env(env, max_key, str(default[1])),
+    )
+
+
+
+def _fspm_basis_extraction_active(env: Mapping[str, str]) -> bool:
+    """Return true only for internally launched SMD basis-column passes.
+
+    Stale SMD_BASIS_* shell variables must not disable FSPM for Conventional,
+    HPS, or final solved SMD runs. The basis extraction loop sets the explicit
+    internal FSPM_SKIP_DURING_BASIS flag when it launches basis-column passes.
+    """
+
+    return _bool_env(env, "FSPM_SKIP_DURING_BASIS")
+
+
+
+
+
+PLANT_RUNTIME_ARTIFACT_NAMES = (
+    "plant_geometry.json",
+    "plant_geometry.rad",
+    "plant_absorption_surfaces.json",
+    "plant_surface_flux.json",
+    PRECOMPUTED_PLANT_RECEIVER_JSON_FILENAME,
+    "plant_spectral_absorption.json",
+    "plant_spectral_response.json",
+    "plant_photosynthesis_response.json",
+    "plant_photoreceptor_exposure.json",
+    "plant_photomorphogenesis_response.json",
+)
+
+PLANT_SPECTRAL_BIOLOGY_ARTIFACT_NAMES = (
+    PLANT_SPECTRAL_ABSORPTION_FILENAME,
+    "plant_spectral_response.json",
+    "plant_photosynthesis_response.json",
+    "plant_photoreceptor_exposure.json",
+    "plant_photomorphogenesis_response.json",
+)
+
+FSPM_PRECOMPUTED_SCALAR_ONLY_ENV = "FSPM_PRECOMPUTED_SCALAR_ONLY"
+
+
+def _clear_fspm_runtime_artifacts(runtime_state_root: Path) -> None:
+    """Remove stale plant artifacts so metrics never mix modes/runs."""
+
+    for name in PLANT_RUNTIME_ARTIFACT_NAMES:
+        (runtime_state_root / name).unlink(missing_ok=True)
+
+
+def _clear_fspm_spectral_biology_artifacts(runtime_state_root: Path) -> None:
+    for name in PLANT_SPECTRAL_BIOLOGY_ARTIFACT_NAMES:
+        (runtime_state_root / name).unlink(missing_ok=True)
+
+
+def _fspm_precomputed_scalar_only(env: Mapping[str, str]) -> bool:
+    return _bool_env(env, FSPM_PRECOMPUTED_SCALAR_ONLY_ENV)
+
+
+def _write_precomputed_plant_receiver_runtime_artifact(
+    config: RuntimeConfig,
+    surface_flux_payload: Mapping[str, Any],
+    *,
+    value_semantics: str,
+    basis_metadata: Mapping[str, Any] | None = None,
+    receiver_samples: Sequence[Mapping[str, Any]] | None = None,
+    receiver_densities: Sequence[float] | None = None,
+    receiver_scale_multiplier: float = 1.0,
+) -> Path:
+    payload = build_precomputed_plant_receiver_payload(
+        surface_flux_payload,
+        value_semantics=value_semantics,
+        basis_metadata=basis_metadata,
+        receiver_samples=None if receiver_samples is None else list(receiver_samples),
+        receiver_densities=None if receiver_densities is None else list(receiver_densities),
+        receiver_scale_multiplier=receiver_scale_multiplier,
+    )
+    return write_precomputed_plant_receiver_payload(
+        config.runtime_state_root / PRECOMPUTED_PLANT_RECEIVER_JSON_FILENAME,
+        payload,
+    )
+
+
+
+def _fspm_plants_enabled(env: Mapping[str, str]) -> bool:
+    return _bool_env(env, "FSPM_PLANTS_ENABLED")
+
+
+def _fspm_plant_config_from_env(env: Mapping[str, str]) -> PlantGeometryConfig:
+    defaults = PlantGeometryConfig()
+    optical_defaults = defaults.optical
+    target_spacing_m = _float_env(
+        env,
+        "FSPM_PLANT_SPACING_M",
+        str(defaults.plant_spacing_m),
+    )
+    rows = _int_env(env, "FSPM_PLANT_ROWS", defaults.plant_grid_rows)
+    columns = _int_env(
+        env,
+        "FSPM_PLANT_COLUMNS",
+        defaults.plant_grid_columns,
+    )
+    length_ft = _float_env(
+        env,
+        "FSPM_PLANT_ROOM_LENGTH_FT",
+        env.get("LENGTH_FT", "0"),
+    )
+    width_ft = _float_env(
+        env,
+        "FSPM_PLANT_ROOM_WIDTH_FT",
+        env.get("WIDTH_FT", "0"),
+    )
+    config = PlantGeometryConfig(
+        seed=_int_env(env, "FSPM_PLANT_SEED", defaults.seed),
+        plant_grid_rows=rows,
+        plant_grid_columns=columns,
+        plant_spacing_m=target_spacing_m,
+        plant_height_m=_float_env(
+            env,
+            "FSPM_PLANT_HEIGHT_M",
+            str(defaults.plant_height_m),
+        ),
+        canopy_radius_m=_float_env(
+            env,
+            "FSPM_PLANT_CANOPY_RADIUS_M",
+            str(defaults.canopy_radius_m),
+        ),
+        leaf_count_per_plant=_int_env(
+            env,
+            "FSPM_PLANT_LEAF_COUNT",
+            defaults.leaf_count_per_plant,
+        ),
+        leaf_length_range_m=_float_range_env(
+            env,
+            "FSPM_PLANT_LEAF_LENGTH_MIN_M",
+            "FSPM_PLANT_LEAF_LENGTH_MAX_M",
+            defaults.leaf_length_range_m,
+        ),
+        leaf_width_range_m=_float_range_env(
+            env,
+            "FSPM_PLANT_LEAF_WIDTH_MIN_M",
+            "FSPM_PLANT_LEAF_WIDTH_MAX_M",
+            defaults.leaf_width_range_m,
+        ),
+        leaf_tilt_range_deg=_float_range_env(
+            env,
+            "FSPM_PLANT_LEAF_TILT_MIN_DEG",
+            "FSPM_PLANT_LEAF_TILT_MAX_DEG",
+            defaults.leaf_tilt_range_deg,
+        ),
+        leaf_curvature_m=_float_env(
+            env,
+            "FSPM_PLANT_CURVATURE_M",
+            str(defaults.leaf_curvature_m),
+        ),
+        growth_stage=_float_env(
+            env,
+            "FSPM_PLANT_GROWTH_STAGE",
+            str(defaults.growth_stage),
+        ),
+        optical=PlantOpticalAssumptions(
+            reflectance=_float_env(
+                env,
+                "FSPM_PLANT_REFLECTANCE",
+                str(optical_defaults.reflectance),
+            ),
+            transmittance=_float_env(
+                env,
+                "FSPM_PLANT_TRANSMITTANCE",
+                str(optical_defaults.transmittance),
+            ),
+            absorptance=_float_env(
+                env,
+                "FSPM_PLANT_ABSORPTANCE",
+                str(optical_defaults.absorptance),
+            ),
+        ),
+    )
+    if length_ft <= 0.0 or width_ft <= 0.0:
+        return config
+    return fit_plant_geometry_config_to_room(
+        config,
+        length_ft=length_ft,
+        width_ft=width_ft,
+        rows=rows,
+        columns=columns,
+    )
+
+
+def _fspm_target_settings_from_env(env: Mapping[str, str]) -> tuple[float, float]:
+    target_ppfd = resolve_fspm_target_ppfd(
+        _optional_float_env(env, "FSPM_TARGET_PPFD_UMOL_M2_S"),
+        fallback_target_ppfd=_optional_float_env(env, "TARGET_PPFD"),
+    )
+    tolerance = resolve_fspm_target_tolerance(
+        _optional_float_env(env, "FSPM_TARGET_TOLERANCE_UMOL_M2_S")
+    )
+    return target_ppfd, tolerance
+
+
+def _prepare_optional_plant_artifacts(
+    config: RuntimeConfig,
+) -> PlantArtifactPaths | None:
+    if _fspm_basis_extraction_active(config.env):
+        _clear_fspm_runtime_artifacts(config.runtime_state_root)
+        print("FSPM plant artifacts skipped during SMD basis extraction.")
+        return None
+    if not _fspm_plants_enabled(config.env):
+        _clear_fspm_runtime_artifacts(config.runtime_state_root)
+        return None
+    plant_config = _fspm_plant_config_from_env(config.env)
+    return write_plant_artifacts(
+        config.runtime_state_root,
+        plant_config,
+        active_simulation_integration=True,
+        provenance_phase="Phase 03",
+    )
+
+
+def _prepare_optional_plant_artifacts_or_report(
+    config: RuntimeConfig,
+) -> tuple[int, PlantArtifactPaths | None]:
+    try:
+        return int(RadianceScriptExit.OK), _prepare_optional_plant_artifacts(config)
+    except ValueError as exc:
+        print(f"ERROR: invalid FSPM plant configuration: {exc}", file=sys.stderr)
+        return int(RadianceScriptExit.VALIDATION), None
+
+
+def _receiver_material_photon_distribution(
+    config: RuntimeConfig,
+    *,
+    spectral_mode: str,
+    profile_wavelength_nm: Sequence[int],
+):
+    spectral_distribution = _spectral_distribution_from_env(
+        config.env,
+        mode=spectral_mode,
+        curve_data_root=config.curve_data_root,
+    )
+    try:
+        return wavelength_photon_distribution_from_curve_data(
+            config.curve_data_root,
+            spectral_mode,
+            profile_wavelength_nm,
+            env=config.env,
+            fallback_distribution=spectral_distribution,
+        )
+    except ValueError:
+        return wavelength_photon_distribution_from_band_fractions(
+            spectral_distribution,
+            profile_wavelength_nm,
+        )
+
+
+def _prepare_fspm_receiver_plant_material(
+    config: RuntimeConfig,
+    plant_artifacts: PlantArtifactPaths,
+    *,
+    spectral_mode: str,
+) -> FspmReceiverPlantMaterial:
+    spectral_transport_mode = normalize_fspm_spectral_transport_mode(
+        config.env.get(FSPM_SPECTRAL_TRANSPORT_MODE_ENV)
+    )
+    if spectral_transport_mode == SPECTRAL_TRANSPORT_MODE_BANDED_5:
+        raise ValueError(
+            f"{FSPM_SPECTRAL_TRANSPORT_MODE_ENV}=banded_5 is handled by the "
+            "banded receiver execution path, not scalar receiver material preparation."
+        )
+    material_mode = normalize_leaf_radiance_material_mode(
+        config.env.get(FSPM_LEAF_RADIANCE_MATERIAL_MODE_ENV)
+    )
+    if material_mode == LEAF_RADIANCE_MATERIAL_MODE_OPAQUE_OCCLUDER:
+        return FspmReceiverPlantMaterial(
+            radiance_path=plant_artifacts.radiance,
+            metadata=opaque_leaf_material_metadata(),
+        )
+    if material_mode != LEAF_RADIANCE_MATERIAL_MODE_REX_SOURCE_WEIGHTED_TRANS:
+        raise ValueError(f"Unsupported leaf Radiance material mode: {material_mode!r}.")
+
+    profile = leaf_optical_profile_from_env(config.env, data_root=config.repo_root)
+    if profile is None:
+        raise ValueError(
+            "FSPM_LEAF_OPTICAL_PROFILE_ID is required when "
+            f"{FSPM_LEAF_RADIANCE_MATERIAL_MODE_ENV}={material_mode}."
+        )
+    if profile.profile_id != REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1:
+        raise ValueError(
+            f"{FSPM_LEAF_RADIANCE_MATERIAL_MODE_ENV}={material_mode} requires "
+            f"{REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1!r}, got "
+            f"{profile.profile_id!r}."
+        )
+
+    distribution = _receiver_material_photon_distribution(
+        config,
+        spectral_mode=spectral_mode,
+        profile_wavelength_nm=profile.wavelength_nm,
+    )
+    coefficients = par_source_weighted_leaf_coefficients(profile, distribution)
+    parameters = fit_diffuse_trans_material(coefficients)
+    scene = generate_plant_scene(_fspm_plant_config_from_env(config.env))
+    material_id = scene.plants[0].leaves[0].radiance_material_id
+    material_definition = radiance_trans_material_definition(material_id, parameters)
+    receiver_path = config.runtime_state_root / "plants_fspm_receiver_material.rad"
+    receiver_path.write_text(
+        export_scene_to_radiance(
+            scene,
+            leaf_material_definition=material_definition,
+            optical_assumption_comment=(
+                "# optical_assumptions "
+                f"mode={material_mode} "
+                f"weighting_basis={coefficients.weighting_basis} "
+                f"reflectance={coefficients.reflectance:.6f} "
+                f"transmittance={coefficients.transmittance:.6f} "
+                f"absorptance={coefficients.absorptance:.6f}"
+            ),
+        ),
+        encoding="utf-8",
+    )
+    return FspmReceiverPlantMaterial(
+        radiance_path=receiver_path,
+        metadata=rex_source_weighted_leaf_material_metadata(
+            profile=profile,
+            distribution=distribution,
+            coefficients=coefficients,
+            parameters=parameters,
+        ),
+    )
+
+
+def _prepare_fspm_receiver_plant_material_or_report(
+    config: RuntimeConfig,
+    plant_artifacts: PlantArtifactPaths,
+    *,
+    spectral_mode: str,
+) -> tuple[int, FspmReceiverPlantMaterial | None]:
+    try:
+        return int(RadianceScriptExit.OK), _prepare_fspm_receiver_plant_material(
+            config,
+            plant_artifacts,
+            spectral_mode=spectral_mode,
+        )
+    except ValueError as exc:
+        print(f"ERROR: invalid FSPM leaf Radiance material configuration: {exc}", file=sys.stderr)
+        return int(RadianceScriptExit.VALIDATION), None
+
+
+def _print_optional_plant_artifact_note(plant_artifacts: PlantArtifactPaths | None) -> None:
+    if plant_artifacts is None:
+        return
+    print("FSPM plant artifacts:")
+    print(f"  • {plant_artifacts.radiance}")
+    print("  note: excluded from baseline PPFD octree; used by dedicated FSPM receiver transport.")
+
+
+def _plant_receiver_rtrace_argv(
+    *,
+    rtrace_bin: str,
+    octree: Path,
+    options: Sequence[str],
+    nthreads: int,
+) -> list[str]:
+    return [rtrace_bin, "-h", "-I+", "-n", str(nthreads), *options, str(octree)]
+
+
+def _plant_receiver_rtrace_args_metadata(
+    *,
+    octree: Path,
+    options: Sequence[str],
+    nthreads: int,
+) -> list[str]:
+    return _plant_receiver_rtrace_argv(
+        rtrace_bin="rtrace",
+        octree=octree,
+        options=options,
+        nthreads=nthreads,
+    )
+
+
+def _fspm_rtrace_profile_enabled(env: Mapping[str, str]) -> bool:
+    return _strict_binary_env(env, FSPM_RTRACE_PROFILE_ENV)
+
+
+def _fspm_rtrace_nproc(env: Mapping[str, str]) -> int | None:
+    return _optional_positive_int_env(env, FSPM_RTRACE_NPROC_ENV)
+
+
+def _fspm_rtrace_ambient_mode(env: Mapping[str, str]) -> str:
+    mode = _env_text(
+        env,
+        FSPM_RTRACE_AMBIENT_MODE_ENV,
+        FSPM_RTRACE_AMBIENT_MODE_DEFAULT,
+    ).strip()
+    if mode not in FSPM_RTRACE_AMBIENT_MODES:
+        allowed = ", ".join(sorted(FSPM_RTRACE_AMBIENT_MODES))
+        raise ValueError(
+            f"Unknown {FSPM_RTRACE_AMBIENT_MODE_ENV}: {mode!r}. "
+            f"Expected one of: {allowed}."
+        )
+    return mode
+
+
+def _radiance_option_value(options: Sequence[str], name: str) -> str | None:
+    for index, token in enumerate(options):
+        if token == name and index + 1 < len(options):
+            return options[index + 1]
+    return None
+
+
+def _replace_radiance_option_value(
+    options: Sequence[str],
+    name: str,
+    value: str,
+) -> list[str]:
+    adjusted = list(options)
+    for index, token in enumerate(adjusted):
+        if token == name and index + 1 < len(adjusted):
+            adjusted[index + 1] = value
+            return adjusted
+    adjusted.extend([name, value])
+    return adjusted
+
+
+def _radiance_ambient_bounce_count(options: Sequence[str]) -> int:
+    raw = _radiance_option_value(options, "-ab")
+    if raw is None:
+        return 0
+    try:
+        return int(raw)
+    except ValueError:
+        return 0
+
+
+def _fspm_receiver_trace_options(
+    config: RuntimeConfig,
+    *,
+    base_options: Sequence[str],
+    band_id: str,
+    configured_nproc: int | None,
+    ambient_mode: str,
+) -> tuple[list[str], str | None]:
+    options = list(base_options)
+    if (
+        ambient_mode != FSPM_RTRACE_AMBIENT_MODE_PER_BAND_AF
+        or configured_nproc is None
+        or configured_nproc <= 1
+        or _radiance_ambient_bounce_count(options) <= 0
+    ):
+        return options, None
+
+    ambient_file = _fresh_ambient_cache(
+        config,
+        f"amb_plant_receivers_{band_id}_per_band_af",
+    )
+    return _replace_radiance_option_value(options, "-af", str(ambient_file)), str(
+        ambient_file
+    )
+
+
+def _fspm_receiver_trace_metadata(
+    *,
+    receiver_sample_count: int,
+    rtrace_args: Sequence[str],
+    configured_nproc: int | None,
+    ambient_mode: str,
+    ambient_file: str | None = None,
+    trace_stream_count: int = 1,
+) -> dict[str, Any]:
+    metadata: dict[str, Any] = {
+        "receiver_sample_count": receiver_sample_count,
+        "receiver_trace_stream_count": trace_stream_count,
+        "receiver_rtrace_args": list(rtrace_args),
+        "receiver_ambient_mode": ambient_mode,
+        "receiver_subprocess_granularity": "per_active_band_not_per_sample",
+    }
+    if configured_nproc is not None:
+        metadata["receiver_rtrace_nproc"] = configured_nproc
+    if ambient_file is not None:
+        metadata["receiver_ambient_file"] = ambient_file
+    return metadata
+
+
+def _trace_plant_surface_receivers(
+    config: RuntimeConfig,
+    *,
+    receiver_input_path: Path,
+    receiver_rgb_path: Path,
+    octree: Path,
+    options: Sequence[str],
+    nthreads: int,
+) -> int:
+    if not octree.is_file():
+        print(f"ERROR: plant receiver octree not found at {octree}", file=sys.stderr)
+        return int(RadianceScriptExit.VALIDATION)
+
+    rtrace_bin = shutil.which("rtrace")
+    if rtrace_bin is None:
+        _print_event(
+            ScriptEvent(
+                "error",
+                "command.missing",
+                "required command not found",
+                {"command": "rtrace"},
+            )
+        )
+        return int(RadianceScriptExit.VALIDATION)
+
+    _print_event(
+        ScriptEvent(
+            "info",
+            "radiance.plant_receivers",
+            "tracing plant receiver samples",
+            {"octree": str(octree), "receivers": str(receiver_input_path)},
+        )
+    )
+
+    try:
+        with receiver_input_path.open("r", encoding="utf-8") as stdin_handle, receiver_rgb_path.open(
+            "w",
+            encoding="utf-8",
+        ) as stdout_handle:
+            result = subprocess.run(  # nosec B603
+                _plant_receiver_rtrace_argv(
+                    rtrace_bin=rtrace_bin,
+                    octree=octree,
+                    options=options,
+                    nthreads=nthreads,
+                ),
+                cwd=config.repo_root,
+                env=dict(config.env),
+                stdin=stdin_handle,
+                stdout=stdout_handle,
+                check=False,
+            )
+    except FileNotFoundError:
+        _print_event(
+            ScriptEvent(
+                "error",
+                "command.missing",
+                "required command not found",
+                {"command": "rtrace"},
+            )
+        )
+        return int(RadianceScriptExit.VALIDATION)
+
+    if result.returncode != 0:
+        propagated = _propagated_return_code(result.returncode)
+        _print_event(
+            ScriptEvent(
+                "error",
+                "command.failed",
+                "plant receiver rtrace failed",
+                {
+                    "command": "rtrace",
+                    "exit_code": result.returncode,
+                    "propagated_exit_code": propagated,
+                },
+            )
+        )
+        return propagated
+
+    _print_event(
+        ScriptEvent(
+            "info",
+            "command.succeeded",
+            "plant receiver rtrace succeeded",
+            {
+                "command": "rtrace",
+                "stdout": str(receiver_rgb_path),
+                "exit_code": 0,
+            },
+        )
+    )
+    return int(RadianceScriptExit.OK)
+
+
+def _fspm_receiver_scene_inputs(
+    *,
+    room: Path,
+    emitter_file: Path,
+    plant_rad: Path,
+    static_room_oct: Path | None = None,
+) -> list[str]:
+    """Build plant-inclusive FSPM receiver scene inputs."""
+
+    # Do not append plants to a frozen room octree with `oconv -i`: Radiance
+    # preserves the original octree bounds, so plant geometry outside those
+    # bounds can fail with "boundary does not encompass scene". Rebuilding from
+    # RAD sources lets oconv compute bounds for room, emitters, and plants.
+    _ = static_room_oct
+    return ["-f", str(room), str(emitter_file), str(plant_rad)]
+
+
+def _build_fspm_receiver_octree(
+    config: RuntimeConfig,
+    *,
+    room: Path,
+    emitter_file: Path,
+    plant_rad: Path | None,
+    out_path: Path,
+    static_room_oct: Path | None = None,
+) -> int:
+    if plant_rad is None:
+        return int(RadianceScriptExit.OK)
+    if not plant_rad.is_file():
+        print(f"ERROR: FSPM plant geometry not found at {plant_rad}", file=sys.stderr)
+        return int(RadianceScriptExit.VALIDATION)
+    out_path.unlink(missing_ok=True)
+    print("Building plant-inclusive FSPM receiver octree...")
+    return _build_octree(
+        config,
+        _fspm_receiver_scene_inputs(
+            room=room,
+            emitter_file=emitter_file,
+            plant_rad=plant_rad,
+            static_room_oct=static_room_oct,
+        ),
+        out_path,
+    )
+
+
+
+def _infer_fixture_spectral_mode(
+    env: Mapping[str, str],
+    *,
+    octree: Path,
+    mode: str,
+) -> str:
+    explicit = (
+        env.get("FSPM_SPECTRAL_MODE")
+        or env.get("RADIANCE_SYSTEM_MODE")
+        or env.get("SYSTEM_MODE")
+        or ""
+    ).strip()
+    if explicit:
+        return explicit
+
+    haystack = " ".join(
+        [
+            mode,
+            octree.name,
+            str(octree.parent),
+            env.get("RADIANCE_MODE", ""),
+            env.get("MODE", ""),
+        ]
+    ).lower()
+    if "hps" in haystack:
+        return "hps"
+    if "spydr" in haystack or "competitor" in haystack or "conventional" in haystack:
+        return "conventional"
+    if "smd" in haystack or "proposed" in haystack:
+        return "smd"
+    return mode
+
+
+
+
+def _photomorphogenesis_parameters_from_env(env: Mapping[str, str]) -> PhotomorphogenesisResponseParameters:
+    defaults = PhotomorphogenesisResponseParameters()
+    return PhotomorphogenesisResponseParameters(
+        red_far_red_shade_threshold=_float_env(
+            env,
+            "FSPM_PHOTOMORPH_RED_FAR_RED_SHADE_THRESHOLD",
+            str(defaults.red_far_red_shade_threshold),
+        ),
+        red_far_red_full_sun_threshold=_float_env(
+            env,
+            "FSPM_PHOTOMORPH_RED_FAR_RED_FULL_SUN_THRESHOLD",
+            str(defaults.red_far_red_full_sun_threshold),
+        ),
+        blue_fraction_compact_low=_float_env(
+            env,
+            "FSPM_PHOTOMORPH_BLUE_COMPACT_LOW",
+            str(defaults.blue_fraction_compact_low),
+        ),
+        blue_fraction_compact_high=_float_env(
+            env,
+            "FSPM_PHOTOMORPH_BLUE_COMPACT_HIGH",
+            str(defaults.blue_fraction_compact_high),
+        ),
+        photosynthetic_expansion_threshold=_float_env(
+            env,
+            "FSPM_PHOTOMORPH_PHOTOSYNTHETIC_EXPANSION_THRESHOLD",
+            str(defaults.photosynthetic_expansion_threshold),
+        ),
+        shade_expansion_penalty=_float_env(
+            env,
+            "FSPM_PHOTOMORPH_SHADE_EXPANSION_PENALTY",
+            str(defaults.shade_expansion_penalty),
+        ),
+    )
+
+
+
+def _photosynthesis_parameters_from_env(env: Mapping[str, str]) -> PhotosynthesisResponseParameters:
+    defaults = PhotosynthesisResponseParameters()
+    return PhotosynthesisResponseParameters(
+        initial_quantum_yield_mol_co2_per_mol_photons=_float_env(
+            env,
+            "FSPM_PHOTOSYNTHESIS_QUANTUM_YIELD",
+            str(defaults.initial_quantum_yield_mol_co2_per_mol_photons),
+        ),
+        max_gross_assimilation_umol_co2_m2_s=_float_env(
+            env,
+            "FSPM_PHOTOSYNTHESIS_AMAX_UMOL_CO2_M2_S",
+            str(defaults.max_gross_assimilation_umol_co2_m2_s),
+        ),
+        dark_respiration_umol_co2_m2_s=_float_env(
+            env,
+            "FSPM_PHOTOSYNTHESIS_DARK_RESPIRATION_UMOL_CO2_M2_S",
+            str(defaults.dark_respiration_umol_co2_m2_s),
+        ),
+        curvature_factor=_float_env(
+            env,
+            "FSPM_PHOTOSYNTHESIS_CURVATURE",
+            str(defaults.curvature_factor),
+        ),
+        photoperiod_hours=_float_env(
+            env,
+            "FSPM_PHOTOSYNTHESIS_PHOTOPERIOD_HOURS",
+            str(defaults.photoperiod_hours),
+        ),
+    )
+
+
+
+def _spectral_distribution_from_env(
+    env: Mapping[str, str],
+    *,
+    mode: str,
+    curve_data_root: Path,
+):
+    raw = (env.get("FSPM_SPECTRAL_PHOTON_FRACTIONS") or "").strip()
+    if raw:
+        return parse_spectral_photon_fraction_overrides(
+            raw,
+            distribution_id=f"env_override_{mode.lower().replace(' ', '_')}",
+        )
+    return fixture_spectral_distribution_from_curve_data(
+        curve_data_root,
+        mode,
+        env=env,
+    )
+
+
+@overload
+def _write_optional_spectral_absorption_artifact(
+    config: RuntimeConfig,
+    surface_flux_payload: Mapping[str, Any],
+    spectral_distribution: Any,
+    *,
+    spectral_mode: str,
+    return_payload: Literal[True],
+) -> tuple[Path, dict[str, Any]] | None: ...
+
+
+@overload
+def _write_optional_spectral_absorption_artifact(
+    config: RuntimeConfig,
+    surface_flux_payload: Mapping[str, Any],
+    spectral_distribution: Any,
+    *,
+    spectral_mode: str,
+    return_payload: Literal[False] = ...,
+) -> Path | None: ...
+
+
+def _write_optional_spectral_absorption_artifact(
+    config: RuntimeConfig,
+    surface_flux_payload: Mapping[str, Any],
+    spectral_distribution: Any,
+    *,
+    spectral_mode: str,
+    return_payload: bool = False,
+) -> Path | tuple[Path, dict[str, Any]] | None:
+    profile = leaf_optical_profile_from_env(config.env, data_root=config.repo_root)
+    path = config.runtime_state_root / PLANT_SPECTRAL_ABSORPTION_FILENAME
+    if profile is None:
+        path.unlink(missing_ok=True)
+        return None
+
+    try:
+        photon_distribution = wavelength_photon_distribution_from_curve_data(
+            config.curve_data_root,
+            spectral_mode,
+            profile.wavelength_nm,
+            env=config.env,
+            fallback_distribution=spectral_distribution,
+        )
+    except ValueError:
+        photon_distribution = wavelength_photon_distribution_from_band_fractions(
+            spectral_distribution,
+            profile.wavelength_nm,
+        )
+    if return_payload:
+        return write_plant_spectral_absorption_artifact(
+            config.runtime_state_root,
+            surface_flux_payload,
+            profile,
+            photon_distribution,
+            return_payload=True,
+        )
+    return write_plant_spectral_absorption_artifact(
+        config.runtime_state_root,
+        surface_flux_payload,
+        profile,
+        photon_distribution,
+    )
+
+
+def _write_band_receiver_plant_rad(
+    config: RuntimeConfig,
+    *,
+    scene,
+    band_material,
+) -> Path:
+    material_id = scene.plants[0].leaves[0].radiance_material_id
+    material_definition = radiance_trans_material_definition(
+        material_id,
+        band_material.parameters,
+    )
+    band = band_material.band
+    receiver_path = (
+        config.runtime_state_root
+        / f"plants_fspm_receiver_{band.band_id}.rad"
+    )
+    receiver_path.write_text(
+        export_scene_to_radiance(
+            scene,
+            leaf_material_definition=material_definition,
+            optical_assumption_comment=(
+                "# optical_assumptions "
+                "mode=banded_5 "
+                f"band={band.band_id} "
+                f"wavelength_min_nm={band.wavelength_min_nm} "
+                f"wavelength_max_nm={band.wavelength_max_nm} "
+                f"source_fraction_relative_to_par="
+                f"{band_material.source_photon_fraction_relative_to_par:.6f} "
+                f"reflectance={band_material.coefficients.reflectance:.6f} "
+                f"transmittance={band_material.coefficients.transmittance:.6f} "
+                f"absorptance={band_material.coefficients.absorptance:.6f}"
+            ),
+        ),
+        encoding="utf-8",
+    )
+    return receiver_path
+
+
+def _banded_octree_label(mode: str, band_id: str) -> str:
+    mode_label = "".join(
+        character.lower() if character.isalnum() else "_"
+        for character in str(mode)
+    ).strip("_")
+    return f"{mode_label or 'fixture'}_fspm_receiver_{band_id}.oct"
+
+
+def _prepare_banded_transport_plan(
+    config: RuntimeConfig,
+    *,
+    spectral_mode: str,
+):
+    material_mode = normalize_leaf_radiance_material_mode(
+        config.env.get(FSPM_LEAF_RADIANCE_MATERIAL_MODE_ENV)
+    )
+    if material_mode != LEAF_RADIANCE_MATERIAL_MODE_REX_SOURCE_WEIGHTED_TRANS:
+        raise ValueError(
+            f"{FSPM_SPECTRAL_TRANSPORT_MODE_ENV}=banded_5 requires "
+            f"{FSPM_LEAF_RADIANCE_MATERIAL_MODE_ENV}="
+            f"{LEAF_RADIANCE_MATERIAL_MODE_REX_SOURCE_WEIGHTED_TRANS}."
+        )
+    profile = leaf_optical_profile_from_env(config.env, data_root=config.repo_root)
+    if profile is None:
+        raise ValueError(
+            "FSPM_LEAF_OPTICAL_PROFILE_ID is required when "
+            f"{FSPM_SPECTRAL_TRANSPORT_MODE_ENV}=banded_5."
+        )
+    if profile.profile_id != REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1:
+        raise ValueError(
+            f"{FSPM_SPECTRAL_TRANSPORT_MODE_ENV}=banded_5 requires "
+            f"{REX_GREEN_BUTTERHEAD_MATURE_LEAF_OPTICS_V1!r}, got "
+            f"{profile.profile_id!r}."
+        )
+    distribution = _receiver_material_photon_distribution(
+        config,
+        spectral_mode=spectral_mode,
+        profile_wavelength_nm=profile.wavelength_nm,
+    )
+    return build_banded_5_transport_material_plan(profile, distribution)
+
+
+def _write_banded_plant_surface_flux_artifact(
+    config: RuntimeConfig,
+    plant_artifacts: PlantArtifactPaths,
+    ppfd_map: Path,
+    *,
+    room: Path,
+    emitter_file: Path,
+    static_room_oct: Path | None,
+    mode: str,
+    nthreads: int,
+    receiver_scale_multiplier: float,
+) -> int:
+    scalar_precompute_only = _fspm_precomputed_scalar_only(config.env)
+    plant_config = _fspm_plant_config_from_env(config.env)
+    target_ppfd, target_tolerance = _fspm_target_settings_from_env(config.env)
+    scene = generate_plant_scene(plant_config)
+    spectral_mode = _infer_fixture_spectral_mode(config.env, octree=emitter_file, mode=mode)
+    try:
+        receiver_granularity = normalize_receiver_granularity(
+            config.env.get(FSPM_RECEIVER_GRANULARITY_ENV)
+        )
+        samples = build_radiance_receiver_samples(
+            scene,
+            receiver_granularity=receiver_granularity,
+        )
+        plan = _prepare_banded_transport_plan(config, spectral_mode=spectral_mode)
+        profile_rtrace = _fspm_rtrace_profile_enabled(config.env)
+        configured_nproc = _fspm_rtrace_nproc(config.env)
+        ambient_mode = _fspm_rtrace_ambient_mode(config.env)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return int(RadianceScriptExit.VALIDATION)
+
+    receiver_input = (
+        config.cache_root
+        / f"plant_surface_receivers_{os.getpid()}_{secrets.token_hex(6)}.pts"
+    )
+    receiver_input.write_text(receiver_sample_input_text(samples), encoding="utf-8")
+    aggregate_par_densities = [0.0 for _sample in samples]
+    band_surface_rows: dict[str, list[dict[str, Any]]] = {}
+    band_payloads: list[dict[str, Any]] = []
+    active_trace_count = 0
+
+    try:
+        trace_nthreads = configured_nproc or nthreads
+        for band_material in plan.bands:
+            band = band_material.band
+            band_payload = band_material.to_payload()
+            if not band_material.receiver_trace_required:
+                zero_densities = [0.0 for _sample in samples]
+                band_surface_rows[band.band_id] = build_radiance_receiver_surface_flux_rows(
+                    scene,
+                    samples,
+                    zero_densities,
+                )
+                band_payload.update(
+                    {
+                        "receiver_trace_executed": False,
+                        "source_scale_applied_once": True,
+                        "receiver_octree": None,
+                        "receiver_plant_rad": None,
+                    }
+                )
+                band_payload.update(
+                    {
+                        "receiver_sample_count": len(samples),
+                        "receiver_trace_stream_count": 0,
+                        "receiver_subprocess_granularity": (
+                            "per_active_band_not_per_sample"
+                        ),
+                    }
+                )
+                if profile_rtrace:
+                    band_payload.update(
+                        {
+                            "receiver_octree_build_wall_time_s": 0.0,
+                            "receiver_rtrace_wall_time_s": 0.0,
+                        }
+                    )
+                band_payloads.append(band_payload)
+                continue
+
+            receiver_rad = _write_band_receiver_plant_rad(
+                config,
+                scene=scene,
+                band_material=band_material,
+            )
+            band_octree = config.cache_root / _banded_octree_label(mode, band.band_id)
+            octree_start = time.perf_counter()
+            receiver_oct_exit = _build_fspm_receiver_octree(
+                config,
+                room=room,
+                emitter_file=emitter_file,
+                plant_rad=receiver_rad,
+                out_path=band_octree,
+                static_room_oct=static_room_oct,
+            )
+            octree_wall_time_s = time.perf_counter() - octree_start
+            if receiver_oct_exit != 0:
+                return receiver_oct_exit
+
+            receiver_rgb = (
+                config.cache_root
+                / f"plant_surface_receivers_{band.band_id}_{os.getpid()}_"
+                f"{secrets.token_hex(6)}.rgb"
+            )
+            base_options = _radiance_options(
+                mode,
+                _fresh_ambient_cache(config, f"amb_plant_receivers_{band.band_id}"),
+            )
+            trace_options, ambient_file = _fspm_receiver_trace_options(
+                config,
+                base_options=base_options,
+                band_id=band.band_id,
+                configured_nproc=configured_nproc,
+                ambient_mode=ambient_mode,
+            )
+            rtrace_args = _plant_receiver_rtrace_args_metadata(
+                octree=band_octree,
+                options=trace_options,
+                nthreads=trace_nthreads,
+            )
+            trace_start = time.perf_counter()
+            trace_exit = _trace_plant_surface_receivers(
+                config,
+                receiver_input_path=receiver_input,
+                receiver_rgb_path=receiver_rgb,
+                octree=band_octree,
+                options=trace_options,
+                nthreads=trace_nthreads,
+            )
+            trace_wall_time_s = time.perf_counter() - trace_start
+            if trace_exit != 0:
+                return trace_exit
+
+            raw_densities = parse_rtrace_receiver_output(
+                receiver_rgb.read_text(encoding="utf-8")
+            )
+            receiver_rgb.unlink(missing_ok=True)
+            source_scale = (
+                band_material.source_photon_fraction_relative_to_par
+                * receiver_scale_multiplier
+            )
+            scaled_densities = [density * source_scale for density in raw_densities]
+            if band.band_id in PAR_BAND_IDS:
+                aggregate_par_densities = [
+                    total + density
+                    for total, density in zip(
+                        aggregate_par_densities,
+                        scaled_densities,
+                        strict=True,
+                    )
+                ]
+            band_surface_rows[band.band_id] = build_radiance_receiver_surface_flux_rows(
+                scene,
+                samples,
+                scaled_densities,
+            )
+            active_trace_count += 1
+            band_payload.update(
+                {
+                    "receiver_trace_executed": True,
+                    "source_scale_applied_once": True,
+                    "receiver_octree": str(band_octree),
+                    "receiver_plant_rad": str(receiver_rad),
+                }
+            )
+            band_payload.update(
+                _fspm_receiver_trace_metadata(
+                    receiver_sample_count=len(samples),
+                    rtrace_args=rtrace_args,
+                    configured_nproc=configured_nproc,
+                    ambient_mode=ambient_mode,
+                    ambient_file=ambient_file,
+                )
+            )
+            if profile_rtrace:
+                band_payload.update(
+                    {
+                        "receiver_octree_build_wall_time_s": octree_wall_time_s,
+                        "receiver_rtrace_wall_time_s": trace_wall_time_s,
+                    }
+                )
+            band_payloads.append(band_payload)
+
+        banded_metadata = {
+            **plan.to_payload(),
+            "leaf_radiance_material_mode": (
+                LEAF_RADIANCE_MATERIAL_MODE_REX_SOURCE_WEIGHTED_TRANS
+            ),
+            "banded_transport_active_trace_count": active_trace_count,
+            "banded_transport_bands": band_payloads,
+            "fspm_rtrace_profile_enabled": profile_rtrace,
+            "fspm_rtrace_ambient_mode": ambient_mode,
+            "receiver_trace_process_policy": "one_rtrace_stream_per_active_band",
+            "receiver_trace_streams_per_active_band": 1,
+            "receiver_subprocess_granularity": "per_active_band_not_per_sample",
+        }
+        if configured_nproc is not None:
+            banded_metadata["fspm_rtrace_nproc"] = configured_nproc
+        path, surface_flux_payload = write_radiance_receiver_plant_surface_flux_artifact(
+            config.runtime_state_root,
+            scene,
+            samples,
+            aggregate_par_densities,
+            receiver_scale_multiplier=1.0,
+            source_octree="banded_5",
+            receiver_granularity=receiver_granularity,
+            receiver_trace_count=active_trace_count,
+            target_ppfd_umol_m2_s=target_ppfd,
+            target_tolerance_umol_m2_s=target_tolerance,
+            target_classification_ppfd_map_path=ppfd_map,
+            leaf_material_metadata=banded_metadata,
+            return_payload=True,
+        )
+        receiver_artifact_path = _write_precomputed_plant_receiver_runtime_artifact(
+            config,
+            surface_flux_payload,
+            value_semantics="fixed_output_plant_ppfd"
+            if spectral_mode == "hps"
+            else "full_output_raw_plant_ppfd",
+            receiver_samples=samples
+            if receiver_granularity == "mesh_patch"
+            else None,
+            receiver_densities=aggregate_par_densities
+            if receiver_granularity == "mesh_patch"
+            else None,
+            receiver_scale_multiplier=receiver_scale_multiplier,
+        )
+        if scalar_precompute_only:
+            _clear_fspm_spectral_biology_artifacts(config.runtime_state_root)
+            write_fspm_panel_metrics_artifact(
+                config.runtime_state_root.parent,
+                surface=surface_flux_payload,
+            )
+        else:
+            spectral_absorption_path, spectral_absorption_payload = write_banded_plant_spectral_absorption_artifact(
+                config.runtime_state_root,
+                surface_flux_payload,
+                band_surface_rows,
+                banded_metadata,
+                return_payload=True,
+            )
+            spectral_path, spectral_payload = write_banded_plant_spectral_response_artifact(
+                config.runtime_state_root,
+                spectral_absorption_payload,
+                return_payload=True,
+            )
+            photosynthesis_path, photosynthesis_payload = write_plant_photosynthesis_response_artifact(
+                config.runtime_state_root,
+                spectral_payload,
+                _photosynthesis_parameters_from_env(config.env),
+                return_payload=True,
+            )
+            photoreceptor_path, photoreceptor_payload = write_plant_photoreceptor_exposure_artifact(
+                config.runtime_state_root,
+                spectral_payload,
+                return_payload=True,
+            )
+            photomorphogenesis_path, photomorphogenesis_payload = write_plant_photomorphogenesis_response_artifact(
+                config.runtime_state_root,
+                spectral_payload,
+                photosynthesis_payload,
+                _photomorphogenesis_parameters_from_env(config.env),
+                return_payload=True,
+            )
+            write_fspm_panel_metrics_artifact(
+                config.runtime_state_root.parent,
+                surface=surface_flux_payload,
+                spectral=spectral_payload,
+                spectral_absorption=spectral_absorption_payload,
+                photosynthesis=photosynthesis_payload,
+                photoreceptor=photoreceptor_payload,
+                morphology=photomorphogenesis_payload,
+            )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"ERROR: failed to write banded FSPM plant receiver artifacts: {exc}", file=sys.stderr)
+        return int(RadianceScriptExit.VALIDATION)
+    finally:
+        receiver_input.unlink(missing_ok=True)
+
+    print("FSPM plant surface-flux artifact:")
+    print(f"  • {path}")
+    print("FSPM precomputed plant receiver artifact:")
+    print(f"  • {receiver_artifact_path}")
+    print("  method: radiance_leaf_surface_receiver_sampling_v1")
+    print(f"  receiver_granularity: {receiver_granularity}")
+    print(f"  receiver_sample_count: {len(samples)}")
+    print(f"  spectral_transport_mode: {SPECTRAL_TRANSPORT_MODE_BANDED_5}")
+    print(f"  active_band_receiver_traces: {active_trace_count}")
+    print("  note: banded receiver sampling does not alter heatmap uniformity.")
+    if scalar_precompute_only:
+        print("FSPM scalar precomputed mode:")
+        print("  skipped modeled spectral/biology artifacts")
+        return int(RadianceScriptExit.OK)
+    print("FSPM plant spectral-absorption artifact:")
+    print(f"  • {spectral_absorption_path}")
+    print("  method: banded_5_radiance_leaf_receiver_transport_v1")
+    print("FSPM plant spectral-response artifact:")
+    print(f"  • {spectral_path}")
+    print(f"  method: {spectral_payload.get('method')}")
+    print(f"  source: {spectral_payload.get('source_artifact')}")
+    print("FSPM plant photosynthesis-response artifact:")
+    print(f"  • {photosynthesis_path}")
+    print("FSPM plant photoreceptor-exposure artifact:")
+    print(f"  • {photoreceptor_path}")
+    print("FSPM plant photomorphogenic-response artifact:")
+    print(f"  • {photomorphogenesis_path}")
+    return int(RadianceScriptExit.OK)
+
+
+
+def _write_optional_plant_surface_flux_artifact(
+    config: RuntimeConfig,
+    plant_artifacts: PlantArtifactPaths | None,
+    ppfd_map: Path,
+    *,
+    octree: Path,
+    mode: str,
+    nthreads: int,
+    receiver_scale_multiplier: float = 1.0,
+    leaf_material_metadata: Mapping[str, Any] | None = None,
+    room: Path | None = None,
+    emitter_file: Path | None = None,
+    static_room_oct: Path | None = None,
+) -> int:
+    scalar_precompute_only = _fspm_precomputed_scalar_only(config.env)
+    if _fspm_basis_extraction_active(config.env):
+        _clear_fspm_runtime_artifacts(config.runtime_state_root)
+        print("FSPM plant receiver analysis skipped during SMD basis extraction.")
+        return int(RadianceScriptExit.OK)
+    if plant_artifacts is None:
+        _clear_fspm_runtime_artifacts(config.runtime_state_root)
+        return int(RadianceScriptExit.OK)
+    spectral_transport_mode = normalize_fspm_spectral_transport_mode(
+        config.env.get(FSPM_SPECTRAL_TRANSPORT_MODE_ENV)
+    )
+    if spectral_transport_mode == SPECTRAL_TRANSPORT_MODE_BANDED_5:
+        if room is None or emitter_file is None:
+            print(
+                "ERROR: banded FSPM receiver transport requires room and emitter scene inputs.",
+                file=sys.stderr,
+            )
+            return int(RadianceScriptExit.VALIDATION)
+        return _write_banded_plant_surface_flux_artifact(
+            config,
+            plant_artifacts,
+            ppfd_map,
+            room=room,
+            emitter_file=emitter_file,
+            static_room_oct=static_room_oct,
+            mode=mode,
+            nthreads=nthreads,
+            receiver_scale_multiplier=receiver_scale_multiplier,
+        )
+
+    plant_config = _fspm_plant_config_from_env(config.env)
+    target_ppfd, target_tolerance = _fspm_target_settings_from_env(config.env)
+    scene = generate_plant_scene(plant_config)
+    try:
+        receiver_granularity = normalize_receiver_granularity(
+            config.env.get(FSPM_RECEIVER_GRANULARITY_ENV)
+        )
+        samples = build_radiance_receiver_samples(
+            scene,
+            receiver_granularity=receiver_granularity,
+        )
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return int(RadianceScriptExit.VALIDATION)
+
+    receiver_input = config.cache_root / f"plant_surface_receivers_{os.getpid()}_{secrets.token_hex(6)}.pts"
+    receiver_rgb = config.cache_root / f"plant_surface_receivers_{os.getpid()}_{secrets.token_hex(6)}.rgb"
+    receiver_input.write_text(receiver_sample_input_text(samples), encoding="utf-8")
+
+    trace_exit = _trace_plant_surface_receivers(
+        config,
+        receiver_input_path=receiver_input,
+        receiver_rgb_path=receiver_rgb,
+        octree=octree,
+        options=_radiance_options(
+            mode,
+            _fresh_ambient_cache(config, "amb_plant_receivers"),
+        ),
+        nthreads=nthreads,
+    )
+    if trace_exit != 0:
+        return trace_exit
+
+    try:
+        receiver_densities = parse_rtrace_receiver_output(receiver_rgb.read_text(encoding="utf-8"))
+        path, surface_flux_payload = write_radiance_receiver_plant_surface_flux_artifact(
+            config.runtime_state_root,
+            scene,
+            samples,
+            receiver_densities,
+            receiver_scale_multiplier=receiver_scale_multiplier,
+            source_octree=str(octree),
+            receiver_granularity=receiver_granularity,
+            target_ppfd_umol_m2_s=target_ppfd,
+            target_tolerance_umol_m2_s=target_tolerance,
+            target_classification_ppfd_map_path=ppfd_map,
+            leaf_material_metadata=leaf_material_metadata,
+            return_payload=True,
+        )
+        spectral_mode = _infer_fixture_spectral_mode(config.env, octree=octree, mode=mode)
+        receiver_artifact_path = _write_precomputed_plant_receiver_runtime_artifact(
+            config,
+            surface_flux_payload,
+            value_semantics="fixed_output_plant_ppfd"
+            if spectral_mode == "hps"
+            else "full_output_raw_plant_ppfd",
+            receiver_samples=samples
+            if receiver_granularity == "mesh_patch"
+            else None,
+            receiver_densities=receiver_densities
+            if receiver_granularity == "mesh_patch"
+            else None,
+            receiver_scale_multiplier=receiver_scale_multiplier,
+        )
+        if scalar_precompute_only:
+            _clear_fspm_spectral_biology_artifacts(config.runtime_state_root)
+            write_fspm_panel_metrics_artifact(
+                config.runtime_state_root.parent,
+                surface=surface_flux_payload,
+            )
+        else:
+            spectral_distribution = _spectral_distribution_from_env(
+                config.env,
+                mode=spectral_mode,
+                curve_data_root=config.curve_data_root,
+            )
+            spectral_absorption_result = _write_optional_spectral_absorption_artifact(
+                config,
+                surface_flux_payload,
+                spectral_distribution,
+                spectral_mode=spectral_mode,
+                return_payload=True,
+            )
+            if spectral_absorption_result is None:
+                spectral_absorption_path = None
+                spectral_absorption_payload = None
+            else:
+                spectral_absorption_path, spectral_absorption_payload = spectral_absorption_result
+            spectral_path, spectral_payload = write_plant_spectral_response_artifact(
+                config.runtime_state_root,
+                surface_flux_payload,
+                default_leafy_green_spectral_bands(),
+                spectral_distribution,
+                return_payload=True,
+            )
+            photosynthesis_path, photosynthesis_payload = write_plant_photosynthesis_response_artifact(
+                config.runtime_state_root,
+                spectral_payload,
+                _photosynthesis_parameters_from_env(config.env),
+                return_payload=True,
+            )
+            photoreceptor_path, photoreceptor_payload = write_plant_photoreceptor_exposure_artifact(
+                config.runtime_state_root,
+                spectral_payload,
+                return_payload=True,
+            )
+            photomorphogenesis_path, photomorphogenesis_payload = write_plant_photomorphogenesis_response_artifact(
+                config.runtime_state_root,
+                spectral_payload,
+                photosynthesis_payload,
+                _photomorphogenesis_parameters_from_env(config.env),
+                return_payload=True,
+            )
+            write_fspm_panel_metrics_artifact(
+                config.runtime_state_root.parent,
+                surface=surface_flux_payload,
+                spectral=spectral_payload,
+                spectral_absorption=spectral_absorption_payload,
+                photosynthesis=photosynthesis_payload,
+                photoreceptor=photoreceptor_payload,
+                morphology=photomorphogenesis_payload,
+            )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"ERROR: failed to write FSPM plant receiver surface flux: {exc}", file=sys.stderr)
+        return int(RadianceScriptExit.VALIDATION)
+    finally:
+        receiver_input.unlink(missing_ok=True)
+        receiver_rgb.unlink(missing_ok=True)
+
+    print("FSPM plant surface-flux artifact:")
+    print(f"  • {path}")
+    print("FSPM precomputed plant receiver artifact:")
+    print(f"  • {receiver_artifact_path}")
+    print(f"  method: {RADIANCE_RECEIVER_METHOD}")
+    print(f"  receiver_granularity: {receiver_granularity}")
+    print(f"  receiver_sample_count: {len(samples)}")
+    print("  note: Radiance receiver sampling does not alter heatmap uniformity.")
+    if scalar_precompute_only:
+        print("FSPM scalar precomputed mode:")
+        print("  skipped modeled spectral/biology artifacts")
+        return int(RadianceScriptExit.OK)
+    if spectral_absorption_path is not None:
+        print("FSPM plant spectral-absorption artifact:")
+        print(f"  • {spectral_absorption_path}")
+        print("  method: wavelength_binned_leaf_optical_profile_absorption_v1")
+        print("  note: wavelength-binned absorption uses the explicitly selected leaf optical profile.")
+    print("FSPM plant spectral-response artifact:")
+    print(f"  • {spectral_path}")
+    print("  method: surface_flux_band_weighted_leaf_absorptance_v1")
+    print(f"  distribution: {spectral_distribution.distribution_id}")
+    print(f"  source: {spectral_distribution.source}")
+    print("  note: band-level absorption uses explicit spectral photon fractions and leaf optics assumptions.")
+    print("FSPM plant photosynthesis-response artifact:")
+    print(f"  • {photosynthesis_path}")
+    print("  method: absorbed_par_non_rectangular_hyperbola_v2")
+    print("  note: photosynthetic response potential is based on absorbed PAR and does not predict crop output.")
+    print("FSPM plant photoreceptor-exposure artifact:")
+    print(f"  • {photoreceptor_path}")
+    print("  method: spectral_band_exposure_inputs_v1")
+    print("  note: reports spectral exposure inputs only.")
+    print("FSPM plant photomorphogenic-response artifact:")
+    print(f"  • {photomorphogenesis_path}")
+    print("  method: spectral_ratio_morphology_response_v1")
+    print("  note: photomorphogenic response potential is based on spectral ratios and does not predict crop output.")
+    return int(RadianceScriptExit.OK)
+
+
+def _octree_scene_inputs(
+    *,
+    room: Path,
+    emitter_file: Path,
+    plant_rad: Path | None = None,
+    static_room_oct: Path | None = None,
+) -> list[str]:
+    """Build baseline PPFD scene inputs.
+
+    Plant geometry is intentionally excluded from this octree. FSPM plant
+    artifacts are a separate viewer/analysis layer; they must not shadow or
+    otherwise alter the baseline fixture uniformity field.
+    """
+
+    _ = plant_rad
+    if static_room_oct and static_room_oct.is_file():
+        return ["-f", "-i", str(static_room_oct), str(emitter_file)]
+    return ["-f", str(room), str(emitter_file)]
 
 
 def _clamp_0_1(value: float) -> float:
@@ -975,13 +2557,61 @@ def _write_snake_and_dirs(sensor_path: Path, snake_path: Path, snake_os_path: Pa
                 dirs.write(f"{x:.6f} {y:.6f} {z:.6f} 0 0 1\n")
 
 
+BASELINE_PPFD_TRANSPORT_BASIS = "canopy_plane_scalar_par_ppfd"
+BASELINE_PPFD_RGB_DECODE_METHOD = "grey_channel_average_after_equality_assertion"
+BASELINE_SOURCE_CHANNEL_POLICY = "r_equals_g_equals_b_scalar_par_ppfd_carrier"
+PPFD_CONVERSION_BASIS = "radiance_rgb_values_are_scalar_par_ppfd_no_179_luminous_conversion"
+BASELINE_PPFD_PHOTOPIC_LUMINANCE_WEIGHTING_AVOIDED = True
+BASELINE_PPFD_RGB_EQUALITY_ABS_TOL = 1e-6
+BASELINE_PPFD_RGB_EQUALITY_REL_TOL = 1e-6
+
+
+def _grey_channel_ppfd_from_rgb(
+    red: float,
+    green: float,
+    blue: float,
+    *,
+    row_number: int,
+) -> float:
+    if not (
+        math.isclose(
+            red,
+            green,
+            rel_tol=BASELINE_PPFD_RGB_EQUALITY_REL_TOL,
+            abs_tol=BASELINE_PPFD_RGB_EQUALITY_ABS_TOL,
+        )
+        and math.isclose(
+            red,
+            blue,
+            rel_tol=BASELINE_PPFD_RGB_EQUALITY_REL_TOL,
+            abs_tol=BASELINE_PPFD_RGB_EQUALITY_ABS_TOL,
+        )
+    ):
+        raise ValueError(
+            "Baseline PPFD rtrace output must use grey scalar channels "
+            f"(R=G=B). Row {row_number} had R={red:.12g}, "
+            f"G={green:.12g}, B={blue:.12g}."
+        )
+    return (red + green + blue) / 3.0
+
+
 def _aggregate_rgb_to_ppfd(snake_os_path: Path, rgb_path: Path, out_map: Path, oversample: int) -> None:
     snake = _read_points(snake_os_path)
     rgb_values: list[float] = []
-    for line in rgb_path.read_text(encoding="utf-8").splitlines():
+    for row_number, line in enumerate(rgb_path.read_text(encoding="utf-8").splitlines(), start=1):
         parts = line.split()
         if len(parts) >= 3:
-            rgb_values.append((float(parts[-3]) + float(parts[-2]) + float(parts[-1])) / 3.0)
+            red = float(parts[-3])
+            green = float(parts[-2])
+            blue = float(parts[-1])
+            rgb_values.append(
+                _grey_channel_ppfd_from_rgb(
+                    red,
+                    green,
+                    blue,
+                    row_number=row_number,
+                )
+            )
     sums: dict[int, float] = {}
     counts: dict[int, int] = {}
     coords: dict[int, tuple[float, float, float]] = {}
@@ -1123,7 +2753,27 @@ def _trace_ppfd(
             )
         )
         return propagated
-    _aggregate_rgb_to_ppfd(snake_os, rgb_path, out_map, oversample)
+    try:
+        _aggregate_rgb_to_ppfd(snake_os, rgb_path, out_map, oversample)
+    except ValueError as exc:
+        rgb_path.unlink(missing_ok=True)
+        _print_event(
+            ScriptEvent(
+                "error",
+                "radiance.ppfd_rgb_decode.invalid",
+                str(exc),
+                {
+                    "baseline_ppfd_transport_basis": BASELINE_PPFD_TRANSPORT_BASIS,
+                    "baseline_ppfd_rgb_decode_method": BASELINE_PPFD_RGB_DECODE_METHOD,
+                    "baseline_source_channel_policy": BASELINE_SOURCE_CHANNEL_POLICY,
+                    "ppfd_conversion_basis": PPFD_CONVERSION_BASIS,
+                    "photopic_luminance_weighting_avoided": (
+                        BASELINE_PPFD_PHOTOPIC_LUMINANCE_WEIGHTING_AVOIDED
+                    ),
+                },
+            )
+        )
+        return int(RadianceScriptExit.VALIDATION)
     rgb_path.unlink(missing_ok=True)
     _print_event(ScriptEvent("info", "command.succeeded", "command succeeded", {"command": "rtrace", "exit_code": 0}))
     print(f"✔ Wrote {out_map}")
@@ -1244,6 +2894,78 @@ def generate_precomputed_bundles(argv: Sequence[str] = (), raw_env: Mapping[str,
     )
 
 
+def _smd_plant_receiver_basis_enabled(env: Mapping[str, str]) -> bool:
+    return _bool_env(env, "FSPM_PRECOMPUTE_PLANT_RECEIVER_BASIS")
+
+
+def _move_smd_plant_receiver_basis_column(
+    config: RuntimeConfig,
+    basis_dir: Path,
+    column_index: int,
+) -> None:
+    source = config.runtime_state_root / PRECOMPUTED_PLANT_RECEIVER_JSON_FILENAME
+    if not source.is_file():
+        raise RuntimeError(
+            "Plant receiver basis generation expected "
+            f"{PRECOMPUTED_PLANT_RECEIVER_JSON_FILENAME} after basis column "
+            f"{column_index}."
+        )
+    target = basis_dir / f"plant_receiver_col_{int(column_index):04d}.json"
+    shutil.move(str(source), str(target))
+
+
+def _smd_basis_column_order_metadata(manifest: Mapping[str, Any]) -> dict[str, Any]:
+    keys = (
+        "variables",
+        "n_vars",
+        "n_rings",
+        "layout_modules",
+        "ring_indices",
+        "module_indices",
+        "outer_ring_index",
+        "outer_ring_indices",
+        "variable_groups",
+        "basis_unit_w_per_module",
+        "basis_backend",
+        "basis_backend_config",
+        "basis_matrix_sha256",
+    )
+    return {key: manifest.get(key) for key in keys if key in manifest}
+
+
+def _write_smd_plant_receiver_basis_outputs(
+    config: RuntimeConfig,
+    basis_dir: Path,
+    basis_manifest: Mapping[str, Any],
+) -> None:
+    column_files = sorted(
+        basis_dir.glob("plant_receiver_col_*.json"),
+        key=lambda path: int(path.stem.split("_")[-1]),
+    )
+    expected_columns = int(basis_manifest.get("n_vars", 0) or 0)
+    if len(column_files) != expected_columns:
+        raise RuntimeError(
+            "Plant receiver basis column count mismatch: "
+            f"expected {expected_columns}, got {len(column_files)}."
+        )
+    column_payloads = [
+        json.loads(path.read_text(encoding="utf-8")) for path in column_files
+    ]
+    receiver_payload, plant_basis = build_smd_precomputed_plant_receiver_basis_payload(
+        column_payloads,
+        basis_metadata=_smd_basis_column_order_metadata(basis_manifest),
+    )
+    if plant_basis.shape[1] != expected_columns:
+        raise RuntimeError(
+            "Plant receiver basis column count does not match canopy basis."
+        )
+    np.save(config.basis_output_root / "plant_receiver_basis_A.npy", plant_basis)
+    write_precomputed_plant_receiver_payload(
+        config.basis_output_root / PRECOMPUTED_PLANT_RECEIVER_JSON_FILENAME,
+        receiver_payload,
+    )
+
+
 def _prepare_static_scene(config: RuntimeConfig, *, room: Path, sensors: Path, reuse: bool) -> int:
     if reuse and room.is_file() and sensors.is_file():
         print("Reusing static room and sensor grid.")
@@ -1290,8 +3012,13 @@ def run_simulation_smd(raw_env: Mapping[str, str] | None = None) -> int:
         if not required.is_file():
             print(f"ERROR: {required} not found.", file=sys.stderr)
             return int(RadianceScriptExit.VALIDATION)
+    plant_exit, plant_artifacts = _prepare_optional_plant_artifacts_or_report(config)
+    if plant_exit != 0:
+        return plant_exit
+    plant_rad = plant_artifacts.radiance if plant_artifacts else None
     print("Geometry files:")
     print(f"  • {room}")
+    _print_optional_plant_artifact_note(plant_artifacts)
     print("Emitters:")
     print(f"  • {emitter_file}")
     mode = _env_text(config.env, "MODE", "standard")
@@ -1302,10 +3029,27 @@ def run_simulation_smd(raw_env: Mapping[str, str] | None = None) -> int:
     static_room_oct = Path(config.env.get("STATIC_ROOM_OCT", ""))
     if str(static_room_oct) and static_room_oct.is_file():
         print("Building octree from frozen room...")
-        oct_exit = _build_octree(config, ["-f", "-i", str(static_room_oct), str(emitter_file)], octree)
+        oct_exit = _build_octree(
+            config,
+            _octree_scene_inputs(
+                room=room,
+                emitter_file=emitter_file,
+                plant_rad=plant_rad,
+                static_room_oct=static_room_oct,
+            ),
+            octree,
+        )
     else:
         print("Building octree...")
-        oct_exit = _build_octree(config, ["-f", str(room), str(emitter_file)], octree)
+        oct_exit = _build_octree(
+            config,
+            _octree_scene_inputs(
+                room=room,
+                emitter_file=emitter_file,
+                plant_rad=plant_rad,
+            ),
+            octree,
+        )
     if oct_exit != 0:
         return oct_exit
     oversample = int(_env_text(config.env, "OS", "4"))
@@ -1340,6 +3084,54 @@ def run_simulation_smd(raw_env: Mapping[str, str] | None = None) -> int:
         return sym_exit
     if _bool_env(config.env, "LOG_CAP_METRICS", "1"):
         _print_cap_metrics(config, cap=config.env.get("SETPOINT_PPFD") or config.env.get("TARGET_PPFD", ""), watts=None, emitted_ppf=None)
+    fspm_receiver_octree = rad_tmp / "smd_fspm_receiver.oct"
+    receiver_octree = octree
+    leaf_material_metadata: Mapping[str, Any] | None = None
+    spectral_transport_mode = normalize_fspm_spectral_transport_mode(
+        config.env.get(FSPM_SPECTRAL_TRANSPORT_MODE_ENV)
+    )
+    if (
+        plant_artifacts is not None
+        and spectral_transport_mode != SPECTRAL_TRANSPORT_MODE_BANDED_5
+    ):
+        receiver_spectral_mode = _infer_fixture_spectral_mode(
+            config.env,
+            octree=octree,
+            mode=mode,
+        )
+        material_exit, receiver_material = _prepare_fspm_receiver_plant_material_or_report(
+            config,
+            plant_artifacts,
+            spectral_mode=receiver_spectral_mode,
+        )
+        if material_exit != 0 or receiver_material is None:
+            return material_exit
+        receiver_oct_exit = _build_fspm_receiver_octree(
+            config,
+            room=room,
+            emitter_file=emitter_file,
+            plant_rad=receiver_material.radiance_path,
+            out_path=fspm_receiver_octree,
+            static_room_oct=static_room_oct if str(static_room_oct) else None,
+        )
+        if receiver_oct_exit != 0:
+            return receiver_oct_exit
+        receiver_octree = fspm_receiver_octree
+        leaf_material_metadata = receiver_material.metadata
+    surface_flux_exit = _write_optional_plant_surface_flux_artifact(
+        config,
+        plant_artifacts,
+        ppfd_map,
+        octree=receiver_octree,
+        mode=mode,
+        nthreads=nthreads,
+        leaf_material_metadata=leaf_material_metadata,
+        room=room,
+        emitter_file=emitter_file,
+        static_room_oct=static_room_oct if str(static_room_oct) else None,
+    )
+    if surface_flux_exit != 0:
+        return surface_flux_exit
     return int(RadianceScriptExit.OK)
 
 
@@ -1356,6 +3148,7 @@ def _run_hps_pass(
     nthreads: int,
     oversample: int,
     options_base: Sequence[str],
+    plant_rad: Path | None,
 ) -> int:
     env = {
         "HPS_FIXTURE_PPF": config.env["HPS_FIXTURE_PPF"],
@@ -1375,7 +3168,15 @@ def _run_hps_pass(
     print("Emitters:")
     print(f"  • {emitter_file}")
     print("Building octree...")
-    oct_exit = _build_octree(config, ["-f", str(room), str(emitter_file)], octree)
+    oct_exit = _build_octree(
+        config,
+        _octree_scene_inputs(
+            room=room,
+            emitter_file=emitter_file,
+            plant_rad=plant_rad,
+        ),
+        octree,
+    )
     if oct_exit != 0:
         return oct_exit
     map_tmp = config.cache_root / f".ppfd_map_tmp_{tag}.txt"
@@ -1431,6 +3232,11 @@ def run_simulation_hps(raw_env: Mapping[str, str] | None = None) -> int:
         return grid_exit
     print("Geometry files:")
     print(f"  • {room}")
+    plant_exit, plant_artifacts = _prepare_optional_plant_artifacts_or_report(config)
+    if plant_exit != 0:
+        return plant_exit
+    plant_rad = plant_artifacts.radiance if plant_artifacts else None
+    _print_optional_plant_artifact_note(plant_artifacts)
     mode = _env_text(config.env, "MODE", "standard")
     nthreads = 1 if mode == "direct" else _cpu_count()
     oversample = int(_env_text(config.env, "OS", "4"))
@@ -1457,6 +3263,7 @@ def run_simulation_hps(raw_env: Mapping[str, str] | None = None) -> int:
         nthreads=nthreads,
         oversample=oversample,
         options_base=_radiance_options(mode),
+        plant_rad=plant_rad,
     )
     if pass_exit != 0:
         return pass_exit
@@ -1499,6 +3306,53 @@ def run_simulation_hps(raw_env: Mapping[str, str] | None = None) -> int:
     )
     if _bool_env(config.env, "LOG_CAP_METRICS", "1"):
         _print_cap_metrics(config, cap=config.env.get("SETPOINT_PPFD") or target, watts=total_watts, emitted_ppf=total_ppf)
+    emitter_file = config.runtime_state_root / "emitters_hps_ALL_umol.rad"
+    fspm_receiver_octree = config.cache_root / "hps_fspm_receiver.oct"
+    receiver_octree = octree
+    leaf_material_metadata: Mapping[str, Any] | None = None
+    spectral_transport_mode = normalize_fspm_spectral_transport_mode(
+        config.env.get(FSPM_SPECTRAL_TRANSPORT_MODE_ENV)
+    )
+    if (
+        plant_artifacts is not None
+        and spectral_transport_mode != SPECTRAL_TRANSPORT_MODE_BANDED_5
+    ):
+        receiver_spectral_mode = _infer_fixture_spectral_mode(
+            config.env,
+            octree=octree,
+            mode=mode,
+        )
+        material_exit, receiver_material = _prepare_fspm_receiver_plant_material_or_report(
+            config,
+            plant_artifacts,
+            spectral_mode=receiver_spectral_mode,
+        )
+        if material_exit != 0 or receiver_material is None:
+            return material_exit
+        receiver_oct_exit = _build_fspm_receiver_octree(
+            config,
+            room=room,
+            emitter_file=emitter_file,
+            plant_rad=receiver_material.radiance_path,
+            out_path=fspm_receiver_octree,
+        )
+        if receiver_oct_exit != 0:
+            return receiver_oct_exit
+        receiver_octree = fspm_receiver_octree
+        leaf_material_metadata = receiver_material.metadata
+    surface_flux_exit = _write_optional_plant_surface_flux_artifact(
+        config,
+        plant_artifacts,
+        ppfd_map,
+        octree=receiver_octree,
+        mode=mode,
+        nthreads=nthreads,
+        leaf_material_metadata=leaf_material_metadata,
+        room=room,
+        emitter_file=emitter_file,
+    )
+    if surface_flux_exit != 0:
+        return surface_flux_exit
     return int(RadianceScriptExit.OK)
 
 
@@ -1535,6 +3389,7 @@ def _run_spydr_pass(
     oversample: int,
     options_base: Sequence[str],
     static_room_oct: Path | None,
+    plant_rad: Path | None,
 ) -> int:
     emitter_exit = _run_python_module(
         config,
@@ -1558,10 +3413,27 @@ def _run_spydr_pass(
     print("  • conventional emitter Radiance file")
     if static_room_oct and static_room_oct.is_file():
         print("Building octree from frozen room...")
-        oct_exit = _build_octree(config, ["-f", "-i", str(static_room_oct), str(emitter_file)], octree)
+        oct_exit = _build_octree(
+            config,
+            _octree_scene_inputs(
+                room=room,
+                emitter_file=emitter_file,
+                plant_rad=plant_rad,
+                static_room_oct=static_room_oct,
+            ),
+            octree,
+        )
     else:
         print("Building octree...")
-        oct_exit = _build_octree(config, ["-f", str(room), str(emitter_file)], octree)
+        oct_exit = _build_octree(
+            config,
+            _octree_scene_inputs(
+                room=room,
+                emitter_file=emitter_file,
+                plant_rad=plant_rad,
+            ),
+            octree,
+        )
     if oct_exit != 0:
         return oct_exit
     map_tmp = config.cache_root / f".ppfd_map_tmp_{tag}.txt"
@@ -1630,6 +3502,11 @@ def run_simulation_spydr3(raw_env: Mapping[str, str] | None = None) -> int:
         return grid_exit
     print("Geometry files:")
     print(f"  • {room}")
+    plant_exit, plant_artifacts = _prepare_optional_plant_artifacts_or_report(config)
+    if plant_exit != 0:
+        return plant_exit
+    plant_rad = plant_artifacts.radiance if plant_artifacts else None
+    _print_optional_plant_artifact_note(plant_artifacts)
     mode = config.env["MODE"]
     nthreads = 1 if mode == "direct" else _cpu_count()
     oversample = int(config.env["OS"])
@@ -1662,6 +3539,7 @@ def run_simulation_spydr3(raw_env: Mapping[str, str] | None = None) -> int:
         oversample=oversample,
         options_base=_radiance_options(mode),
         static_room_oct=static_room_oct,
+        plant_rad=plant_rad,
     )
     if pass_exit != 0:
         return pass_exit
@@ -1670,6 +3548,7 @@ def run_simulation_spydr3(raw_env: Mapping[str, str] | None = None) -> int:
     print(f"Pass 1 mean PPFD: {mean1:.6f}")
     print(f"Pass 1 peak PPFD: {peak1:.6f}")
     final_eff = eff_scale
+    receiver_scale_multiplier = 1.0
     if _bool_env(config.env, "AUTO_DIM") and target:
         reference = peak1 if config.env["AUTO_DIM_TARGET"] == "peak" else mean1
         label = "peak-cap" if config.env["AUTO_DIM_TARGET"] == "peak" else "mean-target"
@@ -1681,6 +3560,7 @@ def run_simulation_spydr3(raw_env: Mapping[str, str] | None = None) -> int:
             if abs(final_eff - eff_scale) > 1e-9:
                 if config.env["AUTO_DIM_MODE"] == "scale" and eff_scale > 0:
                     scale_multiplier = final_eff / eff_scale
+                    receiver_scale_multiplier = scale_multiplier
                     print(f"Scale-only {label}: multiplier={scale_multiplier:.8f} (no second Radiance pass)")
                     _scale_ppfd_map(pass1, ppfd_map, scale_multiplier)
                     print(f"Scaled mean PPFD: {_ppfd_mean(ppfd_map):.6f}")
@@ -1700,6 +3580,7 @@ def run_simulation_spydr3(raw_env: Mapping[str, str] | None = None) -> int:
                         oversample=oversample,
                         options_base=_radiance_options(mode),
                         static_room_oct=static_room_oct,
+                        plant_rad=plant_rad,
                     )
                     if pass_exit != 0:
                         return pass_exit
@@ -1755,6 +3636,56 @@ def run_simulation_spydr3(raw_env: Mapping[str, str] | None = None) -> int:
     )
     if _bool_env(config.env, "LOG_CAP_METRICS", "1"):
         _print_cap_metrics(config, cap=config.env.get("SETPOINT_PPFD") or target, watts=total_watts, emitted_ppf=total_ppf)
+    emitter_file = config.runtime_state_root / "emitters_spydr3_ALL_umol.rad"
+    fspm_receiver_octree = config.cache_root / "spydr_fspm_receiver.oct"
+    receiver_octree = config.cache_root / "spydr_scene.oct"
+    leaf_material_metadata: Mapping[str, Any] | None = None
+    spectral_transport_mode = normalize_fspm_spectral_transport_mode(
+        config.env.get(FSPM_SPECTRAL_TRANSPORT_MODE_ENV)
+    )
+    if (
+        plant_artifacts is not None
+        and spectral_transport_mode != SPECTRAL_TRANSPORT_MODE_BANDED_5
+    ):
+        receiver_spectral_mode = _infer_fixture_spectral_mode(
+            config.env,
+            octree=receiver_octree,
+            mode=mode,
+        )
+        material_exit, receiver_material = _prepare_fspm_receiver_plant_material_or_report(
+            config,
+            plant_artifacts,
+            spectral_mode=receiver_spectral_mode,
+        )
+        if material_exit != 0 or receiver_material is None:
+            return material_exit
+        receiver_oct_exit = _build_fspm_receiver_octree(
+            config,
+            room=room,
+            emitter_file=emitter_file,
+            plant_rad=receiver_material.radiance_path,
+            out_path=fspm_receiver_octree,
+            static_room_oct=static_room_oct,
+        )
+        if receiver_oct_exit != 0:
+            return receiver_oct_exit
+        receiver_octree = fspm_receiver_octree
+        leaf_material_metadata = receiver_material.metadata
+    surface_flux_exit = _write_optional_plant_surface_flux_artifact(
+        config,
+        plant_artifacts,
+        ppfd_map,
+        octree=receiver_octree,
+        mode=mode,
+        nthreads=nthreads,
+        receiver_scale_multiplier=receiver_scale_multiplier,
+        leaf_material_metadata=leaf_material_metadata,
+        room=room,
+        emitter_file=emitter_file,
+        static_room_oct=static_room_oct,
+    )
+    if surface_flux_exit != 0:
+        return surface_flux_exit
     print("Done.")
     return int(RadianceScriptExit.OK)
 
@@ -1810,15 +3741,30 @@ def run_basis_extraction(raw_env: Mapping[str, str] | None = None) -> int:
     oversample = int(_env_text(config.env, "OS", "4"))
     nthreads = int(_env_text(config.env, "NTHREADS", str(_cpu_count())))
     basis_backend = canonicalize_basis_backend(_env_text(config.env, "SMD_BASIS_BACKEND", "rtrace"))
+    plant_receiver_basis_enabled = _smd_plant_receiver_basis_enabled(config.env)
     config.env.update({"MODE": mode, "OS": str(oversample), "NTHREADS": str(nthreads), "BASIS_UNIT_W": str(basis_unit_w), "SMD_BASIS_BACKEND": basis_backend})
     if basis_backend != "rtrace" and (smd_all == "1" or smd_outer == "1"):
         print(f"ERROR: basis backend {basis_backend} only supports SMD ring basis mode.", file=sys.stderr)
         return int(RadianceScriptExit.VALIDATION)
+    if plant_receiver_basis_enabled and basis_backend != "rtrace":
+        print(
+            "ERROR: plant receiver basis generation currently requires the rtrace SMD basis backend.",
+            file=sys.stderr,
+        )
+        return int(RadianceScriptExit.VALIDATION)
     _ensure_dirs(basis_dir, basis_rad_tmp)
-    for pattern in ("basis_ring_*.txt", "basis_col_*.txt"):
+    for pattern in ("basis_ring_*.txt", "basis_col_*.txt", "plant_receiver_col_*.json"):
         for path in basis_dir.glob(pattern):
             path.unlink(missing_ok=True)
-    for path in (config.basis_output_root / "basis_A.npy", config.basis_output_root / "basis_A.csv", config.basis_output_root / "basis_manifest.json", basis_build_log, basis_backend_log):
+    for path in (
+        config.basis_output_root / "basis_A.npy",
+        config.basis_output_root / "basis_A.csv",
+        config.basis_output_root / "basis_manifest.json",
+        config.basis_output_root / "plant_receiver_basis_A.npy",
+        config.basis_output_root / PRECOMPUTED_PLANT_RECEIVER_JSON_FILENAME,
+        basis_build_log,
+        basis_backend_log,
+    ):
         path.unlink(missing_ok=True)
     print(f"RINGS: 0..{ring_n} (total {rings})")
     print(f"MODULES: {module_count}")
@@ -1888,6 +3834,11 @@ def run_basis_extraction(raw_env: Mapping[str, str] | None = None) -> int:
             "SYM": "0",
             "NTHREADS": str(nthreads),
         }
+        if plant_receiver_basis_enabled:
+            basis_env_common["FSPM_PRECOMPUTE_PLANT_RECEIVER_BASIS"] = "1"
+        else:
+            basis_env_common["FSPM_PLANTS_ENABLED"] = "0"
+            basis_env_common["FSPM_SKIP_DURING_BASIS"] = "1"
         col = 0
         if smd_all == "1":
             command_template = f"python -m rad_rebuild.radiance.cli.scripts run-simulation-smd SMD_BASIS_MODULE_IDX=<module_idx> RAD_TMP={basis_rad_tmp}"
@@ -1902,6 +3853,12 @@ def run_basis_extraction(raw_env: Mapping[str, str] | None = None) -> int:
                     print(f"ERROR: ppfd_map.txt missing after basis run for module idx={idx}", file=sys.stderr)
                     return int(RadianceScriptExit.VALIDATION)
                 shutil.move(str(source), str(basis_dir / f"basis_col_{col}.txt"))
+                if plant_receiver_basis_enabled:
+                    try:
+                        _move_smd_plant_receiver_basis_column(config, basis_dir, col)
+                    except RuntimeError as exc:
+                        print(f"ERROR: {exc}", file=sys.stderr)
+                        return int(RadianceScriptExit.VALIDATION)
                 col += 1
         elif smd_outer == "1":
             command_template = f"python -m rad_rebuild.radiance.cli.scripts run-simulation-smd SMD_BASIS_RING=<ring> RAD_TMP={basis_rad_tmp}"
@@ -1916,6 +3873,12 @@ def run_basis_extraction(raw_env: Mapping[str, str] | None = None) -> int:
                     print(f"ERROR: ppfd_map.txt missing after basis run for ring {ring}", file=sys.stderr)
                     return int(RadianceScriptExit.VALIDATION)
                 shutil.move(str(source), str(basis_dir / f"basis_col_{col}.txt"))
+                if plant_receiver_basis_enabled:
+                    try:
+                        _move_smd_plant_receiver_basis_column(config, basis_dir, col)
+                    except RuntimeError as exc:
+                        print(f"ERROR: {exc}", file=sys.stderr)
+                        return int(RadianceScriptExit.VALIDATION)
                 col += 1
             for idx in outer_indices:
                 print(f"=== Outer module idx={idx}  col={col} ===")
@@ -1928,6 +3891,12 @@ def run_basis_extraction(raw_env: Mapping[str, str] | None = None) -> int:
                     print(f"ERROR: ppfd_map.txt missing after basis run for outer idx={idx}", file=sys.stderr)
                     return int(RadianceScriptExit.VALIDATION)
                 shutil.move(str(source), str(basis_dir / f"basis_col_{col}.txt"))
+                if plant_receiver_basis_enabled:
+                    try:
+                        _move_smd_plant_receiver_basis_column(config, basis_dir, col)
+                    except RuntimeError as exc:
+                        print(f"ERROR: {exc}", file=sys.stderr)
+                        return int(RadianceScriptExit.VALIDATION)
                 col += 1
         else:
             command_template = f"python -m rad_rebuild.radiance.cli.scripts run-simulation-smd SMD_BASIS_RING=<ring> RAD_TMP={basis_rad_tmp}"
@@ -1942,6 +3911,12 @@ def run_basis_extraction(raw_env: Mapping[str, str] | None = None) -> int:
                     print(f"ERROR: ppfd_map.txt missing after basis run for ring {ring}", file=sys.stderr)
                     return int(RadianceScriptExit.VALIDATION)
                 shutil.move(str(source), str(basis_dir / f"basis_ring_{ring}.txt"))
+                if plant_receiver_basis_enabled:
+                    try:
+                        _move_smd_plant_receiver_basis_column(config, basis_dir, ring)
+                    except RuntimeError as exc:
+                        print(f"ERROR: {exc}", file=sys.stderr)
+                        return int(RadianceScriptExit.VALIDATION)
     elapsed = max(0.0, time.time() - start)
     print()
     print("✓ Basis runs complete. Building A matrix...")
@@ -2049,6 +4024,12 @@ def run_basis_extraction(raw_env: Mapping[str, str] | None = None) -> int:
     else:
         manifest.update({"variables": "rings", "ring_indices": list(range(matrix.shape[1]))})
     (config.basis_output_root / "basis_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    if plant_receiver_basis_enabled:
+        try:
+            _write_smd_plant_receiver_basis_outputs(config, basis_dir, manifest)
+        except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
+            print(f"ERROR: failed to write plant receiver basis: {exc}", file=sys.stderr)
+            return int(RadianceScriptExit.VALIDATION)
     print("A shape:", matrix.shape)
     print("Basis backend:", basis_backend)
     print("Basis matrix sha256:", matrix_sha)

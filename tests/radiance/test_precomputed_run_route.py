@@ -20,9 +20,9 @@ configure_test_runtime()
 
 from rad_rebuild.radiance.backend import workspace as workspace_mod  # noqa: E402
 from rad_rebuild.radiance.backend.jobs import JobRecord, TERMINAL_STATES, create_job_service  # noqa: E402
-from rad_rebuild.radiance.backend.models import RadianceRunRequest  # noqa: E402
+from rad_rebuild.radiance.backend.models import RadianceRunRequest, request_with_updates  # noqa: E402
 from rad_rebuild.radiance.backend.routes import runs as runs_route  # noqa: E402
-from rad_rebuild.radiance.config import MODE_HPS, MODE_SMD  # noqa: E402
+from rad_rebuild.radiance.config import MODE_COMPETITOR, MODE_HPS, MODE_SMD  # noqa: E402
 from rad_rebuild.radiance.domain import JobState  # noqa: E402
 from rad_rebuild.radiance.engine.emitters.hps_generation.profile import (  # noqa: E402
     DEFAULT_IES_VARIANT as DEFAULT_HPS_IES_VARIANT,
@@ -33,6 +33,7 @@ from rad_rebuild.radiance.engine.emitters.hps_generation.profile import (  # noq
 from rad_rebuild.radiance.engine.simulation.precomputed_dataset import (  # noqa: E402
     SCHEMA_VERSION,
     bundle_ref,
+    canonical_plant_enabled_precomputed_request,
     request_params_for_mode,
 )
 
@@ -185,7 +186,10 @@ class PrecomputedRunRouteTests(unittest.TestCase):
                 width_ft=10,
                 target_ppfd=1000,
             )
-            self._write_smoke_bundle(dataset_root, req)
+            self._write_smoke_bundle(
+                dataset_root,
+                request_with_updates(req, match_system_ppe=True),
+            )
             service = create_job_service(
                 db_path=root / "jobs.sqlite3",
                 log_dir=root / "job-logs",
@@ -345,6 +349,193 @@ class PrecomputedRunRouteTests(unittest.TestCase):
         self.assertIn("--hps-coverage-ft 4", command_text)
         self.assertIn("--hps-ies-variant karma", command_text)
 
+    def test_start_all_proposed_precomputed_route_matches_10x10_plant_bundle(
+        self,
+    ) -> None:
+        service = _FakeJobService()
+        with tempfile.TemporaryDirectory(
+            prefix="rad_rebuild_route_smd_10x10_precomputed_"
+        ) as tmp:
+            dataset_root = Path(tmp)
+            ui_req = RadianceRunRequest(
+                action="all",
+                mode=MODE_SMD,
+                execution_mode="precomputed",
+                sim_mode="standard",
+                length_ft=10,
+                width_ft=10,
+                target_ppfd=750,
+                match_system_ppe=True,
+                plants_enabled=True,
+                fspm_target_ppfd_umol_m2_s=275,
+                fspm_target_tolerance_umol_m2_s=20,
+            )
+            bundle_req = canonical_plant_enabled_precomputed_request(ui_req)
+            bundle_path = self._write_smoke_bundle(dataset_root, bundle_req)
+
+            with (
+                patch.dict(
+                    os.environ, {"RADIANCE_PRECOMPUTED_ROOT": str(dataset_root)}
+                ),
+                patch.object(
+                    runs_route,
+                    "job_service",
+                    return_value=service,
+                ),
+            ):
+                response = runs_route.run_radiance(ui_req, _request("smd-10x10"))
+
+        self.assertEqual(response["job_id"], "fake-hps-job")
+        self.assertEqual(len(service.submitted), 1)
+        command_text = " ".join(service.submitted[0].command)
+        self.assertIn("precomputed_playback", command_text)
+        self.assertIn(str(bundle_path.parent.parent), command_text)
+        self.assertIn("--length-ft 10", command_text)
+        self.assertIn("--width-ft 10", command_text)
+        self.assertIn("--plants-enabled", command_text)
+        self.assertIn("--fspm-target-ppfd-umol-m2-s 275", command_text)
+        self.assertIn("--fspm-target-tolerance-umol-m2-s 20", command_text)
+
+    def test_start_all_proposed_precomputed_route_matches_with_plants_omitted_or_false(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory(
+            prefix="rad_rebuild_route_smd_10x10_variants_"
+        ) as tmp:
+            dataset_root = Path(tmp)
+            base_req = RadianceRunRequest(
+                action="all",
+                mode=MODE_SMD,
+                execution_mode="precomputed",
+                length_ft=10,
+                width_ft=10,
+                match_system_ppe=True,
+            )
+            self._write_smoke_bundle(
+                dataset_root,
+                canonical_plant_enabled_precomputed_request(base_req),
+            )
+            cases: tuple[tuple[str, dict[str, object]], ...] = (
+                ("smd-10x10-omitted", {}),
+                ("smd-10x10-false", {"plants_enabled": False}),
+            )
+            for session_id, extra_fields in cases:
+                service = _FakeJobService()
+                req = RadianceRunRequest.model_validate(
+                    {
+                        "action": "all",
+                        "mode": MODE_SMD,
+                        "execution_mode": "precomputed",
+                        "length_ft": 10,
+                        "width_ft": 10,
+                        "match_system_ppe": True,
+                        **extra_fields,
+                    }
+                )
+                with (
+                    patch.dict(
+                        os.environ, {"RADIANCE_PRECOMPUTED_ROOT": str(dataset_root)}
+                    ),
+                    patch.object(
+                        runs_route,
+                        "job_service",
+                        return_value=service,
+                    ),
+                ):
+                    response = runs_route.run_radiance(req, _request(session_id))
+                self.assertEqual(response["job_id"], "fake-hps-job")
+                self.assertEqual(len(service.submitted), 1)
+                self.assertIn("--plants-enabled", " ".join(service.submitted[0].command))
+
+    def test_start_all_competitor_practical_precomputed_route_resolves_10x10(
+        self,
+    ) -> None:
+        service = _FakeJobService()
+        with tempfile.TemporaryDirectory(
+            prefix="rad_rebuild_route_competitor_10x10_precomputed_"
+        ) as tmp:
+            dataset_root = Path(tmp)
+            req = canonical_plant_enabled_precomputed_request(
+                RadianceRunRequest(
+                    action="all",
+                    mode=MODE_COMPETITOR,
+                    execution_mode="precomputed",
+                    length_ft=10,
+                    width_ft=10,
+                    competitor_layout="practical",
+                )
+            )
+            bundle_path = self._write_smoke_bundle(dataset_root, req)
+
+            with (
+                patch.dict(
+                    os.environ, {"RADIANCE_PRECOMPUTED_ROOT": str(dataset_root)}
+                ),
+                patch.object(
+                    runs_route,
+                    "job_service",
+                    return_value=service,
+                ),
+            ):
+                response = runs_route.run_radiance(req, _request("competitor-10x10"))
+
+        self.assertEqual(response["job_id"], "fake-hps-job")
+        command_text = " ".join(service.submitted[0].command)
+        self.assertIn("precomputed_playback", command_text)
+        self.assertIn(str(bundle_path.parent.parent), command_text)
+        self.assertIn("--competitor-layout practical", command_text)
+
+    def test_start_all_precomputed_route_matches_unique_rectangle_plant_identity(
+        self,
+    ) -> None:
+        service = _FakeJobService()
+        with tempfile.TemporaryDirectory(
+            prefix="rad_rebuild_route_smd_rect_precomputed_"
+        ) as tmp:
+            dataset_root = Path(tmp)
+            bundle_req = canonical_plant_enabled_precomputed_request(
+                RadianceRunRequest(
+                    action="all",
+                    mode=MODE_SMD,
+                    execution_mode="precomputed",
+                    length_ft=11,
+                    width_ft=10,
+                )
+            )
+            bundle_path = self._write_smoke_bundle(dataset_root, bundle_req)
+            req = RadianceRunRequest(
+                action="all",
+                mode=MODE_SMD,
+                execution_mode="precomputed",
+                length_ft=10,
+                width_ft=11,
+                plants_enabled=False,
+                target_ppfd=1200,
+                fspm_target_ppfd_umol_m2_s=275,
+                fspm_target_tolerance_umol_m2_s=20,
+            )
+
+            with (
+                patch.dict(
+                    os.environ, {"RADIANCE_PRECOMPUTED_ROOT": str(dataset_root)}
+                ),
+                patch.object(
+                    runs_route,
+                    "job_service",
+                    return_value=service,
+                ),
+            ):
+                response = runs_route.run_radiance(req, _request("smd-rect"))
+
+        self.assertEqual(response["job_id"], "fake-hps-job")
+        self.assertEqual(len(service.submitted), 1)
+        command_text = " ".join(service.submitted[0].command)
+        self.assertIn("precomputed_playback", command_text)
+        self.assertIn(str(bundle_path.parent.parent), command_text)
+        self.assertIn("--length-ft 11", command_text)
+        self.assertIn("--width-ft 10", command_text)
+        self.assertIn("--plants-enabled", command_text)
+
     def test_missing_precomputed_bundle_response_is_structured_for_frontend(
         self,
     ) -> None:
@@ -373,6 +564,114 @@ class PrecomputedRunRouteTests(unittest.TestCase):
         )
         self.assertEqual(detail["estimated_size"], "15.6 MiB")
         self.assertEqual(detail["demo"], {"length_ft": 10, "width_ft": 10})
+        diagnostics = cast(dict[str, Any], detail["diagnostics"])
+        self.assertIn("attempts", diagnostics)
+        attempts = cast(list[dict[str, Any]], diagnostics["attempts"])
+        self.assertTrue(attempts)
+        self.assertIn("requested_params", attempts[0])
+        self.assertIn("available_sizes_for_mode", attempts[0])
+
+    def test_missing_precomputed_bundle_diagnostics_include_identity_diff(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory(
+            prefix="rad_rebuild_route_mismatch_precomputed_"
+        ) as tmp:
+            dataset_root = Path(tmp)
+            installed_req = canonical_plant_enabled_precomputed_request(
+                RadianceRunRequest(
+                    action="all",
+                    mode=MODE_SMD,
+                    execution_mode="precomputed",
+                    length_ft=11,
+                    width_ft=10,
+                    plant_seed=2,
+                )
+            )
+            self._write_smoke_bundle(dataset_root, installed_req)
+            req = RadianceRunRequest(
+                action="all",
+                mode=MODE_SMD,
+                execution_mode="precomputed",
+                length_ft=10,
+                width_ft=11,
+                plants_enabled=False,
+            )
+            with patch.dict(
+                os.environ, {"RADIANCE_PRECOMPUTED_ROOT": str(dataset_root)}
+            ):
+                with self.assertRaises(HTTPException) as raised:
+                    runs_route.run_radiance(req, _request("mismatch-precomputed"))
+
+        detail = cast(dict[str, Any], raised.exception.detail)
+        diagnostics = cast(dict[str, Any], detail["diagnostics"])
+        attempts = cast(list[dict[str, Any]], diagnostics["attempts"])
+        plant_attempt = next(
+            attempt
+            for attempt in attempts
+            if attempt.get("candidate") == "plant-contract"
+        )
+        diff = cast(dict[str, Any], plant_attempt["param_diff"])
+        differing = cast(dict[str, Any], diff["differing"])
+        self.assertEqual(
+            differing["plant_seed"],
+            {"requested": 1, "installed": 2},
+        )
+
+    def test_obsolete_false_ppe_smd_manifest_mismatches_with_identity_diff(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory(
+            prefix="rad_rebuild_route_old_smd_contract_"
+        ) as tmp:
+            dataset_root = Path(tmp)
+            base_req = RadianceRunRequest(
+                action="all",
+                mode=MODE_SMD,
+                execution_mode="precomputed",
+                length_ft=10,
+                width_ft=10,
+                plants_enabled=True,
+                match_system_ppe=False,
+            )
+            old_bundle_req = request_with_updates(
+                canonical_plant_enabled_precomputed_request(base_req),
+                match_system_ppe=False,
+            )
+            self._write_smoke_bundle(dataset_root, old_bundle_req)
+            req = RadianceRunRequest(
+                action="all",
+                mode=MODE_SMD,
+                execution_mode="precomputed",
+                length_ft=10,
+                width_ft=10,
+                plants_enabled=True,
+                match_system_ppe=False,
+            )
+            with patch.dict(
+                os.environ, {"RADIANCE_PRECOMPUTED_ROOT": str(dataset_root)}
+            ):
+                with self.assertRaises(HTTPException) as raised:
+                    runs_route.run_radiance(req, _request("old-smd-contract"))
+
+        detail = cast(dict[str, Any], raised.exception.detail)
+        diagnostics = cast(dict[str, Any], detail["diagnostics"])
+        attempts = cast(list[dict[str, Any]], diagnostics["attempts"])
+        plant_attempt = next(
+            attempt
+            for attempt in attempts
+            if attempt.get("candidate") == "plant-contract"
+        )
+        diff = cast(dict[str, Any], plant_attempt["param_diff"])
+        differing = cast(dict[str, Any], diff["differing"])
+        self.assertEqual(
+            differing["match_system_ppe"],
+            {"requested": True, "installed": False},
+        )
+        self.assertEqual(
+            differing["smd_model"],
+            {"requested": "legacy", "installed": "curve"},
+        )
 
     def test_precomputed_dimensions_above_public_range_are_structured(self) -> None:
         req = RadianceRunRequest.model_construct(

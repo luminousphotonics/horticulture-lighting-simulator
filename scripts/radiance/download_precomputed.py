@@ -22,22 +22,22 @@ DEFAULT_DESTINATION = REPO_ROOT / "data" / "radiance" / "precomputed"
 
 # Fill these in after GitHub Release assets exist. Leave blank until then.
 FULL_DATASET_ARCHIVE_URLS = {
-    "smd": "https://github.com/luminousphotonics/horticulture-lighting-simulator-bundles/releases/download/precomputed-v1/precomputed-smd-10x10-30x30.tar.gz",
-    "competitor_practical": "https://github.com/luminousphotonics/horticulture-lighting-simulator-bundles/releases/download/precomputed-v1/precomputed-competitor-practical-10x10-30x30.tar.gz",
-    "hps_karma_4x4": "https://github.com/luminousphotonics/horticulture-lighting-simulator-bundles/releases/download/precomputed-v1/precomputed-hps-karma-4x4-10x10-30x30.tar.gz",
+    "smd": "https://github.com/luminousphotonics/horticulture-lighting-simulator-bundles/releases/download/precomputed-v2/precomputed-smd-10x10-20x20.tar.gz",
+    "competitor_practical": "https://github.com/luminousphotonics/horticulture-lighting-simulator-bundles/releases/download/precomputed-v2/precomputed-competitor-practical-10x10-20x20.tar.gz",
+    "hps_karma_4x4": "https://github.com/luminousphotonics/horticulture-lighting-simulator-bundles/releases/download/precomputed-v2/precomputed-hps-karma-4x4-10x10-20x20.tar.gz",
 }
 
 # Optional future integrity checks, keyed the same way as FULL_DATASET_ARCHIVE_URLS.
 FULL_DATASET_SHA256 = {
-    "smd": "342d9c15fa4e4e54721efc34b49b9b1124097bd4236bab04cfc062e7d1d359c0",
-    "competitor_practical": "4cf28481c092ac6ff38253973fdb38fb84e60cfe23f2504b190bb99ec64f8e16",
-    "hps_karma_4x4": "5a9db2751aed2fa63b09def8438addfffd8d97f3ad36c4037aaacec82166dd6f",
+    "smd": "6ac04a35f44b684d9c708fd22fd65ee8d3508b98b7c099874ba25687ba56567d",
+    "competitor_practical": "0e914f7c62262cdfe17a15f8aedb76aadf5cead5f705d398673f087975aabc90",
+    "hps_karma_4x4": "b7c7a42b5a97903bc3f81416bff61fb91601a576cf865a0e710693978091e523",
 }
 
 EXPECTED_ARCHIVE_NAMES = {
-    "smd": "precomputed-smd-10x10-30x30.tar.gz",
-    "competitor_practical": "precomputed-competitor-practical-10x10-30x30.tar.gz",
-    "hps_karma_4x4": "precomputed-hps-karma-4x4-10x10-30x30.tar.gz",
+    "smd": "precomputed-smd-10x10-20x20.tar.gz",
+    "competitor_practical": "precomputed-competitor-practical-10x10-20x20.tar.gz",
+    "hps_karma_4x4": "precomputed-hps-karma-4x4-10x10-20x20.tar.gz",
 }
 
 DOWNLOAD_TIMEOUT_S = 30

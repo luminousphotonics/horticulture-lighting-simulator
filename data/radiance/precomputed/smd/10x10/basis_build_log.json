@@ -3,31 +3,31 @@
   "basis_backend_config": {
     "basis_backend": "rtrace"
   },
-  "command": "env RAD_TMP=/workspace/outputs/radiance/cache/basis REUSE_STATIC_SCENE=1 REUSE_SENSOR_CACHE=1 STATIC_ROOM_OCT=/workspace/outputs/radiance/cache/basis/static_room.oct SMD_BASIS_MODE=1 SMD_BASIS_RING=<ring> SMD_BASIS_UNIT_W=1.0 MODE=standard SYM=0 NTHREADS=12 /workspace/scripts/radiance/run_simulation_smd.sh",
-  "wall_time_s": 0.0,
+  "command": "python -m rad_rebuild.radiance.cli.scripts run-simulation-smd SMD_BASIS_RING=<ring> RAD_TMP=/tmp/radiance-sweep-smd-10x10-rfuel8ho/radtmp/basis",
+  "wall_time_s": 281.26471734046936,
   "mode": "standard",
   "oversample": 4,
   "threads": 12,
   "ring_count": 5,
   "sensor_count": 441,
-  "matrix_sha256": "9852328447572fdd0d15787b519c9d5baaceb49508c6b82830077f3685774830",
+  "matrix_sha256": "fce6416fb37010b956d9a5ba84605b9877617656c5dc3ea1adaaf97fddcd454f",
   "matrix_summary": {
-    "min": 0.221402,
-    "max": 11.574912,
-    "mean": 3.9301776136054416,
+    "min": 0.189281,
+    "max": 9.846959,
+    "mean": 3.3301615963718825,
     "col_mean": [
-      1.7718927142857128,
-      2.8170165351473915,
-      4.133356258503403,
-      5.249359185941048,
-      5.679263374149659
+      1.5075132154195008,
+      2.3871074444444456,
+      3.517276444444444,
+      4.456031863945575,
+      4.782879013605438
     ],
     "col_max": [
-      11.574912,
-      7.646981,
-      7.605035,
-      8.07922,
-      11.028615
+      9.846959,
+      6.460167,
+      6.435335,
+      6.865602,
+      9.298766
     ]
   },
   "backend_log": null

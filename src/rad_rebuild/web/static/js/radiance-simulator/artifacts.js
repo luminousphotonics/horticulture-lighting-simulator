@@ -23,6 +23,23 @@ import {
 } from "./state.js";
 
 const PLACEHOLDER_SRC = "/static/img/transparent-placeholder.svg";
+const OPTIONAL_PLANT_QUERY_FIELDS = [
+  ["plantsEnabled", "plants_enabled"],
+  ["plantSeed", "plant_seed"],
+  ["plantRows", "plant_rows"],
+  ["plantColumns", "plant_columns"],
+  ["plantSpacingM", "plant_spacing_m"],
+  ["plantHeightM", "plant_height_m"],
+  ["plantCanopyRadiusM", "plant_canopy_radius_m"],
+  ["plantLeafCount", "plant_leaf_count"],
+  ["plantGrowthStage", "plant_growth_stage"],
+  ["fspmReceiverGranularity", "fspm_receiver_granularity"],
+  ["fspmLeafOpticalProfileId", "fspm_leaf_optical_profile_id"],
+  ["fspmLeafRadianceMaterialMode", "fspm_leaf_radiance_material_mode"],
+  ["fspmSpectralTransportMode", "fspm_spectral_transport_mode"],
+  ["fspmTargetPpfdUmolM2S", "fspm_target_ppfd_umol_m2_s"],
+  ["fspmTargetToleranceUmolM2S", "fspm_target_tolerance_umol_m2_s"],
+];
 
 function hpsArtifactMountHeightM(payload) {
   return payload.mode === "1000W HPS" && payload.executionMode === "precomputed"
@@ -92,6 +109,7 @@ export function artifactQueryParams(payload, extras = {}) {
     sim_mode: payload.qualityPreset,
     target_ppfd: String(payload.target),
     peak_capping_enabled: String(payload.peakCappingEnabled),
+    match_system_ppe: String(payload.mode === "SMD" ? payload.matchSystemPpe : false),
     length_ft: String(payload.length),
     width_ft: String(payload.width),
     w_min: String(wMin),
@@ -107,6 +125,12 @@ export function artifactQueryParams(payload, extras = {}) {
   });
   if (appState.currentArtifactToken) {
     params.set("artifact_token", appState.currentArtifactToken);
+  }
+  for (const [payloadKey, queryKey] of OPTIONAL_PLANT_QUERY_FIELDS) {
+    const value = payload?.[payloadKey];
+    if (value !== undefined && value !== null && value !== "") {
+      params.set(queryKey, String(value));
+    }
   }
   return params;
 }

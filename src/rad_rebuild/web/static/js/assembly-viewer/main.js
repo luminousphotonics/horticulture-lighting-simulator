@@ -8,19 +8,32 @@ import {
   createFixtureArrayController,
   formatVisualMountHeightM,
 } from "./fixture-controls.js";
+import { buildFspmPanelSections, hasFspmPanelData } from "./fspm-panel.js";
 import { clampHeatmapOpacity, fetchPhotometricLayer, formatPpfdTooltipValue, lookupPpfdAtUv } from "./heatmap.js";
 import { createPerfOverlay } from "./perf.js";
+import {
+  PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX,
+  PLANT_COLOR_MODE_TARGET_RANGE,
+  createPlantVisibilityController,
+  targetRangeLegendForSurfaceFlux,
+} from "./plants.js";
 import { buildAssemblyWorld, createAssemblyScene, createPhotometricHeatmapPlane } from "./renderer.js";
-import { loadAssemblyScene, loadFixtureAssets, sceneUrlFromQuery } from "./scene-loader.js";
+import {
+  fspmCsvUrlFromSceneUrl,
+  loadAssemblyScene,
+  loadFixtureAssets,
+  sceneUrlFromQuery,
+} from "./scene-loader.js";
 
 const root = document.querySelector("[data-viewer-root]");
 const canvas = document.getElementById("assembly-canvas");
 const statusEl = document.getElementById("assembly-status");
+const titleEl = document.getElementById("assembly-title");
 const modeEl = document.getElementById("assembly-mode");
 const roomEl = document.getElementById("assembly-room");
 const countEl = document.getElementById("assembly-count");
 const resetCameraButton = document.getElementById("assembly-reset-camera");
-const debugToggleButton = document.getElementById("assembly-debug-toggle");
+const fspmToggleButton = document.getElementById("assembly-fspm-toggle");
 const heatmapToggle = document.getElementById("assembly-heatmap-toggle");
 const heatmapOpacityInput = document.getElementById("assembly-heatmap-opacity");
 const heatmapStatusEl = document.getElementById("assembly-heatmap-status");
@@ -29,14 +42,23 @@ const fixturesToggle = document.getElementById("assembly-fixtures-toggle");
 const fixtureHeightInput = document.getElementById("assembly-fixture-height");
 const fixtureHeightValueEl = document.getElementById("assembly-fixture-height-value");
 const fixtureHeightResetButton = document.getElementById("assembly-fixture-height-reset");
+const plantsControlEl = document.getElementById("assembly-plants-control");
+const plantsToggle = document.getElementById("assembly-plants-toggle");
+const plantsColorToggle = document.getElementById("assembly-plants-color-toggle");
+const plantsColorModeSelect = document.getElementById("assembly-plants-color-mode");
+const plantsDetailControl = document.getElementById("assembly-plants-detail-control");
+const plantsDetailModeSelect = document.getElementById("assembly-plants-detail-mode");
+const plantsStatusEl = document.getElementById("assembly-plants-status");
+const plantsLegendEl = document.getElementById("assembly-plants-legend");
 const perfEl = document.getElementById("assembly-perf");
-const devPanelEl = document.getElementById("assembly-dev-panel");
-const assetCountsEl = document.getElementById("assembly-asset-counts");
-const sceneBoundsEl = document.getElementById("assembly-scene-bounds");
-const fitDiagnosticsEl = document.getElementById("assembly-fit-diagnostics");
-const warningsEl = document.getElementById("assembly-warnings");
-let diagnosticsExpanded = false;
-let warningCount = 0;
+const fspmPanelEl = document.getElementById("assembly-fspm-panel");
+const fspmContentEl = document.getElementById("assembly-fspm-content");
+const fspmExportButton = document.getElementById("assembly-fspm-export");
+const fspmExportStatusEl = document.getElementById("assembly-fspm-export-status");
+let fspmPanelExpanded = false;
+let fspmPanelAvailable = false;
+let fspmCsvUrl = "";
+let rawLegendPerspective = "front";
 const heatmapRaycaster = new THREE.Raycaster();
 const heatmapPointer = new THREE.Vector2();
 const heatmapIntersections = [];
@@ -80,7 +102,9 @@ function displayModeLabel(scene) {
 
 function renderSummary(scene, instanceCount) {
   const room = scene.room || {};
-  setText(modeEl, displayModeLabel(scene));
+  const modeLabel = displayModeLabel(scene);
+  setText(titleEl, modeLabel);
+  setText(modeEl, modeLabel);
   setText(
     roomEl,
     `${formatNumber(room.length_m)} m x ${formatNumber(room.width_m)} m, mount ${formatNumber(room.mount_z_m)} m`,
@@ -142,54 +166,370 @@ function wireFixtureControls(fixtureGroup, scenePayload) {
   return controller;
 }
 
+function setPlantControlsEnabled(enabled, colorEnabled = false, detailEnabled = false) {
+  if (plantsControlEl instanceof HTMLElement) {
+    plantsControlEl.hidden = !enabled;
+  }
+  if (plantsToggle instanceof window.HTMLInputElement) {
+    plantsToggle.disabled = !enabled;
+  }
+  if (plantsColorToggle instanceof window.HTMLInputElement) {
+    plantsColorToggle.disabled = !(enabled && colorEnabled);
+  }
+  if (plantsColorModeSelect instanceof window.HTMLSelectElement) {
+    plantsColorModeSelect.disabled = !(enabled && colorEnabled);
+  }
+  if (plantsDetailControl instanceof HTMLElement) {
+    plantsDetailControl.hidden = !(enabled && detailEnabled);
+  }
+  if (plantsDetailModeSelect instanceof window.HTMLSelectElement) {
+    plantsDetailModeSelect.disabled = !(enabled && colorEnabled && detailEnabled);
+  }
+}
+
+function formatPlantLegendAnchor(anchor, isLast = false) {
+  const ratio = Number(anchor?.ratio);
+  const percent = Number.isFinite(Number(anchor?.percent))
+    ? Number(anchor.percent)
+    : ratio * 100;
+  const ppfd = Number(anchor?.ppfd_umol_m2_s);
+  const suffix = isLast ? "+" : "";
+  const percentLabel = Number.isFinite(percent) ? `${Math.round(percent)}%${suffix}` : "-";
+  const ppfdLabel = Number.isFinite(ppfd) ? `${Math.round(ppfd)}${suffix}` : "-";
+  return `${percentLabel} ${ppfdLabel}`;
+}
+
+function appendLegendHeader(parent, title, subtitle) {
+  const header = document.createElement("div");
+  header.className = "assembly-viewer__plant-legend-header";
+  const heading = document.createElement("strong");
+  heading.textContent = title;
+  const sub = document.createElement("span");
+  sub.textContent = subtitle;
+  header.append(heading, sub);
+  parent.append(header);
+}
+
+function renderRawPlantLegend(parent, state) {
+  const sideLegends = state.rawLeafSurfaceFluxSideLegends || {};
+  const sideScales = state.rawLeafSurfaceFluxSideScales || {};
+  const hasBackLegend = Boolean(sideLegends.back || sideScales.back);
+  const activeSide = rawLegendPerspective === "back" && hasBackLegend ? "back" : "front";
+  rawLegendPerspective = activeSide;
+  if (hasBackLegend) {
+    const label = document.createElement("label");
+    label.className = "assembly-viewer__plant-legend-control";
+    const text = document.createElement("span");
+    text.textContent = "Legend perspective";
+    const select = document.createElement("select");
+    for (const [value, optionText] of [
+      ["front", "Top/front"],
+      ["back", "Bottom/back"],
+    ]) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = optionText;
+      option.selected = activeSide === value;
+      select.append(option);
+    }
+    select.addEventListener("change", () => {
+      rawLegendPerspective = select.value === "back" ? "back" : "front";
+      renderPlantLegend(state);
+    });
+    label.append(text, select);
+    parent.append(label);
+  }
+  const legend = sideLegends[activeSide] || state.rawLeafSurfaceFluxLegend || {};
+  const scale = sideScales[activeSide] || state.rawLeafSurfaceFluxScale || {};
+  const anchors = Array.isArray(legend.anchors) && legend.anchors.length > 0
+    ? legend.anchors
+    : scale.anchors;
+  appendLegendHeader(
+    parent,
+    legend.title || "Raw leaf-surface incident PPFD",
+    `${legend.note || (activeSide === "back"
+      ? "Bottom/back scale = underside/reflected-light diagnostic"
+      : "Top/front scale = primary exposure comparison")} · ${legend.scale || "% of FSPM target"} · ${legend.units || scale.units || "umol/m²/s"}`,
+  );
+  const bar = document.createElement("div");
+  bar.className = "assembly-viewer__plant-legend-gradient";
+  parent.append(bar);
+  const ticks = document.createElement("div");
+  ticks.className = "assembly-viewer__plant-legend-ticks";
+  if (Array.isArray(anchors)) {
+    for (const [index, anchor] of anchors.entries()) {
+      const tick = document.createElement("span");
+      tick.textContent = formatPlantLegendAnchor(anchor, index === anchors.length - 1);
+      ticks.append(tick);
+    }
+  }
+  parent.append(ticks);
+}
+
+function renderTargetRangePlantLegend(parent, state) {
+  const legend = state?.targetRangeLegend || targetRangeLegendForSurfaceFlux();
+  appendLegendHeader(parent, legend.title, legend.subtitle);
+  const meta = document.createElement("div");
+  meta.className = "assembly-viewer__plant-legend-meta";
+  for (const [label, value] of [
+    ["Target", legend.target_ppfd_umol_m2_s],
+    ["Tolerance", legend.target_tolerance_umol_m2_s],
+  ]) {
+    const item = document.createElement("span");
+    const name = document.createElement("b");
+    name.textContent = label;
+    const number = Number(value);
+    item.append(
+      name,
+      document.createTextNode(
+        Number.isFinite(number)
+          ? `${Math.round(number)} ${legend.units || "umol/m²/s"}`
+          : "-",
+      ),
+    );
+    meta.append(item);
+  }
+  parent.append(meta);
+  const bar = document.createElement("div");
+  bar.className = "assembly-viewer__plant-legend-gradient";
+  if (legend.gradient) {
+    bar.style.background = legend.gradient;
+  }
+  parent.append(bar);
+  const ticks = document.createElement("div");
+  ticks.className = "assembly-viewer__plant-legend-ticks";
+  if (Array.isArray(legend.anchors)) {
+    for (const anchor of legend.anchors) {
+      const tick = document.createElement("span");
+      tick.textContent = anchor.label || "";
+      ticks.append(tick);
+    }
+  }
+  parent.append(ticks);
+}
+
+function renderPlantLegend(state) {
+  if (!(plantsLegendEl instanceof HTMLElement)) {
+    return;
+  }
+  if (!state || !state.absorptionColor) {
+    plantsLegendEl.hidden = true;
+    clearElement(plantsLegendEl);
+    return;
+  }
+  clearElement(plantsLegendEl);
+  if (state.colorMode === PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX) {
+    renderRawPlantLegend(plantsLegendEl, state);
+  } else if (state.colorMode === PLANT_COLOR_MODE_TARGET_RANGE) {
+    renderTargetRangePlantLegend(plantsLegendEl, state);
+  } else {
+    plantsLegendEl.hidden = true;
+    return;
+  }
+  plantsLegendEl.hidden = false;
+}
+
+function renderPlantStatus(controller) {
+  if (!(plantsStatusEl instanceof HTMLElement)) {
+    return;
+  }
+  if (!controller) {
+    plantsStatusEl.textContent = "0 leaves";
+    renderPlantLegend(null);
+    return;
+  }
+  const state = controller.getState();
+  const leafText = `${state.leafCount} ${state.leafCount === 1 ? "leaf" : "leaves"}`;
+  const colorText = state.hasAbsorptionColor
+    ? (state.absorptionColor
+      ? ` · ${state.colorMode === PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX
+        ? `raw flux ${state.surfaceDetail ? String(state.surfaceDetailMode).replaceAll("_", " ") : "leaf average"}`
+        : "target color"}`
+      : " · geometry color")
+    : (state.surfaceFluxUnavailableReason ? " · surface flux unavailable" : "");
+  plantsStatusEl.textContent = `${leafText}${colorText}`;
+  if (state.surfaceFluxUnavailableReason) {
+    plantsStatusEl.title = state.surfaceFluxUnavailableReason;
+  } else {
+    plantsStatusEl.removeAttribute("title");
+  }
+  renderPlantLegend(state);
+}
+
+function wirePlantControls(plantGroup) {
+  const hasPlants = Number(plantGroup?.userData?.renderedLeafCount || 0) > 0;
+  if (!hasPlants) {
+    setPlantControlsEnabled(false);
+    renderPlantStatus(null);
+    return null;
+  }
+  const controller = createPlantVisibilityController(plantGroup);
+  const state = controller.getState();
+  if (plantsToggle instanceof window.HTMLInputElement) {
+    plantsToggle.checked = state.visible;
+    plantsToggle.addEventListener("change", () => {
+      controller.setVisible(plantsToggle.checked);
+      renderPlantStatus(controller);
+    });
+  }
+  if (plantsColorToggle instanceof window.HTMLInputElement) {
+    plantsColorToggle.checked = Boolean(state.hasAbsorptionColor && state.absorptionColor);
+    plantsColorToggle.disabled = !state.hasAbsorptionColor;
+    plantsColorToggle.addEventListener("change", () => {
+      const nextState = controller.setAbsorptionColor(plantsColorToggle.checked);
+      if (plantsColorModeSelect instanceof window.HTMLSelectElement) {
+        plantsColorModeSelect.disabled = !(nextState.hasAbsorptionColor && nextState.absorptionColor);
+      }
+      if (plantsDetailModeSelect instanceof window.HTMLSelectElement) {
+        plantsDetailModeSelect.disabled = !(
+          nextState.hasAbsorptionColor
+          && nextState.absorptionColor
+          && nextState.hasSurfaceDetail
+        );
+      }
+      renderPlantStatus(controller);
+    });
+  }
+  if (plantsColorModeSelect instanceof window.HTMLSelectElement) {
+    plantsColorModeSelect.value = state.colorMode;
+    plantsColorModeSelect.disabled = !state.hasAbsorptionColor;
+    plantsColorModeSelect.addEventListener("change", () => {
+      const nextState = controller.setColorMode(plantsColorModeSelect.value);
+      if (plantsDetailModeSelect instanceof window.HTMLSelectElement) {
+        plantsDetailModeSelect.disabled = !(
+          nextState.hasAbsorptionColor
+          && nextState.absorptionColor
+          && nextState.hasSurfaceDetail
+          && nextState.colorMode === PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX
+        );
+      }
+      renderPlantStatus(controller);
+    });
+  }
+  if (plantsDetailModeSelect instanceof window.HTMLSelectElement) {
+    plantsDetailModeSelect.value = state.surfaceDetail ? "surface_detail" : "leaf_average";
+    plantsDetailModeSelect.disabled = !(
+      state.hasAbsorptionColor
+      && state.absorptionColor
+      && state.hasSurfaceDetail
+      && state.colorMode === PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX
+    );
+    plantsDetailModeSelect.addEventListener("change", () => {
+      controller.setSurfaceDetail(plantsDetailModeSelect.value === "surface_detail");
+      renderPlantStatus(controller);
+    });
+  }
+  setPlantControlsEnabled(true, state.hasAbsorptionColor, state.hasSurfaceDetail);
+  if (plantsDetailModeSelect instanceof window.HTMLSelectElement) {
+    plantsDetailModeSelect.disabled = !(
+      state.hasAbsorptionColor
+      && state.absorptionColor
+      && state.hasSurfaceDetail
+      && state.colorMode === PLANT_COLOR_MODE_RAW_LEAF_SURFACE_FLUX
+    );
+  }
+  renderPlantStatus(controller);
+  return controller;
+}
+
 function clearElement(el) {
   if (el) {
     el.replaceChildren();
   }
 }
 
-function updateDiagnosticsPanel() {
-  if (devPanelEl instanceof HTMLElement) {
-    devPanelEl.hidden = !diagnosticsExpanded;
+function updateFspmPanel() {
+  if (fspmPanelEl instanceof HTMLElement) {
+    fspmPanelEl.hidden = !(fspmPanelAvailable && fspmPanelExpanded);
   }
-  if (debugToggleButton instanceof HTMLButtonElement) {
-    debugToggleButton.setAttribute("aria-expanded", diagnosticsExpanded ? "true" : "false");
-    const suffix = warningCount ? ` (${warningCount})` : "";
-    debugToggleButton.textContent = `${diagnosticsExpanded ? "Hide" : "Show"} Diagnostics${suffix}`;
+  if (fspmToggleButton instanceof HTMLButtonElement) {
+    fspmToggleButton.hidden = !fspmPanelAvailable;
+    fspmToggleButton.setAttribute("aria-expanded", fspmPanelExpanded ? "true" : "false");
+    fspmToggleButton.textContent = `${fspmPanelExpanded ? "Hide" : "Show"} FSPM Panel`;
   }
+  syncFspmExportButton();
 }
 
-function toggleDiagnostics() {
-  diagnosticsExpanded = !diagnosticsExpanded;
-  updateDiagnosticsPanel();
-}
-
-function renderAssetCounts(scene) {
-  if (!(devPanelEl instanceof HTMLElement) || !(assetCountsEl instanceof HTMLElement)) {
+function setFspmExportStatus(state, message) {
+  if (!(fspmExportStatusEl instanceof HTMLElement)) {
     return;
   }
-  clearElement(assetCountsEl);
-  const counts = scene?.fixture_counts_by_asset_key && typeof scene.fixture_counts_by_asset_key === "object"
-    ? scene.fixture_counts_by_asset_key
-    : {};
-  for (const [assetKey, count] of Object.entries(counts)) {
-    const item = document.createElement("li");
-    const label = document.createElement("span");
-    const value = document.createElement("strong");
-    label.textContent = assetKey;
-    value.textContent = String(count);
-    item.append(label, value);
-    assetCountsEl.append(item);
+  fspmExportStatusEl.dataset.state = state;
+  fspmExportStatusEl.textContent = message;
+  fspmExportStatusEl.hidden = !message;
+}
+
+function syncFspmExportButton() {
+  if (!(fspmExportButton instanceof HTMLButtonElement)) {
+    return;
   }
-  updateDiagnosticsPanel();
+  const ready = Boolean(fspmPanelAvailable && fspmCsvUrl);
+  fspmExportButton.hidden = !fspmPanelAvailable;
+  fspmExportButton.disabled = !ready;
+  fspmExportButton.title = ready
+    ? "Download compact FSPM metrics CSV for this assembly scene."
+    : "FSPM export data is unavailable for this assembly scene.";
 }
 
-function formatBoundsNumber(value) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number.toFixed(2) : "-";
+function filenameFromContentDisposition(header) {
+  const match = String(header || "").match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+  return match ? decodeURIComponent(match[1]) : "fspm_metrics.csv";
 }
 
-function appendDebugMetric(parent, labelText, valueText) {
+async function responseErrorMessage(response) {
+  try {
+    const payload = await response.json();
+    const detail = payload?.detail;
+    if (typeof detail === "string" && detail) {
+      return detail;
+    }
+    if (detail?.message) {
+      return String(detail.message);
+    }
+  } catch (_err) {
+    // Fall through to the status text.
+  }
+  return response.statusText || `HTTP ${response.status}`;
+}
+
+async function handleFspmExport() {
+  if (!(fspmExportButton instanceof HTMLButtonElement) || !fspmCsvUrl) {
+    setFspmExportStatus("error", "FSPM export is unavailable.");
+    return;
+  }
+  fspmExportButton.disabled = true;
+  setFspmExportStatus("loading", "Preparing CSV...");
+  try {
+    const response = await fetch(fspmCsvUrl, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(await responseErrorMessage(response));
+    }
+    const blob = await response.blob();
+    const href = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = href;
+    link.download = filenameFromContentDisposition(response.headers.get("content-disposition"));
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(href);
+    setFspmExportStatus("ready", "CSV download started.");
+  } catch (err) {
+    setFspmExportStatus("error", `Export unavailable: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    syncFspmExportButton();
+  }
+}
+
+function toggleFspmPanel() {
+  if (!fspmPanelAvailable) {
+    return;
+  }
+  fspmPanelExpanded = !fspmPanelExpanded;
+  updateFspmPanel();
+}
+
+function appendPanelMetric(parent, labelText, valueText) {
   const item = document.createElement("li");
   const label = document.createElement("span");
   const value = document.createElement("strong");
@@ -197,43 +537,6 @@ function appendDebugMetric(parent, labelText, valueText) {
   value.textContent = valueText;
   item.append(label, value);
   parent.append(item);
-}
-
-function renderSceneBounds(buildResult) {
-  if (!(sceneBoundsEl instanceof HTMLElement)) {
-    return;
-  }
-  clearElement(sceneBoundsEl);
-  const bounds = buildResult?.assemblyBoundsSummary;
-  const shadow = buildResult?.shadowCameraBounds;
-  if (bounds?.size) {
-    appendDebugMetric(
-      sceneBoundsEl,
-      "Assembly size",
-      `${formatBoundsNumber(bounds.size.x)} x ${formatBoundsNumber(bounds.size.y)} x ${formatBoundsNumber(bounds.size.z)} m`,
-    );
-    appendDebugMetric(
-      sceneBoundsEl,
-      "Assembly center",
-      `${formatBoundsNumber(bounds.center.x)}, ${formatBoundsNumber(bounds.center.y)}, ${formatBoundsNumber(bounds.center.z)} m`,
-    );
-  }
-  if (shadow) {
-    appendDebugMetric(
-      sceneBoundsEl,
-      "Shadow camera",
-      [
-        `L ${formatBoundsNumber(shadow.left)}`,
-        `R ${formatBoundsNumber(shadow.right)}`,
-        `T ${formatBoundsNumber(shadow.top)}`,
-        `B ${formatBoundsNumber(shadow.bottom)}`,
-        `N ${formatBoundsNumber(shadow.near)}`,
-        `F ${formatBoundsNumber(shadow.far)}`,
-      ].join(" "),
-    );
-  }
-  appendDebugMetric(sceneBoundsEl, "Fixture culling", "instanced fixture batches disabled");
-  updateDiagnosticsPanel();
 }
 
 function fallbackWarnings(scene) {
@@ -245,54 +548,40 @@ function fallbackWarnings(scene) {
   });
 }
 
-function renderFitDiagnostics(diagnostics) {
-  if (!(fitDiagnosticsEl instanceof HTMLElement)) {
+function renderFspmPanel(scene) {
+  fspmPanelAvailable = hasFspmPanelData(scene);
+  if (!(fspmContentEl instanceof HTMLElement)) {
+    updateFspmPanel();
     return;
   }
-  clearElement(fitDiagnosticsEl);
-  const safeDiagnostics = Array.isArray(diagnostics) ? diagnostics : [];
-  for (const diagnostic of safeDiagnostics.slice(0, 16)) {
-    const item = document.createElement("li");
-    const label = document.createElement("span");
-    const value = document.createElement("strong");
-    const residual = Number(diagnostic?.residual?.max);
-    const scale = Number(diagnostic?.scale);
-    label.textContent = `${diagnostic?.id || "fixture"} ${diagnostic?.assetKey || ""}`.trim();
-    value.textContent = [
-      Number.isFinite(residual) ? `${residual.toFixed(3)} m` : "-",
-      Number.isFinite(scale) ? `s ${scale.toFixed(2)}` : "",
-      diagnostic?.pointCorrespondenceInferred ? "perm" : "",
-    ].filter(Boolean).join(" ");
-    item.append(label, value);
-    fitDiagnosticsEl.append(item);
-  }
-  if (safeDiagnostics.length > 16) {
-    const item = document.createElement("li");
-    item.textContent = `${safeDiagnostics.length - 16} more fixture fits`;
-    fitDiagnosticsEl.append(item);
-  }
-  updateDiagnosticsPanel();
-}
-
-function renderWarnings(warnings) {
-  if (!(warningsEl instanceof HTMLElement)) {
+  clearElement(fspmContentEl);
+  if (!fspmPanelAvailable) {
+    fspmPanelExpanded = false;
+    updateFspmPanel();
     return;
   }
-  clearElement(warningsEl);
-  const uniqueWarnings = Array.from(new Set(warnings.filter((warning) => typeof warning === "string" && warning)));
-  warningCount = uniqueWarnings.length;
-  warningsEl.hidden = uniqueWarnings.length === 0;
-  for (const warning of uniqueWarnings.slice(0, 8)) {
-    const item = document.createElement("p");
-    item.textContent = warning;
-    warningsEl.append(item);
+  for (const section of buildFspmPanelSections(scene)) {
+    const sectionEl = document.createElement("section");
+    sectionEl.className = "assembly-viewer__fspm-section";
+    const title = document.createElement("h3");
+    title.textContent = section.title;
+    sectionEl.append(title);
+    if (section.note) {
+      const note = document.createElement("p");
+      note.className = "assembly-viewer__fspm-note";
+      note.textContent = section.note;
+      sectionEl.append(note);
+    }
+    if (section.rows) {
+      const list = document.createElement("ul");
+      for (const [label, value] of section.rows || []) {
+        appendPanelMetric(list, label, value);
+      }
+      sectionEl.append(list);
+    }
+    fspmContentEl.append(sectionEl);
   }
-  if (uniqueWarnings.length > 8) {
-    const item = document.createElement("p");
-    item.textContent = `${uniqueWarnings.length - 8} more warnings.`;
-    warningsEl.append(item);
-  }
-  updateDiagnosticsPanel();
+  updateFspmPanel();
 }
 
 function wireLodInteraction(controls, lodController) {
@@ -480,17 +769,21 @@ async function boot() {
   try {
     setState("loading", "Loading assembly scene...");
     const sceneUrl = sceneUrlFromQuery(window.location.search);
+    fspmCsvUrl = fspmCsvUrlFromSceneUrl(sceneUrl);
     const scenePayload = await loadAssemblyScene(window.location.search);
     const instanceCount = Array.isArray(scenePayload.instances) ? scenePayload.instances.length : 0;
     renderSummary(scenePayload, instanceCount);
-    renderAssetCounts(scenePayload);
+    renderFspmPanel(scenePayload);
+    fspmExportButton?.addEventListener("click", () => {
+      handleFspmExport();
+    });
 
     setState("loading", "Loading fixture assets...");
     const fixtureAssets = await loadFixtureAssets(scenePayload);
     const world = createAssemblyScene(canvas);
     const buildResult = buildAssemblyWorld(world, scenePayload, fixtureAssets.assetBundles);
-    renderSceneBounds(buildResult);
     wireFixtureControls(buildResult.group, scenePayload);
+    wirePlantControls(buildResult.plantGroup);
     wireHeatmapControls(sceneUrl, world);
     window.addEventListener("pagehide", () => {
       hideHeatmapTooltip();
@@ -502,17 +795,10 @@ async function boot() {
       ...fixtureAssets.warnings,
       ...buildResult.warnings,
     ];
-    renderWarnings(warnings);
-    renderFitDiagnostics(buildResult.diagnostics);
 
     const cameraRig = createCameraRig(world, scenePayload);
     resetCameraButton?.addEventListener("click", () => cameraRig.reset());
-    debugToggleButton?.addEventListener("click", toggleDiagnostics);
-    window.addEventListener("keydown", (event) => {
-      if (event.key.toLowerCase() === "d" && !event.altKey && !event.ctrlKey && !event.metaKey) {
-        toggleDiagnostics();
-      }
-    });
+    fspmToggleButton?.addEventListener("click", toggleFspmPanel);
     wireLodInteraction(cameraRig.controls, buildResult.lodController);
 
     const perf = createPerfOverlay(perfEl, {

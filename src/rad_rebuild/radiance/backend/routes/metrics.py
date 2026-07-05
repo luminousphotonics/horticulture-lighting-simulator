@@ -19,7 +19,7 @@ from rad_rebuild.radiance.backend.env import (
     _request_uses_precomputed,
 )
 from rad_rebuild.radiance.backend.metrics import get_metrics_payload
-from rad_rebuild.radiance.backend.models import RadianceMetricsResponse, RadianceRunRequest
+from rad_rebuild.radiance.backend.models import RadianceMetricsResponse, RadianceRunRequest, request_with_updates
 from rad_rebuild.radiance.backend.routes.contracts import PUBLIC_ERROR_RESPONSES
 from rad_rebuild.radiance.backend.runtime import (
     maybe_cleanup_runtime_state,
@@ -56,6 +56,98 @@ def _route_radiance_request(**kwargs: object) -> RadianceRunRequest:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+_INT_PLANT_QUERY_FIELDS = {
+    "plant_seed",
+    "plant_rows",
+    "plant_columns",
+    "plant_leaf_count",
+}
+
+_FLOAT_PLANT_QUERY_FIELDS = {
+    "plant_spacing_m",
+    "plant_height_m",
+    "plant_canopy_radius_m",
+    "plant_growth_stage",
+    "fspm_target_ppfd_umol_m2_s",
+    "fspm_target_tolerance_umol_m2_s",
+}
+
+_STRING_PLANT_QUERY_FIELDS = {
+    "fspm_receiver_granularity",
+    "fspm_leaf_optical_profile_id",
+    "fspm_leaf_radiance_material_mode",
+    "fspm_spectral_transport_mode",
+}
+
+
+def _query_text(request: Request, name: str) -> str | None:
+    raw = request.query_params.get(name)
+    if raw is None:
+        return None
+    value = raw.strip()
+    return value if value else None
+
+
+def _query_int(request: Request, name: str) -> int | None:
+    raw = _query_text(request, name)
+    if raw is None:
+        return None
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"{name} must be an integer.") from exc
+
+
+def _query_float(request: Request, name: str) -> float | None:
+    raw = _query_text(request, name)
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"{name} must be a number.") from exc
+
+
+def _apply_metrics_plant_query_overrides(
+    req: RadianceRunRequest,
+    request: Request,
+) -> RadianceRunRequest:
+    updates: dict[str, object] = {}
+
+    if request.query_params.get("plants_enabled") is not None:
+        updates["plants_enabled"] = request_bool_query_param(
+            request,
+            "plants_enabled",
+            req.plants_enabled,
+        )
+
+    for field_name in _INT_PLANT_QUERY_FIELDS:
+        int_value = _query_int(request, field_name)
+        if int_value is not None:
+            updates[field_name] = int_value
+
+    for field_name in _FLOAT_PLANT_QUERY_FIELDS:
+        float_value = _query_float(request, field_name)
+        if float_value is not None:
+            updates[field_name] = float_value
+
+    for field_name in _STRING_PLANT_QUERY_FIELDS:
+        text_value = _query_text(request, field_name)
+        if text_value is not None:
+            updates[field_name] = text_value
+
+    if not updates:
+        return req
+
+    try:
+        return request_with_updates(req, **updates)
+    except (TypeError, ValueError, ValidationError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid plant query parameter: {exc}",
+        ) from exc
+
+
 @router.get(
     "/radiance/metrics",
     response_model=RadianceMetricsResponse,
@@ -70,6 +162,7 @@ def radiance_metrics(
     sim_mode: str = "standard",
     target_ppfd: float | None = None,
     peak_capping_enabled: bool = False,
+    match_system_ppe: bool = False,
     length_ft: float | None = None,
     width_ft: float | None = None,
     w_min: float | None = None,
@@ -85,6 +178,7 @@ def radiance_metrics(
     maybe_cleanup_runtime_state()
     mode = _normalize_mode(mode)
     peak_capping_enabled = request_bool_query_param(request, "peak_capping_enabled", peak_capping_enabled)
+    match_system_ppe = request_bool_query_param(request, "match_system_ppe", match_system_ppe)
 
     req_length = length_ft if length_ft is not None else float(PUBLIC_DEFAULT_LENGTH_FT)
     req_width = width_ft if width_ft is not None else float(PUBLIC_DEFAULT_WIDTH_FT)
@@ -102,6 +196,7 @@ def radiance_metrics(
             w_max=w_max,
             target_ppfd=req_target,
             peak_capping_enabled=peak_capping_enabled,
+            match_system_ppe=match_system_ppe,
             competitor_layout=competitor_layout,
             hps_coverage_ft=hps_coverage_ft,
             hps_ies_variant=hps_ies_variant,
@@ -111,6 +206,8 @@ def radiance_metrics(
             basis_backend=basis_backend,
         )
     )
+    req = _apply_metrics_plant_query_overrides(req, request)
+    req = _canonicalize_mode_request(req)
     matched_req = precomputed_request_for_available_bundle(req) if _request_uses_precomputed(req) else None
     if matched_req is not None:
         req = matched_req

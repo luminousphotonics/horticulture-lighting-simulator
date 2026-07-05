@@ -92,6 +92,19 @@ def test_ppfd_metrics_for_non_negative_fields_are_finite(samples: list[float]) -
             assert value >= 0.0
 
 
+@pytest.mark.unit
+def test_plane_utilization_matches_capture_fraction() -> None:
+    metrics = compute_ppfd_metrics(
+        np.array([100.0, 120.0, 140.0], dtype=float),
+        canopy_area_m2=2.0,
+        emitted_ppf_umol_s=1000.0,
+    )
+
+    assert metrics["ppf_out"] == pytest.approx(240.0)
+    assert metrics["capture_frac"] == pytest.approx(0.24)
+    assert metrics["plane_utilization"] == pytest.approx(metrics["capture_frac"])
+
+
 @pytest.mark.radiance
 @given(
     samples=st.lists(

@@ -11,6 +11,12 @@ import {
   els,
 } from "./state.js";
 
+export const DEFAULT_FSPM_LEAF_OPTICAL_PROFILE_ID = "rex_green_butterhead_mature_leaf_optics_v1";
+export const DEFAULT_FSPM_LEAF_RADIANCE_MATERIAL_MODE = "rex_source_weighted_trans";
+export const DEFAULT_FSPM_SPECTRAL_TRANSPORT_MODE = "banded_5";
+export const SCALAR_FSPM_LEAF_RADIANCE_MATERIAL_MODE = "opaque_occluder";
+export const SCALAR_FSPM_SPECTRAL_TRANSPORT_MODE = "scalar_source_weighted";
+
 export function parsePositive(el, fallback) {
   const value = Number.parseFloat(el?.value || "");
   if (Number.isFinite(value) && value > 0) {
@@ -53,6 +59,171 @@ export function syncDimensionWarnings() {
   return lengthOk && widthOk;
 }
 
+
+function parseFinite(el, fallback) {
+  const value = Number.parseFloat(el?.value || "");
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function parseInteger(el, fallback) {
+  const value = Number.parseInt(el?.value || "", 10);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function liveSupportedModes() {
+  const modes = appState.runtimeStatus?.live_supported_modes;
+  return Array.isArray(modes) && modes.length ? modes : ["SMD"];
+}
+
+function plantsAvailable(mode, executionMode) {
+  return executionMode !== "precomputed" && liveSupportedModes().includes(mode);
+}
+
+export function syncFspmControls() {
+  const mode = els.radMode?.value || "";
+  const executionMode = (els.radSimMode?.value || defaultExecutionMode || "precomputed").trim();
+  const precomputedMode = executionMode === "precomputed";
+  const liveFspmAvailable = plantsAvailable(mode, executionMode);
+  const panelVisible = precomputedMode || liveFspmAvailable;
+  const liveOnlyControls = [
+    els.radPlantsEnabled,
+    els.radPlantSeed,
+    els.radPlantRows,
+    els.radPlantColumns,
+    els.radPlantSpacingM,
+    els.radPlantHeightM,
+    els.radPlantCanopyRadiusM,
+    els.radPlantLeafCount,
+    els.radPlantGrowthStage,
+    els.radFspmReceiverGranularity,
+    els.radFspmMultispectralMode,
+  ].filter(Boolean);
+  const runtimeTargetControls = [
+    els.radFspmTargetPpfd,
+    els.radFspmTargetTolerance,
+  ].filter(Boolean);
+  const liveOnlyRows = /** @type {NodeListOf<HTMLElement>} */ (
+    document.querySelectorAll("[data-fspm-live-only]")
+  );
+
+  if (els.radFspmFieldset) {
+    els.radFspmFieldset.hidden = !panelVisible;
+  }
+  if (els.radFspmLegend) {
+    els.radFspmLegend.textContent = precomputedMode
+      ? "FSPM Runtime Controls"
+      : "FSPM Plant Geometry";
+  }
+  if (els.radFspmLiveNote) {
+    els.radFspmLiveNote.hidden = !liveFspmAvailable;
+  }
+  if (els.radFspmPrecomputedNote) {
+    els.radFspmPrecomputedNote.hidden = !precomputedMode;
+  }
+  liveOnlyRows.forEach((row) => {
+    row.hidden = !liveFspmAvailable;
+  });
+
+  liveOnlyControls.forEach((control) => {
+    control.disabled = !liveFspmAvailable;
+    control.title = liveFspmAvailable
+      ? ""
+      : precomputedMode
+        ? "Precomputed playback uses the installed scalar plant bundle contract."
+        : "FSPM plant geometry is available only for currently live-supported lighting modes.";
+  });
+  runtimeTargetControls.forEach((control) => {
+    control.disabled = !panelVisible;
+    control.title = panelVisible ? "" : "FSPM target controls are unavailable for this mode.";
+  });
+
+  if (!liveFspmAvailable && els.radPlantsEnabled) {
+    els.radPlantsEnabled.checked = false;
+  }
+  if (els.radFspmMultispectralMode?.dataset.fspmMultispectralEdited !== "true") {
+    syncFspmMultispectralDefault();
+  }
+
+  return panelVisible;
+}
+
+export function syncFspmMultispectralDefault() {
+  if (!els.radFspmMultispectralMode) {
+    return;
+  }
+  const granularity = (els.radFspmReceiverGranularity?.value || "leaf_centroid").trim();
+  els.radFspmMultispectralMode.checked = granularity !== "leaf_centroid";
+}
+
+export function resetFspmMultispectralDefault() {
+  if (els.radFspmMultispectralMode) {
+    delete els.radFspmMultispectralMode.dataset.fspmMultispectralEdited;
+  }
+  syncFspmMultispectralDefault();
+}
+
+export function markFspmMultispectralEdited() {
+  if (els.radFspmMultispectralMode) {
+    els.radFspmMultispectralMode.dataset.fspmMultispectralEdited = "true";
+  }
+}
+
+export function markFspmTargetEdited() {
+  if (els.radFspmTargetPpfd) {
+    els.radFspmTargetPpfd.dataset.fspmTargetEdited = "true";
+  }
+}
+
+export function syncFspmTargetDefault() {
+  if (!els.radFspmTargetPpfd || els.radFspmTargetPpfd.dataset.fspmTargetEdited === "true") {
+    return;
+  }
+  const target = parsePositive(els.radTarget, 275);
+  els.radFspmTargetPpfd.value = `${target}`;
+}
+
+function parsePlantPayload(_mode, executionMode) {
+  const fspmTargetPpfdUmolM2S = parsePositive(els.radFspmTargetPpfd, parsePositive(els.radTarget, 275));
+  const fspmTargetToleranceUmolM2S = parsePositive(els.radFspmTargetTolerance, 20);
+  if (executionMode === "precomputed") {
+    return {
+      plantsEnabled: true,
+      fspmTargetPpfdUmolM2S,
+      fspmTargetToleranceUmolM2S,
+    };
+  }
+  const enabled = Boolean(
+    executionMode !== "precomputed"
+      && els.radPlantsEnabled
+      && els.radPlantsEnabled.checked,
+  );
+  if (!enabled) {
+    return { plantsEnabled: false };
+  }
+  const multispectralMode = Boolean(els.radFspmMultispectralMode?.checked);
+  return {
+    plantsEnabled: true,
+    plantSeed: parseInteger(els.radPlantSeed, 42),
+    plantRows: parseInteger(els.radPlantRows, 2),
+    plantColumns: parseInteger(els.radPlantColumns, 2),
+    plantSpacingM: parseFinite(els.radPlantSpacingM, 0.30),
+    plantHeightM: parseFinite(els.radPlantHeightM, 0.16),
+    plantCanopyRadiusM: parseFinite(els.radPlantCanopyRadiusM, 0.18),
+    plantLeafCount: parseInteger(els.radPlantLeafCount, 12),
+    plantGrowthStage: parseFinite(els.radPlantGrowthStage, 1.0),
+    fspmReceiverGranularity: (els.radFspmReceiverGranularity?.value || "leaf_centroid").trim(),
+    fspmLeafOpticalProfileId: DEFAULT_FSPM_LEAF_OPTICAL_PROFILE_ID,
+    fspmLeafRadianceMaterialMode: multispectralMode
+      ? DEFAULT_FSPM_LEAF_RADIANCE_MATERIAL_MODE
+      : SCALAR_FSPM_LEAF_RADIANCE_MATERIAL_MODE,
+    fspmSpectralTransportMode: multispectralMode
+      ? DEFAULT_FSPM_SPECTRAL_TRANSPORT_MODE
+      : SCALAR_FSPM_SPECTRAL_TRANSPORT_MODE,
+    fspmTargetPpfdUmolM2S,
+    fspmTargetToleranceUmolM2S,
+  };
+}
+
 export function parsePayload() {
   const dimsOk = syncDimensionWarnings();
   if (!dimsOk) {
@@ -74,7 +245,9 @@ export function parsePayload() {
     width: Number.parseFloat(els.radWidth.value),
     target: parsePositive(els.radTarget, 1000),
     peakCappingEnabled: Boolean(els.radPeakCapping && !els.radPeakCapping.disabled && els.radPeakCapping.checked),
+    matchSystemPpe: els.radMatchSystemPpe ? Boolean(els.radMatchSystemPpe.checked) : true,
     basisBackend,
+    ...parsePlantPayload(mode, executionMode),
   };
 }
 
@@ -86,7 +259,7 @@ export function radiancePayload(action) {
   const hpsMountHeightM = isHps && values.executionMode === "precomputed"
     ? HPS_DEFAULT_MOUNT_Z_M
     : values.mountHeightM;
-  return {
+  const payload = {
     action,
     mode: values.mode,
     execution_mode: values.executionMode,
@@ -103,9 +276,11 @@ export function radiancePayload(action) {
     overlay: "auto",
     smd_base_ring: 0,
     basis_backend: values.basisBackend,
-    // The website simulator does not expose the legacy PPE-matching fallback,
-    // so the live path should always use the physically based runtime model.
-    match_system_ppe: false,
+    // Checked by default for architecture/uniformity comparisons. Uncheck in
+    // Proposed mode to use the native SMD curve and thermal droop model.
+    match_system_ppe: isOurSystem
+      ? (values.executionMode === "precomputed" ? true : values.matchSystemPpe)
+      : false,
     sp_ppf: conventionalFixturePpf,
     sp_z_m: values.mountHeightM,
     sp_ppe: conventionalFixturePpe,
@@ -115,7 +290,31 @@ export function radiancePayload(action) {
     hps_fixture_ppf: hpsDefaults.fixturePpf,
     hps_input_watts: hpsDefaults.inputWatts,
     hps_ies_variant: "karma",
+    plants_enabled: values.plantsEnabled,
   };
+  if (values.plantsEnabled) {
+    if (values.executionMode !== "precomputed") {
+      Object.assign(payload, {
+        plant_seed: values.plantSeed,
+        plant_rows: values.plantRows,
+        plant_columns: values.plantColumns,
+        plant_spacing_m: values.plantSpacingM,
+        plant_height_m: values.plantHeightM,
+        plant_canopy_radius_m: values.plantCanopyRadiusM,
+        plant_leaf_count: values.plantLeafCount,
+        plant_growth_stage: values.plantGrowthStage,
+        fspm_receiver_granularity: values.fspmReceiverGranularity,
+        fspm_leaf_optical_profile_id: values.fspmLeafOpticalProfileId,
+        fspm_leaf_radiance_material_mode: values.fspmLeafRadianceMaterialMode,
+        fspm_spectral_transport_mode: values.fspmSpectralTransportMode,
+      });
+    }
+    Object.assign(payload, {
+      fspm_target_ppfd_umol_m2_s: values.fspmTargetPpfdUmolM2S,
+      fspm_target_tolerance_umol_m2_s: values.fspmTargetToleranceUmolM2S,
+    });
+  }
+  return payload;
 }
 
 export function runKeyForPayload(payload) {
@@ -128,10 +327,26 @@ export function runKeyForPayload(payload) {
     width: payload.width,
     target: payload.target,
     peakCappingEnabled: payload.peakCappingEnabled,
+    matchSystemPpe: payload.matchSystemPpe,
     hpsCoverage: payload.hpsCoverage,
     hpsVariant: payload.hpsVariant,
     competitorLayout: payload.competitorLayout,
     basisBackend: payload.basisBackend,
+    plantsEnabled: payload.plantsEnabled,
+    plantSeed: payload.plantSeed,
+    plantRows: payload.plantRows,
+    plantColumns: payload.plantColumns,
+    plantSpacingM: payload.plantSpacingM,
+    plantHeightM: payload.plantHeightM,
+    plantCanopyRadiusM: payload.plantCanopyRadiusM,
+    plantLeafCount: payload.plantLeafCount,
+    plantGrowthStage: payload.plantGrowthStage,
+    fspmReceiverGranularity: payload.fspmReceiverGranularity,
+    fspmLeafOpticalProfileId: payload.fspmLeafOpticalProfileId,
+    fspmLeafRadianceMaterialMode: payload.fspmLeafRadianceMaterialMode,
+    fspmSpectralTransportMode: payload.fspmSpectralTransportMode,
+    fspmTargetPpfdUmolM2S: payload.fspmTargetPpfdUmolM2S,
+    fspmTargetToleranceUmolM2S: payload.fspmTargetToleranceUmolM2S,
   });
 }
 
@@ -163,12 +378,10 @@ export function syncModeControls({ resetMountHeight = false } = {}) {
   const isHps = els.radMode?.value === "1000W HPS";
   const isCompetitor = els.radMode?.value === "Competitor";
   const isDimmableLed = isOurSystem || isCompetitor;
+  syncFspmControls();
   syncMountHeightForMode({ resetToDefault: resetMountHeight });
   const activeMountHeightM = Number.parseFloat(els.radMountHeight?.value || `${defaultMountHeightForMode(els.radMode?.value)}`);
   const activeMountHeightLabel = formatMountHeightLabel(activeMountHeightM);
-  if (els.radQualityPreset) {
-    els.radQualityPreset.value = "standard";
-  }
   if (els.radMountHeightField) {
     els.radMountHeightField.classList.toggle("radiance-field--inactive", false);
   }
@@ -186,12 +399,19 @@ export function syncModeControls({ resetMountHeight = false } = {}) {
     els.radBasisBackend.disabled = !isOurSystem;
     els.radBasisBackend.title = isOurSystem ? "" : "SMD Basis Backend applies only to Proposed LED System mode.";
   }
+  const executionMode = (els.radSimMode?.value || defaultExecutionMode || "precomputed").trim();
+  const qualityActive = executionMode !== "precomputed";
   if (els.radQualityField) {
-    els.radQualityField.classList.toggle("radiance-field--inactive", true);
+    els.radQualityField.classList.toggle("radiance-field--inactive", !qualityActive);
   }
   if (els.radQualityPreset) {
-    els.radQualityPreset.disabled = true;
-    els.radQualityPreset.title = "Precomputed playback uses bundled Standard outputs.";
+    els.radQualityPreset.disabled = !qualityActive;
+    els.radQualityPreset.title = qualityActive
+      ? ""
+      : "Precomputed playback uses bundled Standard outputs.";
+    if (!qualityActive) {
+      els.radQualityPreset.value = "standard";
+    }
   }
   if (els.radHpsCoverageField) {
     els.radHpsCoverageField.classList.toggle("radiance-field--inactive", !isHps);
@@ -235,6 +455,16 @@ export function syncModeControls({ resetMountHeight = false } = {}) {
       els.radPeakCapping.title = "";
     }
   }
+  if (els.radMatchSystemPpeField) {
+    els.radMatchSystemPpeField.hidden = !isOurSystem;
+    els.radMatchSystemPpeField.classList.toggle("radiance-field--inactive", !isOurSystem);
+  }
+  if (els.radMatchSystemPpe) {
+    els.radMatchSystemPpe.disabled = !isOurSystem;
+    els.radMatchSystemPpe.title = isOurSystem
+      ? "Checked: match Proposed LED System source efficacy to the Conventional LED comparator. Unchecked: use native SMD curve and thermal droop model."
+      : "PPE matching applies only to Proposed LED System mode.";
+  }
   syncDimensionWarnings();
   if (els.radVisualNote) {
     els.radVisualNote.textContent = "";
@@ -274,6 +504,9 @@ export function parseElectricalPayload() {
     width_ft: payload.width,
     target_ppfd: payload.target,
     peak_capping_enabled: payload.peakCappingEnabled,
+    match_system_ppe: payload.mode === "SMD"
+      ? (payload.executionMode === "precomputed" ? true : payload.matchSystemPpe)
+      : false,
     basis_backend: payload.basisBackend,
     competitor_layout: payload.competitorLayout,
     hps_coverage_ft: payload.hpsCoverage,

@@ -25,6 +25,17 @@ from rad_rebuild.radiance.config import (
     output_dir_for_mode as _config_output_dir_for_mode,
     overlay_for_mode as _config_overlay_for_mode,
 )
+from rad_rebuild.radiance.domain import plant_geometry_config_from_request
+from rad_rebuild.radiance.engine.plants.leaf_materials import (
+    FSPM_LEAF_RADIANCE_MATERIAL_MODE_ENV,
+    FSPM_SPECTRAL_TRANSPORT_MODE_ENV,
+)
+from rad_rebuild.radiance.engine.plants.spectral_absorption import FSPM_LEAF_OPTICAL_PROFILE_ID_ENV
+from rad_rebuild.radiance.engine.plants.surface_flux import FSPM_RECEIVER_GRANULARITY_ENV
+from rad_rebuild.radiance.fspm_targets import (
+    resolve_fspm_target_ppfd,
+    resolve_fspm_target_tolerance,
+)
 from rad_rebuild.radiance.paths import (
     RADIANCE_CURVE_DATA_ROOT,
     RADIANCE_DATA_ROOT,
@@ -85,6 +96,35 @@ LOCAL_RADIANCE_BIN = Path("/opt/radiance/bin")
 LOCAL_RADIANCE_LIB = Path("/opt/radiance/lib")
 HPS_MODE_LABEL = MODE_HPS
 DISABLE_RADIANCE_AUTODETECT_ENV = "RAD_REBUILD_DISABLE_RADIANCE_AUTODETECT"
+PLANT_ENV_KEYS = (
+    "FSPM_PLANTS_ENABLED",
+    "FSPM_PLANT_SEED",
+    "FSPM_PLANT_ROWS",
+    "FSPM_PLANT_COLUMNS",
+    "FSPM_PLANT_SPACING_M",
+    "FSPM_PLANT_ROOM_LENGTH_FT",
+    "FSPM_PLANT_ROOM_WIDTH_FT",
+    "FSPM_PLANT_HEIGHT_M",
+    "FSPM_PLANT_CANOPY_RADIUS_M",
+    "FSPM_PLANT_LEAF_COUNT",
+    "FSPM_PLANT_LEAF_LENGTH_MIN_M",
+    "FSPM_PLANT_LEAF_LENGTH_MAX_M",
+    "FSPM_PLANT_LEAF_WIDTH_MIN_M",
+    "FSPM_PLANT_LEAF_WIDTH_MAX_M",
+    "FSPM_PLANT_LEAF_TILT_MIN_DEG",
+    "FSPM_PLANT_LEAF_TILT_MAX_DEG",
+    "FSPM_PLANT_CURVATURE_M",
+    "FSPM_PLANT_GROWTH_STAGE",
+    "FSPM_PLANT_REFLECTANCE",
+    "FSPM_PLANT_TRANSMITTANCE",
+    "FSPM_PLANT_ABSORPTANCE",
+    "FSPM_TARGET_PPFD_UMOL_M2_S",
+    "FSPM_TARGET_TOLERANCE_UMOL_M2_S",
+    FSPM_RECEIVER_GRANULARITY_ENV,
+    FSPM_LEAF_OPTICAL_PROFILE_ID_ENV,
+    FSPM_LEAF_RADIANCE_MATERIAL_MODE_ENV,
+    FSPM_SPECTRAL_TRANSPORT_MODE_ENV,
+)
 
 
 def _canonicalize_execution_mode(raw: str | None) -> str:
@@ -170,6 +210,16 @@ def _configured_radiance_lib() -> Path | None:
     return None
 
 
+def _apply_private_photometry_paths(env: dict[str, str]) -> None:
+    conventional_ies = env.get("RAD_REBUILD_PRIVATE_CONVENTIONAL_IES", "").strip()
+    hps_ies = env.get("RAD_REBUILD_PRIVATE_HPS_IES", "").strip()
+
+    if conventional_ies:
+        env["SPYDR_IES_PATH"] = conventional_ies
+    if hps_ies:
+        env["HPS_IES_PATH"] = hps_ies
+
+
 def _base_env() -> dict[str, str]:
     env = os.environ.copy()
     env.setdefault("PATH", "")
@@ -217,6 +267,7 @@ def _base_env() -> dict[str, str]:
     env["RADIANCE_CACHE_ROOT"] = str(CACHE_ROOT)
     env[PRECOMPUTED_ROOT_ENV] = str(resolve_precomputed_root())
     env["PYTHONPATH"] = f"{REPO_ROOT / 'src'}{os.pathsep}{env.get('PYTHONPATH', '')}".rstrip(os.pathsep)
+    _apply_private_photometry_paths(env)
     return env
 
 
@@ -364,7 +415,69 @@ def _make_env_base(req: Any) -> dict[str, str]:
             env["CANOPY_AREA_M2"] = f"{area_m2:.6f}"
     except Exception:
         pass
+    _apply_plant_request_env(env, req)
     return env
+
+
+def _apply_plant_request_env(env: dict[str, str], req: Any) -> None:
+    for key in PLANT_ENV_KEYS:
+        env.pop(key, None)
+    if not bool(getattr(req, "plants_enabled", False)):
+        return
+
+    config = plant_geometry_config_from_request(req)
+    optical = config.optical
+    leaf_length_min, leaf_length_max = config.leaf_length_range_m
+    leaf_width_min, leaf_width_max = config.leaf_width_range_m
+    leaf_tilt_min, leaf_tilt_max = config.leaf_tilt_range_deg
+    target_ppfd = resolve_fspm_target_ppfd(
+        getattr(req, "fspm_target_ppfd_umol_m2_s", None),
+        fallback_target_ppfd=getattr(req, "target_ppfd", None),
+    )
+    target_tolerance = resolve_fspm_target_tolerance(
+        getattr(req, "fspm_target_tolerance_umol_m2_s", None)
+    )
+    plant_room_length_ft = (
+        config.room_length_m / 0.3048
+        if config.room_length_m is not None
+        else max(float(req.length_ft), float(req.width_ft))
+    )
+    plant_room_width_ft = (
+        config.room_width_m / 0.3048
+        if config.room_width_m is not None
+        else min(float(req.length_ft), float(req.width_ft))
+    )
+    env.update(
+        {
+            "FSPM_PLANTS_ENABLED": "1",
+            "FSPM_PLANT_SEED": str(config.seed),
+            "FSPM_PLANT_ROWS": str(config.plant_grid_rows),
+            "FSPM_PLANT_COLUMNS": str(config.plant_grid_columns),
+            "FSPM_PLANT_SPACING_M": f"{config.plant_spacing_m:g}",
+            "FSPM_PLANT_ROOM_LENGTH_FT": f"{plant_room_length_ft:g}",
+            "FSPM_PLANT_ROOM_WIDTH_FT": f"{plant_room_width_ft:g}",
+            "FSPM_PLANT_HEIGHT_M": f"{config.plant_height_m:g}",
+            "FSPM_PLANT_CANOPY_RADIUS_M": f"{config.canopy_radius_m:g}",
+            "FSPM_PLANT_LEAF_COUNT": str(config.leaf_count_per_plant),
+            "FSPM_PLANT_LEAF_LENGTH_MIN_M": f"{leaf_length_min:g}",
+            "FSPM_PLANT_LEAF_LENGTH_MAX_M": f"{leaf_length_max:g}",
+            "FSPM_PLANT_LEAF_WIDTH_MIN_M": f"{leaf_width_min:g}",
+            "FSPM_PLANT_LEAF_WIDTH_MAX_M": f"{leaf_width_max:g}",
+            "FSPM_PLANT_LEAF_TILT_MIN_DEG": f"{leaf_tilt_min:g}",
+            "FSPM_PLANT_LEAF_TILT_MAX_DEG": f"{leaf_tilt_max:g}",
+            "FSPM_PLANT_CURVATURE_M": f"{config.leaf_curvature_m:g}",
+            "FSPM_PLANT_GROWTH_STAGE": f"{config.growth_stage:g}",
+            "FSPM_PLANT_REFLECTANCE": f"{optical.reflectance:g}",
+            "FSPM_PLANT_TRANSMITTANCE": f"{optical.transmittance:g}",
+            "FSPM_PLANT_ABSORPTANCE": f"{optical.absorptance:g}",
+            "FSPM_TARGET_PPFD_UMOL_M2_S": f"{target_ppfd:g}",
+            "FSPM_TARGET_TOLERANCE_UMOL_M2_S": f"{target_tolerance:g}",
+            FSPM_RECEIVER_GRANULARITY_ENV: str(req.fspm_receiver_granularity),
+            FSPM_LEAF_OPTICAL_PROFILE_ID_ENV: str(req.fspm_leaf_optical_profile_id),
+            FSPM_LEAF_RADIANCE_MATERIAL_MODE_ENV: str(req.fspm_leaf_radiance_material_mode),
+            FSPM_SPECTRAL_TRANSPORT_MODE_ENV: str(req.fspm_spectral_transport_mode),
+        }
+    )
 
 
 def _env_smd(req: Any) -> dict[str, str]:
@@ -426,9 +539,10 @@ def _env_smd(req: Any) -> dict[str, str]:
     if req.match_system_ppe:
         env["SMD_MODEL"] = "legacy"
         env["PPE_IS_SYSTEM"] = "1"
-        env["SMD_TARGET_PPE_UMOL_PER_J"] = "2.700"
+        env["SMD_TARGET_PPE_UMOL_PER_J"] = f"{float(getattr(req, 'sp_ppe', COMPETITOR_FIXTURE_PPE_UMOL_PER_J)):.15g}"
         env["EFF_SCALE"] = "1.0"
         env["DROOP_K"] = "0.0"
+        env["SMD_PPE_REFERENCE_MODE"] = "matched_conventional_fixture_ppe"
     return env
 
 

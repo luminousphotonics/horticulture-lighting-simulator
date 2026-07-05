@@ -309,6 +309,11 @@ def build_smd_summary_text(
         + f"  avg PPE (package blend, base) ≈ {avg_ppe:.3f} µmol/J\n"
         + f"  run-average source PPE (pre-PMMA) ≈ {source_ppe_run:.3f} µmol/J → total source photons ≈ {total_umol:.0f} µmol/s\n"
         + f"  run-average wall-plug PPE (post-PMMA) ≈ {wall_plug_ppe_run:.3f} µmol/J → total emitted photons ≈ {total_output_umol:.0f} µmol/s\n"
+        + (
+            "  emitted-photon basis: summary total is the fixture-output photon "
+            "budget used by Radiance; PMMA/PTFE transport remains scene geometry, "
+            "not a metrics post-process.\n"
+        )
         + (debug_text if debug_text else "")
     )
 

@@ -1,0 +1,73 @@
+{
+  "profile_id": "rex_green_butterhead_mature_leaf_optics_v1",
+  "profile_version": "0.2",
+  "species": "Lactuca sativa",
+  "cultivar": "Rex",
+  "common_name": "green butterhead lettuce Rex",
+  "growth_stage": "mature_leaf_uppermost_fully_expanded",
+  "source": {
+    "citation_short": "Frontiers in Plant Science 2025 Rex lettuce Figure 7 digitized optical curves",
+    "article_title": "Orange photons (623 nm) resulted in similar or greater lettuce growth than red photons (660 nm): comparative effects on morphology, photon capture, and photosynthesis",
+    "source_figure": "Figure 7: Rex leaf absorptance, transmittance, and reflectance curves by treatment",
+    "source_url": "https://www.frontiersin.org/journals/plant-science/articles/10.3389/fpls.2025.1653524/full"
+  },
+  "data_provenance": "digitized_from_published_figure",
+  "validation_status": "research_derived_digitized_unvalidated_in_simulator",
+  "model_grid": {
+    "wavelength_min_nm": 404,
+    "wavelength_max_nm": 797,
+    "wavelength_step_nm": 1,
+    "basis": "common integer grid where every treatment has reflectance and transmittance; intentionally not clipped to direct absorptance coverage"
+  },
+  "treatments": [
+    {
+      "treatment_id": "orange",
+      "treatment_label": "Orange"
+    },
+    {
+      "treatment_id": "red",
+      "treatment_label": "Red"
+    },
+    {
+      "treatment_id": "o_plus_fr",
+      "treatment_label": "O+FR"
+    },
+    {
+      "treatment_id": "r_plus_fr",
+      "treatment_label": "R+FR"
+    },
+    {
+      "treatment_id": "mean_of_treatments",
+      "treatment_label": "Mean of Orange, Red, O+FR, R+FR"
+    }
+  ],
+  "columns": {
+    "absorptance_fraction_raw_digitized": "Direct absorptance digitization where available; blank outside direct absorptance range.",
+    "transmittance_fraction_raw_digitized": "Direct transmittance digitization interpolated to model grid.",
+    "reflectance_fraction_raw_digitized": "Direct reflectance digitization interpolated to model grid.",
+    "absorptance_fraction_implied_from_rt_raw": "Unclamped 1 - raw reflectance - raw transmittance. May be negative where digitized R+T exceeds 1.",
+    "absorptance_fraction_implied_from_rt": "Clamped implied absorptance in [0,1] used only where raw absorptance is missing.",
+    "absorptance_fraction_model": "Preferred absorption model: direct raw absorptance where available, otherwise clamped implied A from R/T.",
+    "transmittance_fraction_model": "Budget-constrained model transmittance preserving raw T:R ratio after absorptance is set.",
+    "reflectance_fraction_model": "Budget-constrained model reflectance preserving raw R:T ratio after absorptance is set.",
+    "absorptance_basis": "raw_digitized, implied_from_reflectance_transmittance, implied_from_reflectance_transmittance_clamped_zero_budget_excess, or mean_of_treatment_models.",
+    "rt_model_adjustment": "How raw R/T were scaled to preserve the chosen absorptance and keep model A+T+R=1."
+  },
+  "important_notes": [
+    "No peak normalization was applied; percent values were converted to fractions only.",
+    "Reflectance/transmittance were preserved to the 404-797 nm model grid and were not clipped to the direct absorptance range.",
+    "Missing direct absorptance is not treated as zero absorption.",
+    "Where raw absorptance is missing, A is inferred from R/T; if digitized R+T exceeds 1, implied A is clamped to 0 and R/T are scaled to a unit budget.",
+    "Use absorptance_fraction_model for per-wavelength modeled absorbed photon flux.",
+    "Raw digitized R/T columns are retained for auditability, but model R/T columns are budget-constrained.",
+    "This profile supports modeled leaf optical absorption only; it is not a photosynthesis, biomass, morphology, or yield model."
+  ],
+  "files": {
+    "primary_long": "rex_leaf_optical_properties_digitized_v0_2.csv",
+    "primary_wide": "rex_leaf_optical_properties_digitized_v0_2_wide.csv",
+    "band_summary": "rex_leaf_optical_bands_from_digitized_curves_v0_2.csv",
+    "clean_points": "rex_leaf_optical_clean_points_v0_2.csv",
+    "qc_budget": "rex_leaf_optical_budget_qc_summary_v0_2.csv",
+    "qc_digitization": "qc/rex_leaf_optical_digitization_qc_summary_v0_2.csv"
+  }
+}

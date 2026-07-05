@@ -92,8 +92,8 @@
               {%- endfor %}
             </select>
           </label>
-          <label class="radiance-field" id="rad-quality-field" hidden>
-            <span>Quality Preset</span>
+          <label class="radiance-field" id="rad-quality-field" {% if not radiance_show_live_modes %}hidden{% endif %}>
+            <span>Quality</span>
             <select id="rad-quality-preset">
               <option value="standard" selected>Standard</option>
               <option value="quality">Quality</option>
@@ -110,7 +110,14 @@
               1000W HPS runs at fixed output. The target PPFD is a reference, not a dimming setpoint.
             </span>
           </label>
-          <label class="radiance-field radiance-field--toggle" id="rad-peak-capping-field" hidden>
+          <label class="radiance-field radiance-field--toggle" id="rad-match-system-ppe-field">
+            <span>Proposed Efficiency</span>
+            <span class="radiance-toggle">
+              <input id="rad-match-system-ppe" type="checkbox" checked>
+              <span>Match PPE</span>
+            </span>
+          </label>
+<label class="radiance-field radiance-field--toggle" id="rad-peak-capping-field" hidden>
             <span>Peak Capping</span>
             <span class="radiance-toggle">
               <input id="rad-peak-capping" type="checkbox">
@@ -140,6 +147,76 @@
               <option value="practical" selected>Practical Coverage</option>
             </select>
           </label>
+          <fieldset id="rad-fspm-fieldset" class="radiance-fieldset radiance-fieldset--span" hidden>
+            <legend id="rad-fspm-legend">FSPM Plant Geometry</legend>
+            <p id="rad-fspm-live-note" class="radiance-fieldset__note" data-fspm-live-only>
+              Live mode only. Adds deterministic lettuce-style plant geometry, incident leaf-surface flux metrics, and optional modeled spectral absorption.
+            </p>
+            <p id="rad-fspm-precomputed-note" class="radiance-fieldset__note" hidden>
+              Precomputed mode uses the installed scalar plant bundle contract. Adjust target and tolerance only.
+            </p>
+            <label class="radiance-field radiance-field--toggle" id="rad-plants-enabled-field" data-fspm-live-only>
+              <span>Enable Plants</span>
+              <span class="radiance-toggle">
+                <input id="rad-plants-enabled" type="checkbox" data-fspm-control>
+                <span>Generate deterministic plant geometry for this live run</span>
+              </span>
+            </label>
+            <label class="radiance-field" data-fspm-live-only>
+              <span>Plant Seed</span>
+              <input id="rad-plant-seed" type="number" step="1" value="42" data-fspm-control>
+            </label>
+            <label class="radiance-field" data-fspm-live-only>
+              <span>Rows</span>
+              <input id="rad-plant-rows" type="number" min="1" max="9" step="1" value="2" data-fspm-control>
+            </label>
+            <label class="radiance-field" data-fspm-live-only>
+              <span>Columns</span>
+              <input id="rad-plant-columns" type="number" min="1" max="9" step="1" value="2" data-fspm-control>
+            </label>
+            <label class="radiance-field" data-fspm-live-only>
+              <span>Spacing (m)</span>
+              <input id="rad-plant-spacing-m" type="number" min="0.05" max="2" step="0.01" value="0.30" data-fspm-control>
+            </label>
+            <label class="radiance-field" data-fspm-live-only>
+              <span>Plant Height (m)</span>
+              <input id="rad-plant-height-m" type="number" min="0.01" max="2" step="0.01" value="0.16" data-fspm-control>
+            </label>
+            <label class="radiance-field" data-fspm-live-only>
+              <span>Canopy Radius (m)</span>
+              <input id="rad-plant-canopy-radius-m" type="number" min="0.01" max="2" step="0.01" value="0.18" data-fspm-control>
+            </label>
+            <label class="radiance-field" data-fspm-live-only>
+              <span>Leaves / Plant</span>
+              <input id="rad-plant-leaf-count" type="number" min="1" max="48" step="1" value="12" data-fspm-control>
+            </label>
+            <label class="radiance-field" data-fspm-live-only>
+              <span>Growth Stage</span>
+              <input id="rad-plant-growth-stage" type="number" min="0.05" max="1" step="0.05" value="1.0" data-fspm-control>
+            </label>
+            <label class="radiance-field" data-fspm-live-only>
+              <span>Receiver Samples</span>
+              <select id="rad-fspm-receiver-granularity" data-fspm-control>
+                <option value="leaf_centroid" selected>Centroid</option>
+                <option value="leaf_quadrature_4">Quadrature 4</option>
+                <option value="mesh_patch">Mesh Patch</option>
+              </select>
+            </label>
+            <label class="radiance-field radiance-field--toggle" data-fspm-live-only>
+              <span>Multispectral Mode</span>
+              <span class="radiance-toggle">
+                <input id="rad-fspm-multispectral-mode" type="checkbox" data-fspm-control>
+              </span>
+            </label>
+            <label class="radiance-field">
+              <span>FSPM Target PPFD</span>
+              <input id="rad-fspm-target-ppfd" type="number" min="1" max="3000" step="1" value="1000" data-fspm-control>
+            </label>
+            <label class="radiance-field">
+              <span>Target Tolerance</span>
+              <input id="rad-fspm-target-tolerance" type="number" min="1" max="3000" step="1" value="20" data-fspm-control>
+            </label>
+          </fieldset>
           <label class="radiance-field radiance-field--dimension" id="rad-length-field">
             <span>Length (ft)</span>
             <input id="rad-length" type="number" min="{{ radiance_public_min_ft }}" max="{{ radiance_public_max_ft }}" step="1" value="{{ radiance_default_length_ft }}" required aria-describedby="rad-length-tooltip">
@@ -257,7 +334,7 @@
       </div>
       <div class="radiance-modal__body">
         <img id="modal-image" class="hidden" alt="Visualization full size" src="{{ url_for('static', filename='img/transparent-placeholder.svg') }}">
-        <iframe id="modal-frame" class="hidden" title="3D Scatter" sandbox="allow-scripts allow-same-origin"></iframe>
+        <iframe id="modal-frame" class="hidden" title="3D Scatter" sandbox="allow-scripts allow-same-origin allow-downloads"></iframe>
         <pre id="modal-text" class="hidden"></pre>
       </div>
     </div>
@@ -374,6 +451,11 @@
               <h4>capture_frac</h4>
               <p>The fraction of emitted photons that end up on the sampled canopy area.</p>
               <span>Higher capture means less light is lost to walls, aisles, and overshoot.</span>
+            </article>
+            <article class="radiance-guide-card">
+              <h4>plane_utilization</h4>
+              <p>The same capture ratio, labeled as sampled-plane utilization.</p>
+              <span>This makes the emitted-to-canopy photon accounting explicit.</span>
             </article>
           </div>
         </section>

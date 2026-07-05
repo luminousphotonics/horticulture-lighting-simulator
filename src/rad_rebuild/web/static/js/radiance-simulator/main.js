@@ -12,7 +12,13 @@ import {
 import { openAssemblyViewer } from "./assembly.js";
 import {
   invalidateRenderedRunState,
+  markFspmMultispectralEdited,
+  markFspmTargetEdited,
+  resetFspmMultispectralDefault,
   syncDimensionWarnings,
+  syncFspmControls,
+  syncFspmMultispectralDefault,
+  syncFspmTargetDefault,
   syncModeControls,
 } from "./forms.js";
 import { runRadiance } from "./jobs.js";
@@ -58,6 +64,13 @@ async function boot() {
   if (els.radPeakCapping) {
     els.radPeakCapping.checked = false;
   }
+  if (els.radMatchSystemPpe) {
+    els.radMatchSystemPpe.checked = true;
+  }
+  syncModeControls();
+  syncFspmMultispectralDefault();
+  syncFspmTargetDefault();
+  syncFspmControls();
   await ensureBackend();
   syncPpfdCsvButtonState();
   if (appState.backendUrl) {
@@ -115,9 +128,11 @@ export function initRadianceSimulator() {
   }
   if (els.radTarget) {
     els.radTarget.addEventListener("input", () => {
+      syncFspmTargetDefault();
       invalidateRenderedRunAndSyncActions();
     });
     els.radTarget.addEventListener("blur", () => {
+      syncFspmTargetDefault();
       invalidateRenderedRunAndSyncActions();
     });
   }
@@ -126,6 +141,33 @@ export function initRadianceSimulator() {
       invalidateRenderedRunAndSyncActions();
     });
   }
+  if (els.radFspmTargetPpfd) {
+    els.radFspmTargetPpfd.addEventListener("input", markFspmTargetEdited);
+    els.radFspmTargetPpfd.addEventListener("change", markFspmTargetEdited);
+  }
+  if (els.radFspmReceiverGranularity) {
+    els.radFspmReceiverGranularity.addEventListener("change", () => {
+      resetFspmMultispectralDefault();
+    });
+  }
+  if (els.radFspmMultispectralMode) {
+    els.radFspmMultispectralMode.addEventListener("input", markFspmMultispectralEdited);
+    els.radFspmMultispectralMode.addEventListener("change", markFspmMultispectralEdited);
+  }
+  if (els.radMatchSystemPpe) {
+    els.radMatchSystemPpe.addEventListener("change", () => {
+      invalidateRenderedRunAndSyncActions();
+    });
+  }
+  document.querySelectorAll("[data-fspm-control]").forEach((control) => {
+    control.addEventListener("input", () => {
+      invalidateRenderedRunAndSyncActions();
+    });
+    control.addEventListener("change", () => {
+      syncModeControls();
+      invalidateRenderedRunAndSyncActions();
+    });
+  });
   if (els.btnRadExplainMetrics) {
     els.btnRadExplainMetrics.addEventListener("click", openMetricsGuide);
   }
@@ -139,15 +181,21 @@ export function initRadianceSimulator() {
   if (els.radSimMode) {
     els.radSimMode.addEventListener("change", async () => {
       const selectedExecutionMode = els.radSimMode.value;
+      syncModeControls();
+      syncFspmControls();
+      invalidateRenderedRunAndSyncActions();
+
       const ready = await ensureLiveRuntimeReady({ executionMode: selectedExecutionMode });
+      syncModeControls();
+      syncFspmControls();
+      invalidateRenderedRunAndSyncActions();
+
       if (!ready) {
-        invalidateRenderedRunAndSyncActions();
         await refreshRadianceImages(false);
         clearRenderedOutputs();
         return;
       }
-      syncModeControls();
-      invalidateRenderedRunAndSyncActions();
+
       await refreshRadianceImages(false);
       clearRenderedOutputs();
       const selectedMode = els.radSimMode?.selectedOptions?.[0]?.textContent || "Precomputed";

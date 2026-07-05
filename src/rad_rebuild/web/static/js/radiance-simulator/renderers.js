@@ -16,7 +16,12 @@ const FOCUSABLE_SELECTOR = [
 ].join(",");
 const PLACEHOLDER_SRC = "/static/img/transparent-placeholder.svg";
 const ASSEMBLY_SUPPORTED_MODES = new Set(["SMD", "Competitor", "1000W HPS"]);
+const MODAL_FRAME_SANDBOX = "allow-scripts allow-same-origin allow-downloads";
 const dialogStack = [];
+
+function syncDialogOpenState() {
+  document.body?.classList.toggle("radiance-dialog-open", dialogStack.length > 0);
+}
 
 export function appendOutput(el, text) {
   if (!el) {
@@ -210,6 +215,7 @@ function activateDialog(dialog, opener = document.activeElement) {
     });
   }
   dialog.classList.remove("hidden");
+  syncDialogOpenState();
   window.setTimeout(() => {
     const focusTarget = focusableElements(dialog)[0] || dialog;
     if (focusTarget instanceof HTMLElement) {
@@ -225,6 +231,7 @@ function deactivateDialog(dialog) {
   dialog.classList.add("hidden");
   const index = dialogStack.findIndex((entry) => entry.dialog === dialog);
   const entry = index >= 0 ? dialogStack.splice(index, 1)[0] : null;
+  syncDialogOpenState();
   if (entry?.opener?.isConnected) {
     entry.opener.focus({ preventScroll: true });
   }
@@ -296,6 +303,7 @@ export function openModal({ title, imageSrc, frameSrc, text, fullscreen }) {
     els.modalImage.classList.add("hidden");
   }
   if (frameSrc) {
+    els.modalFrame.setAttribute("sandbox", MODAL_FRAME_SANDBOX);
     els.modalFrame.src = frameSrc;
     els.modalFrame.title = title || "Visualization";
     els.modalFrame.classList.remove("hidden");
@@ -560,6 +568,163 @@ function formatPercent(value, digits = 1) {
   return `${(value * 100).toFixed(digits)}%`;
 }
 
+
+function formatNumber(value, digits = 2) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return null;
+  }
+  return num.toFixed(digits);
+}
+
+function coverageSourceLabel(source) {
+  if (source === "interpolated_runtime_ppfd_map") {
+    return "baseline PPFD map sampled at leaf XY positions";
+  }
+  return String(source || "").replaceAll("_", " ");
+}
+
+function formatPlantPhotonAbsorption(metrics, used) {
+  const scaffold = metrics.plant_incident_surface_flux || metrics.plant_photon_absorption;
+  if (!scaffold || typeof scaffold !== "object") {
+    return [];
+  }
+  if (metrics.plant_incident_surface_flux) {
+    used.add("plant_incident_surface_flux");
+  }
+  used.add("plant_photon_absorption");
+
+  const hasAbsorbedFlux = Number.isFinite(Number(scaffold.total_absorbed_photon_flux_umol_s));
+  const lines = [
+    hasAbsorbedFlux ? "FSPM PLANT SUMMARY" : "PLANT SURFACE REGISTRY",
+  ];
+  const status = String(scaffold.status || "scaffold_only").replaceAll("_", " ");
+  const source = scaffold.source_artifact ? ` · ${scaffold.source_artifact}` : "";
+  lines.push(`status: ${status}${source}`);
+
+  const targetPpfd = formatNumber(scaffold.target_ppfd_umol_m2_s, 0);
+  const targetTolerance = formatNumber(scaffold.target_tolerance_umol_m2_s, 0);
+  if (targetPpfd && targetTolerance) {
+    lines.push(`target_ppfd: ${targetPpfd} umol/m2/s +/- ${targetTolerance}`);
+  }
+  const targetLowerValue =
+    scaffold.target_lower_threshold_umol_m2_s ??
+    (Number.isFinite(Number(scaffold.target_ppfd_umol_m2_s)) &&
+    Number.isFinite(Number(scaffold.target_tolerance_umol_m2_s))
+      ? Number(scaffold.target_ppfd_umol_m2_s) -
+        Number(scaffold.target_tolerance_umol_m2_s)
+      : undefined);
+  const targetUpperValue =
+    scaffold.target_upper_threshold_umol_m2_s ??
+    (Number.isFinite(Number(scaffold.target_ppfd_umol_m2_s)) &&
+    Number.isFinite(Number(scaffold.target_tolerance_umol_m2_s))
+      ? Number(scaffold.target_ppfd_umol_m2_s) +
+        Number(scaffold.target_tolerance_umol_m2_s)
+      : undefined);
+  const targetLower = formatNumber(targetLowerValue, 0);
+  const targetUpper = formatNumber(targetUpperValue, 0);
+  if (targetLower && targetUpper) {
+    lines.push(`target_range: ${targetLower}-${targetUpper} umol/m2/s`);
+  }
+  const targetBasis =
+    scaffold.target_classification_basis_label ||
+    scaffold.target_classification_basis ||
+    scaffold.target_basis_label ||
+    scaffold.target_basis;
+  if (targetBasis) {
+    lines.push(`coverage_basis: ${String(targetBasis).replaceAll("_", " ")}`);
+  }
+  if (scaffold.target_classification_source) {
+    lines.push(`coverage_source: ${coverageSourceLabel(scaffold.target_classification_source)}`);
+  }
+
+  const counts = [];
+  const plantCount = Number(scaffold.plant_count);
+  const leafCount = Number(scaffold.leaf_count);
+  const surfaceCount = Number(scaffold.surface_count);
+  if (Number.isFinite(plantCount)) counts.push(`${plantCount} plants`);
+  if (Number.isFinite(leafCount)) counts.push(`${leafCount} leaves`);
+  if (Number.isFinite(surfaceCount)) counts.push(`${surfaceCount} surfaces`);
+  if (counts.length) {
+    lines.push(`registry: ${counts.join(" · ")}`);
+  }
+
+  const leafArea = formatNumber(scaffold.one_sided_leaf_area_m2, 4);
+  if (leafArea) {
+    lines.push(`one_sided_leaf_area: ${leafArea} m^2`);
+  }
+
+  const optical = scaffold.optical_assumptions;
+  if (optical && typeof optical === "object") {
+    const reflectance = formatPercent(optical.reflectance, 1);
+    const transmittance = formatPercent(optical.transmittance, 1);
+    const absorptance = formatPercent(optical.absorptance, 1);
+    const opticalParts = [];
+    if (reflectance) opticalParts.push(`reflectance=${reflectance}`);
+    if (transmittance) opticalParts.push(`transmittance=${transmittance}`);
+    if (absorptance) opticalParts.push(`absorptance=${absorptance}`);
+    if (opticalParts.length) {
+      lines.push(`optical_assumptions: ${opticalParts.join(" · ")}`);
+    }
+  }
+
+  if (hasAbsorbedFlux) {
+    const targetClassificationMean = formatNumber(
+      scaffold.target_classification_mean_ppfd_umol_m2_s,
+      1,
+    );
+    const rawSummary = scaffold.raw_leaf_surface_flux_summary;
+    lines.push("plant_location_target_coverage_summary:");
+    lines.push(`Target-range leaves: ${Number(scaffold.target_range_leaf_count ?? scaffold.target_range_leaves ?? 0)}`);
+    lines.push(`Under-lit leaves: ${Number(scaffold.under_lit_leaf_count ?? scaffold.under_lit_leaves ?? 0)}`);
+    lines.push(`Over-lit leaves: ${Number(scaffold.over_lit_leaf_count ?? scaffold.over_lit_leaves ?? 0)}`);
+    if (targetClassificationMean) {
+      lines.push(`Mean plant-location reference PPFD: ${targetClassificationMean} umol/m2/s`);
+    }
+    lines.push("raw_leaf_surface_flux_summary:");
+    if (rawSummary && typeof rawSummary === "object") {
+      const mean = formatNumber(rawSummary.mean ?? scaffold.raw_mean_flux_density_umol_m2_s, 1);
+      const meanPercent = Number(rawSummary.mean_percent_of_target);
+      const p05 = formatNumber(rawSummary.p05, 1);
+      const p95 = formatNumber(rawSummary.p95, 1);
+      const max = formatNumber(rawSummary.max, 1);
+      if (mean) {
+        lines.push(
+          `Mean raw PPFD: ${mean} umol/m2/s${Number.isFinite(meanPercent) ? ` (${meanPercent.toFixed(0)}% target)` : ""}`,
+        );
+      }
+      if (p05 && p95) {
+        lines.push(`p05-p95 raw PPFD range: ${p05}-${p95} umol/m2/s`);
+      }
+      if (max) {
+        lines.push(`Max raw PPFD: ${max} umol/m2/s`);
+      }
+    } else {
+      const rawMean = formatNumber(scaffold.raw_mean_flux_density_umol_m2_s, 1);
+      if (rawMean) lines.push(`Mean raw PPFD: ${rawMean} umol/m2/s`);
+    }
+  } else {
+    lines.push("incident_leaf_surface_flux: not computed");
+  }
+  if (scaffold.note) {
+    lines.push(`note: ${scaffold.note}`);
+  } else {
+    lines.push("note: Surface registry only. Incident leaf-surface flux requires a reviewed Radiance surface-flux mapping method.");
+  }
+
+  return lines;
+}
+
+function formatPlantSpectralAbsorption(metrics, used) {
+  const spectral = metrics.plant_spectral_absorption;
+  if (!spectral || typeof spectral !== "object") {
+    return [];
+  }
+  used.add("plant_spectral_absorption");
+  return [];
+}
+
+
 function formatCurrency(value, digits = 0) {
   const num = Number(value);
   if (!Number.isFinite(num)) {
@@ -819,14 +984,16 @@ export function formatMetrics(metrics) {
   push(formatMetricLine("mean/peak", metrics.mean_over_peak?.toFixed?.(3) ?? metrics.mean_over_peak));
   ["peak_over_mean", "min_over_mean", "min_over_max", "mean_over_peak"].forEach((key) => used.add(key));
 
-  if ("ppf_out" in metrics || "ppf_emitted" in metrics || "capture_frac" in metrics) {
+  if ("ppf_out" in metrics || "ppf_emitted" in metrics || "capture_frac" in metrics || "plane_utilization" in metrics) {
     lines.push("");
     lines.push("PHOTONS");
     push(formatMetricLine("ppf_out", metrics.ppf_out?.toFixed?.(1) ?? metrics.ppf_out, "umol/s"));
     push(formatMetricLine("ppf_emitted", metrics.ppf_emitted?.toFixed?.(1) ?? metrics.ppf_emitted, "umol/s"));
     const capture = formatPercent(metrics.capture_frac, 1);
     push(capture ? `capture_frac: ${capture}` : null);
-    ["ppf_out", "ppf_emitted", "capture_frac"].forEach((key) => used.add(key));
+    const planeUtilization = formatPercent(metrics.plane_utilization ?? metrics.capture_frac, 1);
+    push(planeUtilization ? `plane_utilization: ${planeUtilization}` : null);
+    ["ppf_out", "ppf_emitted", "capture_frac", "plane_utilization"].forEach((key) => used.add(key));
   }
 
   if (
@@ -887,6 +1054,19 @@ export function formatMetrics(metrics) {
       "utilization_at_cap",
       "ppf_at_cap",
     ].forEach((key) => used.add(key));
+  }
+
+
+  const plantAbsorptionLines = formatPlantPhotonAbsorption(metrics, used);
+  if (plantAbsorptionLines.length) {
+    lines.push("");
+    lines.push(...plantAbsorptionLines);
+  }
+
+  const plantSpectralAbsorptionLines = formatPlantSpectralAbsorption(metrics, used);
+  if (plantSpectralAbsorptionLines.length) {
+    lines.push("");
+    lines.push(...plantSpectralAbsorptionLines);
   }
 
   if (metrics.legacy && typeof metrics.legacy === "object") {

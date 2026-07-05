@@ -14,9 +14,10 @@ from tests.radiance.runtime_env import configure_test_runtime
 
 configure_test_runtime()
 
+
 from rad_rebuild.radiance.backend import runtime as backend_runtime  # noqa: E402
 from rad_rebuild.radiance.backend import runtime_status  # noqa: E402
-from rad_rebuild.radiance.backend.models import RadianceRunRequest  # noqa: E402
+from rad_rebuild.radiance.backend.models import RadianceRunRequest, RuntimeStatusResponse  # noqa: E402
 from rad_rebuild.radiance.settings import load_settings  # noqa: E402
 from rad_rebuild.radiance.config import (  # noqa: E402
     EXECUTION_MODE_LIVE_DOCKER,
@@ -27,6 +28,22 @@ from rad_rebuild.radiance.config import (  # noqa: E402
     MODE_SMD,
 )
 from rad_rebuild.radiance.domain import PrecomputedMode  # noqa: E402
+
+
+PRIVATE_LIVE_ENV_KEYS = (
+    "RAD_REBUILD_ENABLE_PRIVATE_LIVE_MODES",
+    "RAD_REBUILD_PRIVATE_CONVENTIONAL_IES",
+    "RAD_REBUILD_PRIVATE_HPS_IES",
+)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_private_live_environment(monkeypatch: pytest.MonkeyPatch):
+    for key in PRIVATE_LIVE_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
+    backend_runtime._live_rate_events.clear()
+    yield
+    backend_runtime._live_rate_events.clear()
 
 
 def _write_executable(path: Path) -> None:
@@ -47,9 +64,9 @@ def test_runtime_status_reports_precomputed_and_proposed_only_live_modes() -> No
     assert payload["live_supported_modes"] == ["SMD"]
     assert payload["modes"]["precomputed"]["available"] is True
     assert "Proposed LED System" in payload["live_unsupported_mode_message"]
-    assert runtime_status.live_mode_supported("SMD") is True
-    assert runtime_status.live_mode_supported("Competitor") is False
-    assert runtime_status.live_mode_supported("1000W HPS") is False
+    assert runtime_status.live_mode_supported("SMD", env) is True
+    assert runtime_status.live_mode_supported("Competitor", env) is False
+    assert runtime_status.live_mode_supported("1000W HPS", env) is False
 
 
 def test_production_runtime_status_is_precomputed_only_without_autodetect() -> None:
@@ -110,6 +127,98 @@ def test_production_live_run_request_is_rejected_even_when_env_enables_live() ->
     assert raised.value.status_code == 403
     detail = cast(dict[str, object], raised.value.detail)
     assert detail["error"] == "live_execution_disabled"
+
+def test_private_live_modes_require_flag_and_private_ies_files(tmp_path: Path) -> None:
+    conventional_ies = tmp_path / "qube_660w_8bar.ies"
+    hps_ies = tmp_path / "GLH-KARMA-8-HPS1000.IES"
+
+    base_env = {
+        "RADIANCE_ENABLE_LIVE_EXECUTION": "1",
+        "PATH": "",
+        "RAD_REBUILD_DISABLE_RADIANCE_AUTODETECT": "1",
+    }
+
+    disabled = runtime_status.runtime_status_payload(base_env)
+    assert disabled["live_supported_modes"] == [MODE_SMD]
+    assert disabled["private_photometry"]["reason"] == "not_enabled"
+
+    missing = runtime_status.runtime_status_payload(
+        {
+            **base_env,
+            "RAD_REBUILD_ENABLE_PRIVATE_LIVE_MODES": "1",
+            "RAD_REBUILD_PRIVATE_CONVENTIONAL_IES": str(conventional_ies),
+            "RAD_REBUILD_PRIVATE_HPS_IES": str(hps_ies),
+        }
+    )
+    assert missing["live_supported_modes"] == [MODE_SMD]
+    assert missing["private_photometry"]["available"] is False
+    assert missing["private_photometry"]["reason"] == "private_photometry_assets_missing"
+    assert set(missing["private_photometry"]["missing_files"]) == {MODE_COMPETITOR, MODE_HPS}
+
+    conventional_ies.write_text("IESNA:LM-63-2002\n", encoding="utf-8")
+    hps_ies.write_text("IESNA:LM-63-2002\n", encoding="utf-8")
+
+    enabled_env = {
+        **base_env,
+        "RAD_REBUILD_ENABLE_PRIVATE_LIVE_MODES": "1",
+        "RAD_REBUILD_PRIVATE_CONVENTIONAL_IES": str(conventional_ies),
+        "RAD_REBUILD_PRIVATE_HPS_IES": str(hps_ies),
+    }
+    enabled = runtime_status.runtime_status_payload(enabled_env)
+
+    assert enabled["private_photometry"]["available"] is True
+    assert enabled["live_supported_modes"] == [MODE_SMD, MODE_COMPETITOR, MODE_HPS]
+    assert runtime_status.live_mode_supported(MODE_COMPETITOR, enabled_env) is True
+    assert runtime_status.live_mode_supported(MODE_HPS, enabled_env) is True
+    RuntimeStatusResponse.model_validate(enabled)
+
+
+def test_private_live_modes_are_ignored_in_production(tmp_path: Path) -> None:
+    conventional_ies = tmp_path / "qube_660w_8bar.ies"
+    hps_ies = tmp_path / "GLH-KARMA-8-HPS1000.IES"
+    conventional_ies.write_text("IESNA:LM-63-2002\n", encoding="utf-8")
+    hps_ies.write_text("IESNA:LM-63-2002\n", encoding="utf-8")
+
+    payload = runtime_status.runtime_status_payload(
+        {
+            "RAD_REBUILD_DEPLOYMENT_MODE": "production",
+            "RADIANCE_ENABLE_LIVE_EXECUTION": "1",
+            "RAD_REBUILD_ENABLE_PRIVATE_LIVE_MODES": "1",
+            "RAD_REBUILD_PRIVATE_CONVENTIONAL_IES": str(conventional_ies),
+            "RAD_REBUILD_PRIVATE_HPS_IES": str(hps_ies),
+        }
+    )
+
+    assert payload["live_execution_enabled"] is False
+    assert payload["live_supported_modes"] == []
+    assert payload["private_photometry"]["reason"] == "production_precomputed_only"
+    assert runtime_status.live_mode_supported(MODE_COMPETITOR, {"RAD_REBUILD_DEPLOYMENT_MODE": "production"}) is False
+
+
+def test_private_live_modes_allow_backend_gate_with_private_assets(tmp_path: Path) -> None:
+    conventional_ies = tmp_path / "qube_660w_8bar.ies"
+    hps_ies = tmp_path / "GLH-KARMA-8-HPS1000.IES"
+    conventional_ies.write_text("IESNA:LM-63-2002\n", encoding="utf-8")
+    hps_ies.write_text("IESNA:LM-63-2002\n", encoding="utf-8")
+    env = {
+        "RADIANCE_ENABLE_LIVE_EXECUTION": "1",
+        "RAD_REBUILD_ENABLE_PRIVATE_LIVE_MODES": "1",
+        "RAD_REBUILD_PRIVATE_CONVENTIONAL_IES": str(conventional_ies),
+        "RAD_REBUILD_PRIVATE_HPS_IES": str(hps_ies),
+    }
+    settings = load_settings(env)
+    req = RadianceRunRequest(
+        action="all",
+        mode=MODE_COMPETITOR,
+        execution_mode=EXECUTION_MODE_LIVE_LOCAL,
+    )
+
+    with (
+        patch.dict(runtime_status.os.environ, env, clear=False),
+        patch.dict(backend_runtime.os.environ, env, clear=False),
+        patch.object(backend_runtime, "get_settings", return_value=settings),
+    ):
+        backend_runtime.assert_live_execution_allowed(req, "private-session")
 
 
 def test_local_radiance_status_accepts_proposed_tools_without_ies2rad(tmp_path: Path) -> None:

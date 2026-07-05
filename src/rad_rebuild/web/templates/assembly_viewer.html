@@ -16,7 +16,7 @@
       <div class="assembly-viewer__toolbar">
         <div>
           <p class="assembly-viewer__eyebrow">3D Assembly</p>
-          <h1>Proposed LED System</h1>
+          <h1 id="assembly-title">Lighting System</h1>
         </div>
         <div class="assembly-viewer__heatmap-controls" aria-label="PPFD heatmap controls">
           <label class="assembly-viewer__toggle">
@@ -41,9 +41,35 @@
           <output id="assembly-fixture-height-value" for="assembly-fixture-height">0.00 m</output>
           <button id="assembly-fixture-height-reset" type="button" disabled>Reset Height</button>
         </div>
+        <div id="assembly-plants-control" class="assembly-viewer__plant-controls" aria-label="Plant display controls" hidden>
+          <label class="assembly-viewer__toggle">
+            <input id="assembly-plants-toggle" type="checkbox" checked disabled>
+            <span>Show plants</span>
+          </label>
+          <label class="assembly-viewer__toggle">
+            <input id="assembly-plants-color-toggle" type="checkbox" checked disabled>
+            <span>Surface-flux color</span>
+          </label>
+          <label class="assembly-viewer__select">
+            <span>Plant color</span>
+            <select id="assembly-plants-color-mode" disabled>
+              <option value="target_range">Target range</option>
+              <option value="raw_leaf_surface_flux">Raw leaf-surface flux</option>
+            </select>
+          </label>
+          <label id="assembly-plants-detail-control" class="assembly-viewer__select" hidden>
+            <span>Raw detail</span>
+            <select id="assembly-plants-detail-mode" disabled>
+              <option value="leaf_average">Leaf average</option>
+              <option value="surface_detail">Surface detail</option>
+            </select>
+          </label>
+          <span id="assembly-plants-status" class="assembly-viewer__plant-status">0 leaves</span>
+          <span id="assembly-plants-legend" class="assembly-viewer__plant-legend" hidden></span>
+        </div>
         <div class="assembly-viewer__actions">
-          <button id="assembly-debug-toggle" type="button" aria-controls="assembly-dev-panel" aria-expanded="false">
-            Show Diagnostics
+          <button id="assembly-fspm-toggle" type="button" aria-controls="assembly-fspm-panel" aria-expanded="false" hidden>
+            Show FSPM Panel
           </button>
           <button id="assembly-reset-camera" type="button">Reset Camera</button>
         </div>
@@ -67,15 +93,13 @@
       </div>
       <div id="assembly-perf" class="assembly-viewer__perf" hidden></div>
       <div id="assembly-heatmap-tooltip" class="assembly-viewer__heatmap-tooltip" role="status" aria-live="polite" hidden></div>
-      <aside id="assembly-dev-panel" class="assembly-viewer__dev-panel" aria-label="Assembly asset diagnostics" hidden>
-        <h2>Asset keys</h2>
-        <ul id="assembly-asset-counts"></ul>
-        <h2>Scene bounds</h2>
-        <ul id="assembly-scene-bounds"></ul>
-        <h2>Fit diagnostics</h2>
-        <ul id="assembly-fit-diagnostics"></ul>
-        <h2>Warnings</h2>
-        <div id="assembly-warnings" class="assembly-viewer__warnings" hidden></div>
+      <aside id="assembly-fspm-panel" class="assembly-viewer__fspm-panel" aria-label="FSPM Panel" hidden>
+        <div class="assembly-viewer__fspm-header">
+          <h2>FSPM Panel</h2>
+          <button id="assembly-fspm-export" type="button" disabled hidden>Export Data</button>
+        </div>
+        <p id="assembly-fspm-export-status" class="assembly-viewer__fspm-export-status" aria-live="polite" hidden></p>
+        <div id="assembly-fspm-content" class="assembly-viewer__fspm-content"></div>
       </aside>
     </section>
   </main>
