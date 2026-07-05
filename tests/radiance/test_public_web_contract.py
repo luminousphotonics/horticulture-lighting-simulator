@@ -22,6 +22,38 @@ class PublicRadianceWebContractTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
         self.assertIn("<title>Horticulture Lighting Simulator</title>", html)
+        self.assertIn(
+            '<meta property="og:title" content="Horticulture Lighting Simulator">',
+            html,
+        )
+        self.assertIn(
+            '<meta property="og:description" content="Radiance-based horticultural lighting simulation with plant-resolved FSPM visualization.">',
+            html,
+        )
+        self.assertIn(
+            '<meta property="og:image" content="http://localhost/static/img/og-image.png">',
+            html,
+        )
+        self.assertIn('<meta property="og:image:width" content="1200">', html)
+        self.assertIn('<meta property="og:image:height" content="630">', html)
+        self.assertIn('<meta property="og:type" content="website">', html)
+        self.assertIn(
+            '<meta property="og:url" content="http://localhost/radiance-simulator">',
+            html,
+        )
+        self.assertIn('<meta name="twitter:card" content="summary_large_image">', html)
+        self.assertIn(
+            '<meta name="twitter:title" content="Horticulture Lighting Simulator">',
+            html,
+        )
+        self.assertIn(
+            '<meta name="twitter:description" content="Radiance-based horticultural lighting simulation with plant-resolved FSPM visualization.">',
+            html,
+        )
+        self.assertIn(
+            '<meta name="twitter:image" content="http://localhost/static/img/og-image.png">',
+            html,
+        )
         self.assertIn('class="radiance-shell"', html)
         self.assertIn('id="radiance-form"', html)
         self.assertIn('id="btn-rad-all"', html)

@@ -2,6 +2,19 @@
 
 {% block title %}Horticulture Lighting Simulator{% endblock %}
 {% block meta_description %}A Radiance-based horticultural lighting simulation and 3D visualization engine.{% endblock %}
+{% block social_meta %}
+  <meta property="og:title" content="Horticulture Lighting Simulator">
+  <meta property="og:description" content="Radiance-based horticultural lighting simulation with plant-resolved FSPM visualization.">
+  <meta property="og:image" content="{{ url_for('static', filename='img/og-image.png', _external=True) }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="{{ url_for('pages.radiance_simulator_page', _external=True).rstrip('/') }}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Horticulture Lighting Simulator">
+  <meta name="twitter:description" content="Radiance-based horticultural lighting simulation with plant-resolved FSPM visualization.">
+  <meta name="twitter:image" content="{{ url_for('static', filename='img/og-image.png', _external=True) }}">
+{% endblock %}
 {% block page_css %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/radiance-simulator.css') }}">
 {% endblock %}
