@@ -678,7 +678,7 @@ class PrecomputedRunRouteTests(unittest.TestCase):
             action="all",
             mode="SMD",
             execution_mode="precomputed",
-            length_ft=31,
+            length_ft=21,
             width_ft=10,
         )
         with self.assertRaises(HTTPException) as raised:
@@ -688,7 +688,7 @@ class PrecomputedRunRouteTests(unittest.TestCase):
         detail = cast(dict[str, Any], raised.exception.detail)
         self.assertIsInstance(detail, dict)
         self.assertEqual(detail["error"], "precomputed_dimension_unsupported")
-        self.assertEqual(detail["dimensions"]["slug"], "31x10")
+        self.assertEqual(detail["dimensions"]["slug"], "21x10")
 
 
 if __name__ == "__main__":

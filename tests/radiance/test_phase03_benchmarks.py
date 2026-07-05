@@ -50,8 +50,8 @@ def test_request_serialization_benchmark(benchmark: Any) -> None:
         action="all",
         mode=MODE_SMD,
         execution_mode=EXECUTION_MODE_PRECOMPUTED,
-        length_ft=30,
-        width_ft=30,
+        length_ft=20,
+        width_ft=20,
         target_ppfd=1000,
     )
 

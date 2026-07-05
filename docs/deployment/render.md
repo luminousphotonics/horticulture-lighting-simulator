@@ -77,7 +77,7 @@ Precomputed-only production does not require Docker, local Radiance, or private
 IES assets. It serves public precomputed playback bundles only.
 
 The repository includes public demo bundles. To hydrate the expanded public
-10-30 ft release bundles on startup when the disk is empty, set:
+10-20 ft release bundles on startup when the disk is empty, set:
 
 ```text
 RAD_REBUILD_PRECOMPUTED_AUTO_DOWNLOAD=1

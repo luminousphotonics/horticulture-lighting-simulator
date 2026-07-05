@@ -29,6 +29,10 @@ class PublicRadianceWebContractTests(unittest.TestCase):
         self.assertIn('href="https://github.com/luminousphotonics/horticulture-lighting-simulator"', html)
         self.assertIn('id="about-modal"', html)
         self.assertIn("Engineering highlights", html)
+        self.assertIn("Plant-resolved light transport", html)
+        self.assertIn("Mesh-patch front/back FSPM receivers", html)
+        self.assertIn("Compact precomputed Radiance playback", html)
+        self.assertIn("Natural-fit plant layouts", html)
         self.assertIn("https://patents.google.com/patent/US10687478B2/en", html)
         self.assertNotIn("Available tools", html)
         self.assertNotIn("Open Layout Generator", html)
@@ -41,11 +45,13 @@ class PublicRadianceWebContractTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
         self.assertIn(
-            'id="rad-length" type="number" min="10" max="30" step="1" value="10"', html
+            'id="rad-length" type="number" min="10" max="20" step="1" value="10"', html
         )
         self.assertIn(
-            'id="rad-width" type="number" min="10" max="30" step="1" value="10"', html
+            'id="rad-width" type="number" min="10" max="20" step="1" value="10"', html
         )
+        self.assertIn("Choose a 10-20 ft room", html)
+        self.assertIn("from 10 ft through 20 ft", html)
         self.assertIn('id="rad-sim-mode-field" hidden', html)
         self.assertNotIn("Live - Docker", html)
         self.assertNotIn("Live - Local Radiance", html)

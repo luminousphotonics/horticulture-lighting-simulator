@@ -927,6 +927,10 @@ test("about modal and GitHub actions are accessible", async ({ page }, testInfo)
   const dialog = page.getByRole("dialog", { name: "About Horticulture Lighting Simulator" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText("Engineering highlights")).toBeVisible();
+  await expect(dialog.getByText(/Plant-resolved light transport/)).toBeVisible();
+  await expect(dialog.getByText(/Mesh-patch front\/back FSPM receivers/)).toBeVisible();
+  await expect(dialog.getByText(/Compact precomputed Radiance playback/)).toBeVisible();
+  await expect(dialog.getByText(/Natural-fit plant layouts/)).toBeVisible();
   await expect(dialog.getByText("Created by Austin Rouse.")).toBeVisible();
   const patentLink = dialog.getByRole("link", { name: "Optimized LED Lighting Array for Horticultural Applications" });
   await expect(patentLink).toHaveAttribute("href", "https://patents.google.com/patent/US10687478B2/en");

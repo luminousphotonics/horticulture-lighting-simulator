@@ -21,9 +21,9 @@ export const SURFACE_FLUX_COLOR_PALETTE = Object.freeze({
   red: "#DC2626",
 });
 const TARGET_RANGE_COLOR_ANCHORS = [
-  { deviation: -4, color: SURFACE_FLUX_COLOR_PALETTE.blue },
-  { deviation: -2, color: SURFACE_FLUX_COLOR_PALETTE.cyan },
-  { deviation: -1.5, color: SURFACE_FLUX_COLOR_PALETTE.teal },
+  { deviation: -10, color: SURFACE_FLUX_COLOR_PALETTE.blue },
+  { deviation: -6, color: SURFACE_FLUX_COLOR_PALETTE.cyan },
+  { deviation: -3, color: SURFACE_FLUX_COLOR_PALETTE.teal },
   { deviation: -1, color: SURFACE_FLUX_COLOR_PALETTE.green },
   { deviation: 1, color: SURFACE_FLUX_COLOR_PALETTE.green },
   { deviation: 2, color: SURFACE_FLUX_COLOR_PALETTE.yellowGreen },
@@ -31,8 +31,9 @@ const TARGET_RANGE_COLOR_ANCHORS = [
   { deviation: 6, color: SURFACE_FLUX_COLOR_PALETTE.red },
 ];
 export const TARGET_RANGE_DEVIATION_ANCHORS = Object.freeze([
-  { deviation: -4, color: SURFACE_FLUX_COLOR_PALETTE.blue },
-  { deviation: -2, color: SURFACE_FLUX_COLOR_PALETTE.cyan },
+  { deviation: -10, color: SURFACE_FLUX_COLOR_PALETTE.blue },
+  { deviation: -6, color: SURFACE_FLUX_COLOR_PALETTE.cyan },
+  { deviation: -3, color: SURFACE_FLUX_COLOR_PALETTE.teal },
   { deviation: -1, color: SURFACE_FLUX_COLOR_PALETTE.green },
   { deviation: 0, color: SURFACE_FLUX_COLOR_PALETTE.green },
   { deviation: 1, color: SURFACE_FLUX_COLOR_PALETTE.green },

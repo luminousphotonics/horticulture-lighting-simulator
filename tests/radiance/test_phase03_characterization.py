@@ -80,7 +80,7 @@ def _hps_request(**overrides: object) -> RadianceRunRequest:
         "action": "all",
         "mode": MODE_HPS,
         "execution_mode": EXECUTION_MODE_PRECOMPUTED,
-        "length_ft": 30,
+        "length_ft": 20,
         "width_ft": 10,
         "target_ppfd": 1000,
         "hps_coverage_ft": 4,
@@ -143,11 +143,11 @@ REQUEST_GOLDENS: tuple[
         },
     ),
     (
-        "hps_30x10",
+        "hps_20x10",
         _hps_request,
         {
-            "artifact_key": "fp1_11d22fc23aa501bb87e503177b0ee0bf19fbf7f2481d177003d0f9fbcb4d9b7e",
-            "fingerprint": "11d22fc23aa501bb87e503177b0ee0bf19fbf7f2481d177003d0f9fbcb4d9b7e",
+            "artifact_key": "fp1_fc9e97fac8d814314d064a8032cbd7a4806388868fba4c834750ddc70ba5c307",
+            "fingerprint": "fc9e97fac8d814314d064a8032cbd7a4806388868fba4c834750ddc70ba5c307",
             "mode_dir": "hps_karma_4x4",
             "request_params": {
                 "dialux_sensor_grid": False,
