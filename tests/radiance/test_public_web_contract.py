@@ -56,7 +56,8 @@ class PublicRadianceWebContractTests(unittest.TestCase):
         self.assertNotIn("Live - Docker", html)
         self.assertNotIn("Live - Local Radiance", html)
         self.assertIn("download_precomputed.py --dataset full", html)
-        self.assertIn("15.6 MiB", html)
+        self.assertIn("about 310 MB total", html)
+        self.assertIn("The public web deployment already has the full dataset installed", html)
         self.assertIn('id="btn-rad-assembly"', html)
         self.assertIn(">View 3D Assembly</button>", html)
 

@@ -562,7 +562,7 @@ class PrecomputedRunRouteTests(unittest.TestCase):
         self.assertIn(
             "download_precomputed.py --dataset full", detail["download_command"]
         )
-        self.assertEqual(detail["estimated_size"], "15.6 MiB")
+        self.assertEqual(detail["estimated_size"], "about 310 MB total")
         self.assertEqual(detail["demo"], {"length_ft": 10, "width_ft": 10})
         diagnostics = cast(dict[str, Any], detail["diagnostics"])
         self.assertIn("attempts", diagnostics)

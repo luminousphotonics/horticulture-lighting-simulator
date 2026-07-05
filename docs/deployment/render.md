@@ -90,8 +90,9 @@ families before downloading. Downloads use:
 python scripts/radiance/download_precomputed.py --dataset full --dest "$RADIANCE_PRECOMPUTED_ROOT" --force
 ```
 
-The full public release is 16,337,048 bytes total compressed download size
-(15.6 MiB / 16.3 MB).
+The full v2 public precomputed dataset installs to about 310 MB total, split by
+system mode across Proposed LED/SMD, Conventional LED, and 1000W HPS bundles for
+10x10 through 20x20 ft rooms.
 
 Remote archives must use HTTPS and the SHA-256 checksums configured in
 `scripts/radiance/download_precomputed.py`.

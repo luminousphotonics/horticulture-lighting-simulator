@@ -43,7 +43,7 @@ export const publicMaxFt = Number(radianceConfig.publicMaxFt || 30);
 export const defaultLengthFt = Number(radianceConfig.defaultLengthFt || 10);
 export const defaultWidthFt = Number(radianceConfig.defaultWidthFt || 10);
 export const precomputedDownloadCommand = radianceConfig.precomputedDownloadCommand || "python scripts/radiance/download_precomputed.py --dataset full";
-export const precomputedSizeText = radianceConfig.precomputedSizeText || "15.6 MiB";
+export const precomputedSizeText = radianceConfig.precomputedSizeText || "about 310 MB total";
 export const showLiveModes = Boolean(radianceConfig.showLiveModes);
 export const healthTimeoutMs = 12000;
 
