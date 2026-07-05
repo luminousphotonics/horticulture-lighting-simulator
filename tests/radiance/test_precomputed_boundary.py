@@ -1228,12 +1228,12 @@ class PrecomputedBoundaryTests(unittest.TestCase):
         self.assertEqual(args.fspm_receiver_granularity, "mesh_patch")
         self.assertEqual(args.length_min, 10)
         self.assertEqual(args.width_min, 10)
-        self.assertEqual(args.length_max, 30)
-        self.assertEqual(args.width_max, 30)
+        self.assertEqual(args.length_max, 20)
+        self.assertEqual(args.width_max, 20)
         self.assertEqual(dims[0], (10, 10))
-        self.assertEqual(dims[-1], (30, 30))
-        self.assertEqual(len(dims), 231)
-        self.assertTrue(all(10 <= width <= length <= 30 for length, width in dims))
+        self.assertEqual(dims[-1], (20, 20))
+        self.assertEqual(len(dims), 66)
+        self.assertTrue(all(10 <= width <= length <= 20 for length, width in dims))
         self.assertIn((20, 10), dims)
         self.assertNotIn((10, 20), dims)
         self.assertEqual(len({frozenset(dim) for dim in dims}), len(dims))
@@ -1306,13 +1306,13 @@ class PrecomputedBoundaryTests(unittest.TestCase):
                 "--length-min",
                 "10",
                 "--length-max",
-                "30",
+                "20",
                 "--width-min",
                 "10",
                 "--width-max",
-                "30",
-                "--step",
                 "20",
+                "--step",
+                "10",
                 "--square-only",
                 "--modes",
                 "SMD",
@@ -1324,7 +1324,7 @@ class PrecomputedBoundaryTests(unittest.TestCase):
             text = output.getvalue()
             self.assertIn("Planned bundles: 2", text)
             self.assertIn("DRY-RUN SMD 10x10 plants=8x8 spacing=0.4m", text)
-            self.assertIn("DRY-RUN SMD 30x30 plants=23x23 spacing=0.4m", text)
+            self.assertIn("DRY-RUN SMD 20x20 plants=15x15 spacing=0.4m", text)
             self.assertFalse(dataset_root.exists())
 
     def test_precompute_sweep_plant_smd_request_uses_matched_ppe_contract(self) -> None:
@@ -1414,15 +1414,16 @@ class PrecomputedBoundaryTests(unittest.TestCase):
     def test_full_profile_plans_only_default_hps_ies_variant(self) -> None:
         full = self._run_generation_profile("full", "--square-only")
 
-        self.assertIn("Planned room sizes: 21", full)
+        self.assertIn("Planned room sizes: 11", full)
         self.assertIn("Planned mode/layout variants: 3", full)
-        self.assertIn("Planned bundles: 63", full)
+        self.assertIn("Planned bundles: 33", full)
         self.assertIn(f"1000W HPS {DEFAULT_HPS_IES_VARIANT} 4x4 10x10", full)
         self.assertIn(f"hps_{DEFAULT_HPS_IES_VARIANT}_4x4/10x10", full)
-        self.assertIn("smd/30x30", full)
-        self.assertIn("competitor_practical/30x30", full)
-        self.assertIn(f"hps_{DEFAULT_HPS_IES_VARIANT}_4x4/30x30", full)
-        self.assertNotIn("31x31", full)
+        self.assertIn("smd/20x20", full)
+        self.assertIn("competitor_practical/20x20", full)
+        self.assertIn(f"hps_{DEFAULT_HPS_IES_VARIANT}_4x4/20x20", full)
+        self.assertNotIn("21x21", full)
+        self.assertNotIn("30x30", full)
         self.assertNotIn("40x40", full)
         self.assertNotIn("DRY-RUN Competitor 10x10", full)
         self.assertNotIn(f"1000W HPS {DEFAULT_HPS_IES_VARIANT} 5x5", full)

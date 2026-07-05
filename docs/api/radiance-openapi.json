@@ -917,7 +917,7 @@
           "length_ft": {
             "default": 10.0,
             "exclusiveMinimum": 0.0,
-            "maximum": 30.0,
+            "maximum": 20.0,
             "title": "Length Ft",
             "type": "number"
           },
@@ -1143,7 +1143,7 @@
           "width_ft": {
             "default": 10.0,
             "exclusiveMinimum": 0.0,
-            "maximum": 30.0,
+            "maximum": 20.0,
             "title": "Width Ft",
             "type": "number"
           }
@@ -1440,13 +1440,13 @@
           },
           "length_ft": {
             "exclusiveMinimum": 0.0,
-            "maximum": 30.0,
+            "maximum": 20.0,
             "title": "Length Ft",
             "type": "number"
           },
           "width_ft": {
             "exclusiveMinimum": 0.0,
-            "maximum": 30.0,
+            "maximum": 20.0,
             "title": "Width Ft",
             "type": "number"
           }
@@ -1816,7 +1816,7 @@
           "length_ft": {
             "default": 10.0,
             "exclusiveMinimum": 0.0,
-            "maximum": 30.0,
+            "maximum": 20.0,
             "title": "Length Ft",
             "type": "number"
           },
@@ -2026,7 +2026,7 @@
           "width_ft": {
             "default": 10.0,
             "exclusiveMinimum": 0.0,
-            "maximum": 30.0,
+            "maximum": 20.0,
             "title": "Width Ft",
             "type": "number"
           }

@@ -1,6 +1,7 @@
 # Horticulture Lighting Simulator
 
-A Radiance-based horticultural lighting simulation and 3D visualization engine.
+A Radiance-based horticultural lighting simulation, plant-receiver analysis, and
+3D visualization engine.
 
 <p align="center"> 
 <img src="./docs/assets/gifs/hero-demo.gif" alt="Horticulture Lighting Simulator browser demo" width="100%"> 
@@ -18,25 +19,72 @@ A Radiance-based horticultural lighting simulation and 3D visualization engine.
 </p>
 
 Horticulture Lighting Simulator is a public repository for comparing
-horticultural lighting systems with Radiance-based optical simulation,
-precomputed playback, and browser-based 3D visualization. The public project is
-named `horticulture-lighting-simulator`; the internal Python package remains
-`rad_rebuild`.
+horticultural lighting systems with Radiance-based optical simulation, compact
+precomputed playback, plant-resolved receiver analysis, and browser-based 3D
+visualization. The public project is named `horticulture-lighting-simulator`; the
+internal Python package remains `rad_rebuild`.
+
+The app separates fixture-level PPFD/uniformity from plant-resolved
+Functional-Structural Plant Modeling (FSPM) receiver passes. That makes it
+possible to compare lighting systems at the canopy reference plane while also
+inspecting leaf-level incident flux on plant geometry.
 
 ## Core Features
 
 - Compare **Proposed LED System**, **Conventional LED System**, and **1000W HPS
   System** outputs.
-- Run public precomputed playback locally.
+- Run public precomputed playback locally with included demo bundles or the
+  expanded v2 release dataset.
+- Inspect plant-aware FSPM outputs, including target coverage, raw leaf-surface
+  flux, front/back mesh-patch receiver detail, and underside exposure diagnostics.
+- Generate and inspect Radiance-based photosynthetic photon flux density (PPFD)
+  artifacts: metrics, heatmaps, CSVs, manifests, layout JSON, runtime metadata,
+  and compact plant receiver data.
+- Explore outputs in a browser-based 3D Assembly Viewer with PPFD layers, fixture
+  controls, plant grids, and surface-level plant visualization modes.
+- Use natural-fit plant layouts that keep plants centered inside the room
+  footprint without clipping or distorting leaf geometry.
 - Optionally run trusted local live Radiance for the Proposed LED System through
   Docker or a local Radiance installation.
-- Generate and inspect Radiance-based photosynthetic photon flux density (PPFD) artifacts: metrics, heatmaps, CSVs,
-  manifests, layout JSON, and runtime metadata.
-- Explore outputs in a browser-based 3D Assembly Viewer with an interactive
-  Viridis PPFD layer.
 - Use runtime preflight and setup guidance for trusted local live modes.
 
+## Engineering Highlights
+
+### Plant-resolved light transport
+
+The simulator separates fixture-level PPFD/uniformity from plant-resolved
+receiver passes. This keeps system comparisons clean while supporting leaf-level
+exposure analysis.
+
+### Mesh-patch FSPM receivers
+
+Each plant leaf is sampled with front/back mesh-patch receivers. This supports
+raw leaf-surface flux, top-versus-underside diagnostics, and compact 3D
+surface-detail visualization.
+
+### Target coverage vs. raw leaf-surface flux
+
+Target coverage answers whether plant locations receive the requested
+canopy-reference PPFD. Raw leaf-surface flux reports receiver-based incident PPFD
+on angled and potentially occluded leaf surfaces. These are intentionally
+separate metrics.
+
+### Compact precomputed Radiance playback
+
+The public app uses compact precomputed Radiance bundles for 10x10 through 20x20
+ft rooms. This lets plant-aware results load quickly without running live
+Radiance on the public server.
+
+### Natural-fit plant layouts
+
+Plant grids are fit per room dimension so plants remain centered inside the
+illuminated footprint without clipping, clamping, or distorting leaf geometry.
+
 ## Visual Overview
+
+<p align="center"> 
+<img src="./docs/assets/gifs/plant-flux-demo-small.gif" alt="Plant surface-flux demo" width="100%"> 
+</p>
 
 <p align="center"> 
 <img src="./docs/assets/gifs/tooltip-demo.gif" alt="Raw PPFD hover tooltip demo" width="100%"> 
@@ -67,9 +115,14 @@ placement. Viewer assets ship as optimized GLB LODs (`high`, `medium`, and
 geometry.
 
 Interactive controls include orbit, pan, zoom, fixture visibility toggles,
-visual fixture-height offset, and reset camera. The PPFD layer is mapped to the
-measurement plane with a Viridis texture, and its hover tooltip reads the
-underlying Float32/grid PPFD values rather than sampling texture colors.
+visual fixture-height offset, plant visibility, surface-flux visualization modes,
+and reset camera. The PPFD layer is mapped to the measurement plane with a
+Viridis texture, and its hover tooltip reads the underlying Float32/grid PPFD
+values rather than sampling texture colors.
+
+Plant visualization modes include target-range coverage and raw leaf-surface
+flux. Mesh-patch bundles expose front/back surface detail so the viewer can show
+leaf-level variation instead of a single plant average.
 
 Static viewer assets are prepared with a compact CAD pipeline:
 
@@ -79,7 +132,10 @@ build123d -> STEP -> GLB -> gltfpack high/medium/proxy LODs
 
 ## Modes And Public Repo Scope
 
-- Public GitHub clone: precomputed mode works out of the box after install.
+- Public GitHub clone: precomputed mode works with the included demo bundles
+  after install.
+- Expanded local playback: the full v2 public precomputed dataset can be
+  installed with the provided downloader.
 - Trusted local clone: optional live Docker/local Radiance is available for the
   Proposed LED System only.
 - Conventional LED and 1000W HPS live modes are not included in the public repo
@@ -136,9 +192,9 @@ or:
 PYTHONPATH=src python -m rad_rebuild.dev --live
 ```
 
-Live Docker is the recommended live path for local Proposed LED runs. Live
-Local Radiance is supported on Linux and macOS when Radiance paths are
-configured; Windows local Radiance is not officially supported initially.
+Live Docker is the recommended live path for local Proposed LED runs. Live Local
+Radiance is supported on Linux and macOS when Radiance paths are configured;
+Windows local Radiance is not officially supported initially.
 
 Example local Radiance setup:
 
@@ -166,8 +222,19 @@ extraction, and archive path validation:
 python scripts/radiance/download_precomputed.py --dataset full
 ```
 
-The full public release is 16,337,048 bytes total compressed download size
-(15.6 MiB / 16.3 MB).
+The full v2 public precomputed dataset installs to about 310 MB total. It is
+split by system mode across Proposed LED/SMD, Conventional LED, and 1000W HPS
+bundles for 10x10 through 20x20 ft rooms.
+
+The v2 public bundles use:
+
+```text
+Quality mode: Standard
+Receiver granularity: Mesh Patch
+Multispectral mode: Off
+Plant geometry: Enabled
+Room coverage: unique rectangles from 10x10 through 20x20 ft
+```
 
 Private/licensed IES source files are not included in the public repository.
 
@@ -238,13 +305,13 @@ src/rad_rebuild/radiance/backend/
   FastAPI models, routes, execution modes, jobs, workspace handling, and artifacts
 
 src/rad_rebuild/radiance/assembly/
-  3D assembly scene classification, placement, and coordinate transforms
+  3D assembly scene classification, fixture placement, plant layout handling, and coordinate transforms
 
 src/rad_rebuild/radiance/engine/
-  Simulation, emitters, photometry, geometry, validation, and visualization
+  Simulation, emitters, photometry, geometry, validation, receiver generation, and visualization
 
 src/rad_rebuild/web/static/js/assembly-viewer/
-  Three.js/WebGL assembly viewer, LOD loading, controls, and PPFD layer logic
+  Three.js/WebGL assembly viewer, LOD loading, controls, PPFD layers, and plant surface visualization
 
 src/rad_rebuild/web/static/viewer/
   Optimized static GLB viewer assets for Proposed LED, Conventional LED, and HPS
@@ -259,7 +326,7 @@ scripts/deploy/
   Production startup helpers
 
 tests/radiance/
-  Python tests for API, playback, runtime, scientific, viewer, and artifact contracts
+  Python tests for API, playback, runtime, scientific, viewer, FSPM, and artifact contracts
 
 tests/browser/
   Playwright smoke tests for browser UI and assembly viewer behavior
@@ -279,9 +346,10 @@ Radiance Docker smoke, whitespace checks, and scheduled dependency audits.
 
 The test suite covers Python/Radiance contracts under `tests/radiance/`, browser
 smoke under `tests/browser/`, API/OpenAPI/frontend type contract checks, viewer
-asset validation, assembly viewer transforms, heatmap, fixture controls,
-runtime/live preflight behavior, public route contracts, precomputed playback,
-import boundaries, and runtime cleanup.
+asset validation, assembly viewer transforms, heatmap, fixture controls, plant
+controls, FSPM receiver artifacts, target coverage semantics, raw leaf-surface
+flux detail, runtime/live preflight behavior, public route contracts,
+precomputed playback, import boundaries, and runtime cleanup.
 
 Public CI runs without private IES sources. Private photometry-dependent checks
 are opt-in and skip unless the local private assets and explicit environment
@@ -308,13 +376,19 @@ flags are present.
   for Proposed LED/SMD only.
 - The committed demo data is intentionally small. Expanded datasets belong in
   public release archives or local generated workspaces.
+- Precomputed playback reflects the bundle settings used to generate the release
+  dataset.
 - Results depend on source assumptions, room geometry, mounting height, layout
-  configuration, and Radiance/runtime settings.
+  configuration, plant geometry, receiver configuration, and Radiance/runtime
+  settings.
 - Real deployments require project-specific validation by qualified reviewers.
 
 ## Research Context
 
-The Proposed LED System is connected to U.S. Patent No. 10,687,478, [“Optimized LED Lighting Array for Horticultural Applications”](https://patents.google.com/patent/US10687478B2/en), and to a solo-authored manuscript currently under peer review in *Lighting Research & Technology*.
+The Proposed LED System is connected to U.S. Patent No. 10,687,478,
+[“Optimized LED Lighting Array for Horticultural Applications”](https://patents.google.com/patent/US10687478B2/en),
+and to a solo-authored manuscript currently under peer review in *Lighting
+Research & Technology*.
 
 ## License
 

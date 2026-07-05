@@ -311,6 +311,42 @@ test("public pages load with CSP and no console errors", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("missing precomputed bundle modal uses current dataset size guidance", async ({ page }) => {
+  await page.addInitScript((key) => {
+    window.localStorage.setItem(key, "dismissed");
+  }, DEMO_GUIDE_STORAGE_KEY);
+  await routeBasicRadianceBackend(page, () => runtimeStatus());
+  await page.route("**/radiance-api/radiance/run**", async (route) => {
+    await route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({
+        detail: {
+          error: "precomputed_bundle_missing",
+          title: "Precomputed bundle not installed",
+          message: "The selected precomputed bundle is not installed in this checkout.",
+          mode: "SMD",
+          mode_label: "Proposed LED System",
+          dimensions: { length_ft: 11, width_ft: 10, slug: "11x10" },
+          download_command: "python scripts/radiance/download_precomputed.py --dataset full",
+          estimated_size: "about 310 MB total",
+          demo: { length_ft: 10, width_ft: 10 },
+        },
+      }),
+    });
+  });
+
+  await page.goto("/radiance-simulator");
+  await page.locator("#rad-length").fill("11");
+  await page.locator("#btn-rad-all").click();
+
+  const dialog = page.getByRole("dialog", { name: "Precomputed bundle not installed" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator("#missing-bundle-size")).toHaveText("about 310 MB total");
+  await expect(dialog.locator("#missing-bundle-command")).toHaveText("python scripts/radiance/download_precomputed.py --dataset full");
+  await expect(dialog).toContainText("The public web deployment already has the full dataset installed");
+});
+
 test("live runtime setup modals open for unavailable Proposed runtimes", async ({ page }) => {
   let status = runtimeStatus({
     modes: {
@@ -391,6 +427,8 @@ test("live-supported FSPM controls feed plant fields through payload and artifac
   await expect(page.locator("#rad-fspm-receiver-granularity")).toBeHidden();
   await expect(page.locator("#rad-fspm-target-ppfd")).toBeEnabled();
   await expect(page.locator("#rad-fspm-target-tolerance")).toBeEnabled();
+  await expect(page.locator("#rad-match-system-ppe-field")).toBeHidden();
+  await expect(page.locator("#rad-match-system-ppe")).toBeDisabled();
 
   await page.locator("#rad-fspm-target-ppfd").fill("275");
   await page.locator("#rad-fspm-target-tolerance").fill("20");
@@ -927,6 +965,10 @@ test("about modal and GitHub actions are accessible", async ({ page }, testInfo)
   const dialog = page.getByRole("dialog", { name: "About Horticulture Lighting Simulator" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText("Engineering highlights")).toBeVisible();
+  await expect(dialog.getByText(/Plant-resolved light transport/)).toBeVisible();
+  await expect(dialog.getByText(/Mesh-patch front\/back FSPM receivers/)).toBeVisible();
+  await expect(dialog.getByText(/Compact precomputed Radiance playback/)).toBeVisible();
+  await expect(dialog.getByText(/Natural-fit plant layouts/)).toBeVisible();
   await expect(dialog.getByText("Created by Austin Rouse.")).toBeVisible();
   const patentLink = dialog.getByRole("link", { name: "Optimized LED Lighting Array for Horticultural Applications" });
   await expect(patentLink).toHaveAttribute("href", "https://patents.google.com/patent/US10687478B2/en");

@@ -137,8 +137,8 @@ def test_ppfd_metrics_scale_linearly_for_field_statistics(
 @pytest.mark.unit
 @given(
     mode=st.sampled_from((MODE_SMD, MODE_COMPETITOR, MODE_HPS)),
-    length=st.integers(min_value=10, max_value=30),
-    width=st.integers(min_value=10, max_value=30),
+    length=st.integers(min_value=10, max_value=20),
+    width=st.integers(min_value=10, max_value=20),
     target=st.integers(min_value=500, max_value=1500),
 )
 def test_request_fingerprint_survives_json_roundtrip_and_key_order(

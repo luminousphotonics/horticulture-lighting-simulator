@@ -43,7 +43,7 @@ class RadianceConfigContractTests(unittest.TestCase):
 
     def test_public_precomputed_dimension_contract(self) -> None:
         self.assertEqual(config.PUBLIC_PRECOMPUTED_MIN_FT, 10)
-        self.assertEqual(config.PUBLIC_PRECOMPUTED_MAX_FT, 30)
+        self.assertEqual(config.PUBLIC_PRECOMPUTED_MAX_FT, 20)
         self.assertEqual(config.PUBLIC_DEFAULT_LENGTH_FT, 10)
         self.assertEqual(config.PUBLIC_DEFAULT_WIDTH_FT, 10)
 

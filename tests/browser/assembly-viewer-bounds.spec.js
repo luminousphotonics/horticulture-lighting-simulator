@@ -709,8 +709,9 @@ test("plant surface-flux legends are visual and mode-aware", async ({ page }) =>
   await expect(legend).toContainText("Tolerance20 umol/m²/s");
   await expect(legend.locator(".assembly-viewer__plant-legend-gradient")).toBeVisible();
   await expect(legend.locator(".assembly-viewer__plant-legend-ticks")).toBeVisible();
-  await expect(legend).toContainText("-4σ 195");
-  await expect(legend).toContainText("-2σ 235");
+  await expect(legend).toContainText("-10σ 75");
+  await expect(legend).toContainText("-6σ 155");
+  await expect(legend).toContainText("-3σ 215");
   await expect(legend).toContainText("-1σ 255");
   await expect(legend).toContainText("0 275");
   await expect(legend).toContainText("+1σ 295");

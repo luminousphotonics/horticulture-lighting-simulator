@@ -562,7 +562,7 @@ class PrecomputedRunRouteTests(unittest.TestCase):
         self.assertIn(
             "download_precomputed.py --dataset full", detail["download_command"]
         )
-        self.assertEqual(detail["estimated_size"], "15.6 MiB")
+        self.assertEqual(detail["estimated_size"], "about 310 MB total")
         self.assertEqual(detail["demo"], {"length_ft": 10, "width_ft": 10})
         diagnostics = cast(dict[str, Any], detail["diagnostics"])
         self.assertIn("attempts", diagnostics)
@@ -678,7 +678,7 @@ class PrecomputedRunRouteTests(unittest.TestCase):
             action="all",
             mode="SMD",
             execution_mode="precomputed",
-            length_ft=31,
+            length_ft=21,
             width_ft=10,
         )
         with self.assertRaises(HTTPException) as raised:
@@ -688,7 +688,7 @@ class PrecomputedRunRouteTests(unittest.TestCase):
         detail = cast(dict[str, Any], raised.exception.detail)
         self.assertIsInstance(detail, dict)
         self.assertEqual(detail["error"], "precomputed_dimension_unsupported")
-        self.assertEqual(detail["dimensions"]["slug"], "31x10")
+        self.assertEqual(detail["dimensions"]["slug"], "21x10")
 
 
 if __name__ == "__main__":

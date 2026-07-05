@@ -49,7 +49,7 @@
         <div class="radiance-section-head">
           <div>
             <h2>Simulation Controls</h2>
-            <p>Choose a 10-30 ft room, target PPFD, and system mode to run the precomputed visualization pipeline.</p>
+            <p>Choose a 10-20 ft room, target PPFD, and system mode to run the precomputed visualization pipeline.</p>
           </div>
         </div>
 
@@ -110,7 +110,7 @@
               1000W HPS runs at fixed output. The target PPFD is a reference, not a dimming setpoint.
             </span>
           </label>
-          <label class="radiance-field radiance-field--toggle" id="rad-match-system-ppe-field">
+          <label class="radiance-field radiance-field--toggle" id="rad-match-system-ppe-field" hidden>
             <span>Proposed Efficiency</span>
             <span class="radiance-toggle">
               <input id="rad-match-system-ppe" type="checkbox" checked>
@@ -589,7 +589,10 @@
           <h3>Engineering highlights</h3>
           <ul class="radiance-about__highlights">
             <li>Radiance-based optical simulation workflow.</li>
-            <li>Precomputed public playback architecture.</li>
+            <li>Plant-resolved light transport with leaf-level incident flux and plant-location target coverage.</li>
+            <li>Mesh-patch front/back FSPM receivers for top-surface exposure and underside reflected-light diagnostics.</li>
+            <li>Compact precomputed Radiance playback for fast public 10x10-20x20 room comparisons.</li>
+            <li>Natural-fit plant layouts that preserve canopy shape without clipping or distortion.</li>
             <li>Proposed LED layout generation for square and rectangular spaces.</li>
             <li>Multi-system comparison: Proposed LED, Conventional LED, and 1000W HPS.</li>
             <li>Interactive Viridis PPFD heatmap with raw-value hover inspection.</li>
@@ -667,7 +670,7 @@
           </div>
         </dl>
         <p>
-          The lightweight public repo ships only limited demo bundles. Downloading the full precomputed dataset enables the requested room size and system for local precomputed playback.
+          The lightweight public repo ships only limited demo bundles. The public web deployment already has the full dataset installed; local clones can download it to enable the requested room size and system for precomputed playback.
         </p>
         <div class="radiance-command-row">
           <code id="missing-bundle-command">{{ radiance_precomputed_download_command }}</code>

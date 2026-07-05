@@ -262,8 +262,9 @@ assert.deepEqual(SURFACE_FLUX_COLOR_PALETTE, {{
 assert.deepEqual(
   TARGET_RANGE_DEVIATION_ANCHORS.map((anchor) => [anchor.deviation, anchor.color]),
   [
-    [-4, "#2563EB"],
-    [-2, "#06B6D4"],
+    [-10, "#2563EB"],
+    [-6, "#06B6D4"],
+    [-3, "#14B8A6"],
     [-1, "#22C55E"],
     [0, "#22C55E"],
     [1, "#22C55E"],
@@ -279,12 +280,15 @@ assert.equal(targetRangeLegend.target_ppfd_umol_m2_s, 275);
 assert.equal(targetRangeLegend.target_tolerance_umol_m2_s, 20);
 assert.deepEqual(
   targetRangeLegend.anchors.map((anchor) => anchor.label),
-  ["-4σ 195", "-2σ 235", "-1σ 255", "0 275", "+1σ 295", "+2σ 315", "+4σ 355", "+6σ 395"],
+  ["-10σ 75", "-6σ 155", "-3σ 215", "-1σ 255", "0 275", "+1σ 295", "+2σ 315", "+4σ 355", "+6σ 395"],
 );
 assert.equal(surfaceFluxColorHexForTargetDeviation(-40), "#2563EB");
-assert.equal(surfaceFluxColorHexForTargetDeviation(-4), "#2563EB");
-assert.equal(surfaceFluxColorHexForTargetDeviation(-2), "#06B6D4");
-assert.equal(surfaceFluxColorHexForTargetDeviation(-1.5), "#14B8A6");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-10), "#2563EB");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-6), "#06B6D4");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-4), "#0FB7B5");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-3), "#14B8A6");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-2), "#1BBF82");
+assert.equal(surfaceFluxColorHexForTargetDeviation(-1.5), "#1FC270");
 assert.equal(surfaceFluxColorHexForTargetDeviation(-1), "#22C55E");
 assert.equal(surfaceFluxColorHexForTargetDeviation(-0.5), "#22C55E");
 assert.equal(surfaceFluxColorHexForTargetDeviation(0), "#22C55E");
@@ -305,9 +309,11 @@ function ppfdColor(ppfd, surfaceFlux = targetContext) {{
   );
   return surfaceFluxColorHexForTargetDeviation(deviation, surfaceFlux);
 }}
-assert.equal(ppfdColor(195), "#2563EB");
-assert.equal(ppfdColor(235), "#06B6D4");
-assert.equal(ppfdColor(245), "#14B8A6");
+assert.equal(ppfdColor(75), "#2563EB");
+assert.equal(ppfdColor(155), "#06B6D4");
+assert.equal(ppfdColor(195), "#0FB7B5");
+assert.equal(ppfdColor(235), "#1BBF82");
+assert.equal(ppfdColor(245), "#1FC270");
 assert.equal(ppfdColor(255), "#22C55E");
 assert.equal(ppfdColor(258), "#22C55E");
 assert.equal(ppfdColor(275), "#22C55E");
@@ -317,8 +323,10 @@ assert.equal(ppfdColor(315), "#A3E635");
 assert.equal(ppfdColor(355), "#F59E0B");
 assert.equal(ppfdColor(395), "#DC2626");
 assert.equal(ppfdColor(430), "#DC2626");
-assert.ok(hexDistance(ppfdColor(195), ppfdColor(275)) > 200);
-assert.ok(hexDistance(ppfdColor(235), ppfdColor(275)) > 100);
+assert.ok(hexDistance(ppfdColor(75), ppfdColor(275)) > 200);
+assert.ok(hexDistance(ppfdColor(155), ppfdColor(275)) > 100);
+assert.ok(hexDistance(ppfdColor(195), ppfdColor(275)) < 140);
+assert.ok(hexDistance(ppfdColor(235), ppfdColor(275)) < 100);
 assert.ok(hexDistance(ppfdColor(315), ppfdColor(275)) > 100);
 assert.ok(hexDistance(ppfdColor(395), ppfdColor(275)) > 200);
 
@@ -360,7 +368,7 @@ assert.ok(overExtremeColor[0] > overExtremeColor[1]);
 assert.ok(overExtremeColor[0] > overExtremeColor[2]);
 
 const targetSampleValues = [195, 235, 245, 255, 275, 295, 315, 395];
-const targetSampleExpectedHexes = ["#2563EB", "#06B6D4", "#14B8A6", "#22C55E", "#22C55E", "#22C55E", "#A3E635", "#DC2626"];
+const targetSampleExpectedHexes = ["#0FB7B5", "#1BBF82", "#1FC270", "#22C55E", "#22C55E", "#22C55E", "#A3E635", "#DC2626"];
 const targetSampleRows = targetSampleValues.map((value, index) => {{
   const plantId = index < 4 ? "plant_r000_c000" : "plant_r000_c001";
   const leafId = `${{plantId}}_leaf_${{String(index % 4).padStart(3, "0")}}`;
@@ -432,8 +440,8 @@ assert.equal(targetSampleHexes.size, 6);
 assert.equal(surfaceFluxColorHexForTargetDeviation(-0.85), surfaceFluxColorHexForTargetDeviation(0));
 assert.equal(surfaceFluxColorHexForTargetDeviation(0.5), surfaceFluxColorHexForTargetDeviation(0));
 assert.equal(surfaceFluxColorHexForTargetDeviation(0.7), surfaceFluxColorHexForTargetDeviation(1));
-assert.ok(hexDistance(targetSampleExpectedHexes[0], targetSampleExpectedHexes[4]) > 200);
-assert.ok(hexDistance(targetSampleExpectedHexes[1], targetSampleExpectedHexes[4]) > 100);
+assert.ok(hexDistance(targetSampleExpectedHexes[0], targetSampleExpectedHexes[4]) < 140);
+assert.ok(hexDistance(targetSampleExpectedHexes[1], targetSampleExpectedHexes[4]) < 100);
 assert.ok(hexDistance(targetSampleExpectedHexes[6], targetSampleExpectedHexes[4]) > 100);
 assert.ok(hexDistance(targetSampleExpectedHexes[7], targetSampleExpectedHexes[4]) > 200);
 
@@ -952,7 +960,7 @@ assert.equal(state.targetRangeLegend.title, "Plant-location target coverage");
 assert.equal(state.targetRangeLegend.subtitle, "Canopy-reference PPFD fit");
 assert.deepEqual(
   state.targetRangeLegend.anchors.map((anchor) => anchor.label),
-  ["-4σ 195", "-2σ 235", "-1σ 255", "0 275", "+1σ 295", "+2σ 315", "+4σ 355", "+6σ 395"],
+  ["-10σ 75", "-6σ 155", "-3σ 215", "-1σ 255", "0 275", "+1σ 295", "+2σ 315", "+4σ 355", "+6σ 395"],
 );
 assert.equal(state.surfaceFluxAvailable, true);
 assert.equal(state.surfaceFluxUnavailableReason, "");

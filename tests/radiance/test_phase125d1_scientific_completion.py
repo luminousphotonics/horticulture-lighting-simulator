@@ -204,9 +204,9 @@ def test_phase125d1_full_public_precompute_plan_benchmark(benchmark: Any) -> Non
     with tempfile.TemporaryDirectory(prefix="rad_rebuild_phase125d1_plan_") as tmp:
         config = precompute_sweep.PrecomputeSweepConfig(
             length_min=10,
-            length_max=30,
+            length_max=20,
             width_min=10,
-            width_max=30,
+            width_max=20,
             step=1,
             square_only=False,
             modes=(MODE_SMD, MODE_HPS, MODE_COMPETITOR),
@@ -217,9 +217,9 @@ def test_phase125d1_full_public_precompute_plan_benchmark(benchmark: Any) -> Non
 
         plan = benchmark(precompute_sweep.plan_precompute_sweep, config)
 
-    assert plan.bundle_count == 693
+    assert plan.bundle_count == 198
     assert plan.items[0].room == (10, 10)
-    assert plan.items[-1].room == (30, 30)
+    assert plan.items[-1].room == (20, 20)
 
 
 @pytest.mark.benchmark
