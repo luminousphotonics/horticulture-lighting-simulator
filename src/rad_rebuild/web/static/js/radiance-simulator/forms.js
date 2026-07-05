@@ -455,15 +455,16 @@ export function syncModeControls({ resetMountHeight = false } = {}) {
       els.radPeakCapping.title = "";
     }
   }
+  const matchSystemPpeControlActive = isOurSystem && executionMode !== "precomputed";
   if (els.radMatchSystemPpeField) {
-    els.radMatchSystemPpeField.hidden = !isOurSystem;
-    els.radMatchSystemPpeField.classList.toggle("radiance-field--inactive", !isOurSystem);
+    els.radMatchSystemPpeField.hidden = !matchSystemPpeControlActive;
+    els.radMatchSystemPpeField.classList.toggle("radiance-field--inactive", !matchSystemPpeControlActive);
   }
   if (els.radMatchSystemPpe) {
-    els.radMatchSystemPpe.disabled = !isOurSystem;
-    els.radMatchSystemPpe.title = isOurSystem
+    els.radMatchSystemPpe.disabled = !matchSystemPpeControlActive;
+    els.radMatchSystemPpe.title = matchSystemPpeControlActive
       ? "Checked: match Proposed LED System source efficacy to the Conventional LED comparator. Unchecked: use native SMD curve and thermal droop model."
-      : "PPE matching applies only to Proposed LED System mode.";
+      : "PPE matching is fixed on for Proposed LED precomputed playback.";
   }
   syncDimensionWarnings();
   if (els.radVisualNote) {

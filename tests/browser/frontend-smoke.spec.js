@@ -391,6 +391,8 @@ test("live-supported FSPM controls feed plant fields through payload and artifac
   await expect(page.locator("#rad-fspm-receiver-granularity")).toBeHidden();
   await expect(page.locator("#rad-fspm-target-ppfd")).toBeEnabled();
   await expect(page.locator("#rad-fspm-target-tolerance")).toBeEnabled();
+  await expect(page.locator("#rad-match-system-ppe-field")).toBeHidden();
+  await expect(page.locator("#rad-match-system-ppe")).toBeDisabled();
 
   await page.locator("#rad-fspm-target-ppfd").fill("275");
   await page.locator("#rad-fspm-target-tolerance").fill("20");
