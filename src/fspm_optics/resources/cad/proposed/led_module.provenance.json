@@ -1,0 +1,234 @@
+{
+  "asset_id": "proposed-led-module-v1",
+  "byte_lengths": {
+    "packed_glb": 88540,
+    "raw_glb": 145152,
+    "step": 796466
+  },
+  "commands": {
+    "build": "/home/austin/Desktop/build123d-modeling/.venv/bin/python scripts/fixture_assets/build_proposed_led_module.py --gltfpack <pinned-gltfpack-0.20>",
+    "pack": "gltfpack -i led_module.raw.glb -o led_module.glb -kn -km -ke -noq"
+  },
+  "coordinate_contract": {
+    "auto_center": false,
+    "auto_fit": false,
+    "cad_origin_xy_mm": [
+      0.0,
+      0.0
+    ],
+    "cad_to_gltf": "(X,Y,Z)->(X,Z,-Y)",
+    "cad_units": "millimetres",
+    "draco": false,
+    "gltf_units": "millimetres",
+    "internal_instancing": false,
+    "meters_per_asset_unit": 0.001,
+    "opaque_cover_light_side_cad_z_mm": 27.4,
+    "optical_center_xy_mm": [
+      0.0,
+      0.0
+    ],
+    "registered_gltf_up_axis": "+Y",
+    "simplification": false
+  },
+  "fixture_type": "standalone_module",
+  "hashes": {
+    "inventory_sha256": "325143c0c25c430288315cbab16b79eb9e0b840e8d271dbcc29d501119d7f10a",
+    "packed_glb_sha256": "f910a7fc512635bcb3a48d7b546175ef13623135836a76eeb625b2ca12cd5445",
+    "packed_inventory_sha256": "d796169a3d3c34e930c31846bbb2be6451b160081dad43ab7faa9f2bfbce70a3",
+    "raw_glb_sha256": "f221556c4a47d3fe58122940a0edf26376c3b3d3f924ec29d47fec024b8372f2",
+    "step_sha256": "e89610cd20df30adc63d1c21198438bce209b3fa429c035797533ec250eb5ab8"
+  },
+  "mechanical_assertions": {
+    "bounds_cad_mm": {
+      "maximum": [
+        75.0,
+        75.0,
+        28.2
+      ],
+      "minimum": [
+        -75.0,
+        -75.0,
+        -34.8
+      ]
+    },
+    "complete_named_hierarchy": true,
+    "corner_block_count": 4,
+    "fastener_count": 4,
+    "fin_count": 32,
+    "finite_valid_solids": true,
+    "footprint_mm": [
+      150.0,
+      150.0
+    ],
+    "frame_rail_count": 4,
+    "heatsink_base_count": 1,
+    "mechanical_center_xy_mm": [
+      0.0,
+      0.0
+    ],
+    "opaque_cover_count": 1,
+    "opaque_cover_light_side_cad_z_mm": 27.4,
+    "opaque_cover_size_mm": [
+      144.0,
+      144.0,
+      3.0
+    ],
+    "optical_center_xy_mm": [
+      0.0,
+      0.0
+    ],
+    "solid_count": 46,
+    "unique_expected_names": true
+  },
+  "packed_validation": {
+    "bounds_gltf_mm": [
+      [
+        -75.0,
+        -34.79999923706055,
+        -75.0
+      ],
+      [
+        75.0,
+        28.200000762939453,
+        75.0
+      ]
+    ],
+    "byte_length": 88540,
+    "degenerate_triangle_count": 0,
+    "embedded_data_only": true,
+    "extensions_required": [],
+    "extensions_used": [],
+    "finite_unit_normals": true,
+    "indexed_finite_triangles": true,
+    "inventory_sha256": "d796169a3d3c34e930c31846bbb2be6451b160081dad43ab7faa9f2bfbce70a3",
+    "mesh_count": 46,
+    "node_count": 51,
+    "opaque_cover_bounds_gltf_mm": [
+      [
+        -72.0,
+        24.399999618530273,
+        -72.0
+      ],
+      [
+        72.0,
+        27.399999618530273,
+        72.0
+      ]
+    ],
+    "opaque_cover_light_side_gltf_y_mm": 27.399999618530273,
+    "primitive_count": 46,
+    "projected_area_mm2": 116729.62125524969,
+    "quantization_decode_transform_count": 0,
+    "sha256": "f910a7fc512635bcb3a48d7b546175ef13623135836a76eeb625b2ca12cd5445",
+    "triangle_count": 1304,
+    "unexpected_transforms": false
+  },
+  "raw_validation": {
+    "bounds_gltf_mm": [
+      [
+        -75.0,
+        -34.79999923706055,
+        -75.0
+      ],
+      [
+        75.0,
+        28.200000762939453,
+        75.0
+      ]
+    ],
+    "byte_length": 145152,
+    "degenerate_triangle_count": 0,
+    "embedded_data_only": true,
+    "extensions_required": [],
+    "extensions_used": [],
+    "finite_unit_normals": true,
+    "indexed_finite_triangles": true,
+    "inventory_sha256": "325143c0c25c430288315cbab16b79eb9e0b840e8d271dbcc29d501119d7f10a",
+    "mesh_count": 46,
+    "node_count": 51,
+    "opaque_cover_bounds_gltf_mm": [
+      [
+        -72.0,
+        24.399999618530273,
+        -72.0
+      ],
+      [
+        72.0,
+        27.399999618530273,
+        72.0
+      ]
+    ],
+    "opaque_cover_light_side_gltf_y_mm": 27.399999618530273,
+    "packed_bounds_max_residual_mm": 0.0,
+    "packed_projected_area_relative_error": 0.0,
+    "primitive_count": 46,
+    "projected_area_mm2": 116729.62125524969,
+    "quantization_decode_transform_count": 0,
+    "sha256": "f221556c4a47d3fe58122940a0edf26376c3b3d3f924ec29d47fec024b8372f2",
+    "triangle_count": 1304,
+    "unexpected_transforms": false
+  },
+  "schema_id": "fspm-optics.proposed-led-module-asset-provenance",
+  "schema_version": 1,
+  "source": {
+    "repository_source": "scripts/fixture_assets/proposed_led_module.py",
+    "repository_source_sha256": "e82eb98cb23ee25611ab09e4a673d06cb9396a75ae12210926d4d8690e3282fe",
+    "supplied_path": "/home/austin/Desktop/build123d-modeling/models/led_module.py",
+    "supplied_sha256": "b2735bfe2e16d8651157355b3a00a77bd1bcf9042e5f5a9d54c0cf36d9641286"
+  },
+  "step_roundtrip_assertions": {
+    "bounds_cad_mm": {
+      "maximum": [
+        75.0,
+        75.0,
+        28.2
+      ],
+      "minimum": [
+        -75.0,
+        -75.0,
+        -34.8
+      ]
+    },
+    "complete_named_hierarchy": true,
+    "corner_block_count": 4,
+    "fastener_count": 4,
+    "fin_count": 32,
+    "finite_valid_solids": true,
+    "footprint_mm": [
+      150.0,
+      150.0
+    ],
+    "frame_rail_count": 4,
+    "heatsink_base_count": 1,
+    "mechanical_center_xy_mm": [
+      0.0,
+      0.0
+    ],
+    "opaque_cover_count": 1,
+    "opaque_cover_light_side_cad_z_mm": 27.4,
+    "opaque_cover_size_mm": [
+      144.0,
+      144.0,
+      3.0
+    ],
+    "optical_center_xy_mm": [
+      0.0,
+      0.0
+    ],
+    "solid_count": 46,
+    "unique_expected_names": true
+  },
+  "tessellation": {
+    "angular_tolerance_rad": 0.25,
+    "engine": "OpenCascade via Build123d import_step/tessellate",
+    "linear_tolerance_mm": 0.1,
+    "normals_policy": "explicit flat per-face normals from triangle winding"
+  },
+  "toolchain": {
+    "blender_used": false,
+    "build123d": "0.11.0",
+    "gltfpack": "gltfpack 0.20",
+    "opencascade": "7.9.3.1",
+    "python": "3.12.3"
+  }
+}

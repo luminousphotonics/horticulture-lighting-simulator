@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Horticulture Lighting Simulator</title>
+    <meta name="description" content="Radiance-based horticultural lighting simulation and 3D visualization engine.">
+    <link rel="canonical" href="https://sim.luminousphotonics.com/">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://sim.luminousphotonics.com/">
+    <meta property="og:title" content="Horticulture Lighting Simulator">
+    <meta property="og:description" content="Radiance-based horticultural lighting simulation and 3D visualization engine.">
+    <meta property="og:image" content="https://sim.luminousphotonics.com/static/og-image.png">
+    <meta property="og:image:secure_url" content="https://sim.luminousphotonics.com/static/og-image.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Luminous Photonics Horticulture Lighting Simulator">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Horticulture Lighting Simulator">
+    <meta name="twitter:description" content="Radiance-based horticultural lighting simulation and 3D visualization engine.">
+    <meta name="twitter:image" content="https://sim.luminousphotonics.com/static/og-image.png">
+    <meta name="twitter:image:alt" content="Luminous Photonics Horticulture Lighting Simulator">
+    <meta name="theme-color" content="#0b0f14">
+    <meta name="robots" content="index,follow">
+    <link rel="stylesheet" href="/static/styles.css?v=public-ui-v2">
+  </head>
+  <body class="public-application">
+    <a class="skip-link" href="#run-form">Skip to lighting controls</a>
+    <header class="masthead">
+      <a class="brand-home-link" href="https://luminousphotonics.com/" aria-label="Visit Luminous Photonics website">
+        <img class="brand-home-logo" src="/static/homeleaf.png" alt="Luminous Photonics home">
+      </a>
+      <div class="masthead-title">
+        <p class="eyebrow">HORTICULTURE LIGHTING SIMULATOR</p>
+        <h1 id="system-heading">Modularized LED System</h1>
+      </div>
+      <div class="status-pill" id="runtime-status" data-state="idle" role="status" aria-live="polite">
+        <span class="status-dot"></span><span>Checking catalog</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="workspace" aria-label="Authenticated lighting playback">
+        <aside class="control-panel">
+          <div class="section-heading">
+            <span>01</span>
+            <div><p>Configuration</p><h2>Playback inputs</h2></div>
+          </div>
+          <form id="run-form">
+            <label>
+              <span>Lighting system</span>
+              <select id="system" name="system" disabled>
+                <option value="proposed">Modularized LED System</option>
+                <option value="conventional">Conventional LED System</option>
+                <option value="hps">1000W HPS System</option>
+              </select>
+            </label>
+
+            <div class="field-group" id="layout-mode-field" aria-hidden="true" hidden>
+              <label>
+                <span>Fixture Layout</span>
+                <select id="layout-mode" name="layout_mode" disabled>
+                  <option value="rolling_bench" selected>Rolling Bench</option>
+                  <option value="practical">Practical Coverage</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="field-group" id="lighting-target-mode-field" aria-hidden="true" hidden>
+              <label>
+                <span>Lighting Target Policy</span>
+                <select id="lighting-target-mode" name="lighting_target_mode" disabled>
+                  <option value="mean_target">Mean Target</option>
+                  <option value="target_capped">Target-Capped</option>
+                </select>
+              </label>
+            </div>
+
+            <label id="lighting-target-field" hidden>
+              <span><span id="lighting-target-label">Target mean PPFD</span> <small>µmol/m²/s</small></span>
+              <input id="target-ppfd" name="target_ppfd" type="number" min="0" step="any" value="500" required disabled>
+            </label>
+            <p class="field-note" id="lighting-target-note" hidden>The requested authenticated-playback mean PPFD.</p>
+
+            <label>
+              <span>FSPM Reference Tolerance <small>± µmol/m²/s</small></span>
+              <input id="fspm-tolerance" name="fspm_target_tolerance" type="number" min="0.000001" step="any" value="75" required disabled>
+            </label>
+
+            <label>
+              <span>Room Size</span>
+              <select id="room-size" name="room_size" disabled>
+                <option value="10x10">10' × 10'</option>
+                <option value="15x30">15' × 30'</option>
+                <option value="30x50">30' × 50'</option>
+              </select>
+            </label>
+
+            <div class="field-group" id="aisle-mode-field">
+              <label class="optional-analysis-toggle">
+                <span>Aisle Mode</span>
+                <input id="aisle-mode" name="aisle_mode" type="checkbox" disabled>
+              </label>
+              <p class="field-note">Creates a fixed 2 ft perimeter aisle around the active grow area.</p>
+            </div>
+
+            <div class="precomputed-contract-note" id="precomputed-contract-note" aria-live="polite">
+              <strong>Authenticated bundle settings</strong>
+              <span id="precomputed-contract-summary">Checking all 24 authenticated bundles…</span>
+            </div>
+
+            <button class="run-button" id="run-button" type="submit" disabled>
+              <span id="run-button-label">Run Simulation</span><span aria-hidden="true">→</span>
+            </button>
+          </form>
+        </aside>
+
+        <!-- SHARED_RESULT_VIEW -->
+    <script type="module" src="/static/public-app.js?v=public-ui-v2"></script>
+  </body>
+</html>

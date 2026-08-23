@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Validated PPFD Scatter</title>
+    <link rel="stylesheet" href="./styles.css">
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./vendor/three.module.js",
+          "three/addons/": "./vendor/addons/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <header>
+      <div>
+        <p class="eyebrow">Validated visual derivative</p>
+        <h1>PPFD 3D Scatter</h1>
+      </div>
+      <p id="status" role="status">Validating visualization metadata…</p>
+    </header>
+    <main>
+      <section class="viewport-shell">
+        <div id="empty-state">
+          <p id="gate-message">Loading and validating the compact PPFD field…</p>
+          <button id="retry-scatter" type="button" hidden>Retry validated load</button>
+        </div>
+        <div id="viewport" aria-label="Interactive PPFD scatter plot"></div>
+        <div class="axis-context" aria-label="Axis context">
+          <span><i class="x-axis"></i>X · position (m)</span>
+          <span><i class="y-axis"></i>Y · position (m)</span>
+          <span><i class="z-axis"></i>Z · PPFD (µmol/m²/s)</span>
+        </div>
+        <div class="z-range-scale" aria-label="Declared PPFD geometric Z range">
+          <span id="z-range-maximum">—</span>
+          <i></i>
+          <span id="z-range-target">—</span>
+          <span id="z-range-minimum">—</span>
+          <b>PPFD · µmol/m²/s</b>
+        </div>
+      </section>
+      <aside>
+        <section>
+          <h2>Field identity</h2>
+          <pre id="field-info">Waiting for metadata.</pre>
+        </section>
+        <section>
+          <h2>View</h2>
+          <button id="reset-view" type="button" disabled>Reset view</button>
+          <button id="reload-scatter" type="button" disabled>Reload validated data</button>
+          <p>Drag to orbit. Right-drag to pan. Scroll or pinch to zoom.</p>
+        </section>
+        <section class="presentation-export">
+          <h2>Presentation export</h2>
+          <label for="export-title">Figure title</label>
+          <input id="export-title" type="text" value="PPFD distribution" maxlength="160">
+          <div class="export-actions">
+            <button id="export-svg" type="button" disabled>Export SVG</button>
+            <button id="export-png" type="button" disabled>Export 4K PNG</button>
+          </div>
+          <p>Uses the current camera position and the SHA-256-validated scatter data.</p>
+          <p id="export-status" class="export-status" role="status" aria-live="polite">Available after validated data loads.</p>
+        </section>
+        <section>
+          <h2>PPFD color legend</h2>
+          <div class="color-legend" aria-label="PPFD color legend">
+            <span id="legend-maximum">—</span>
+            <i id="legend-gradient"></i>
+            <span id="legend-center">—</span>
+            <span id="legend-minimum">—</span>
+          </div>
+          <p>µmol/m²/s · target-centered display colors; achieved-mean reference for fixed-output HPS</p>
+        </section>
+        <section>
+          <h2>Display contract</h2>
+          <p>Raw PPFD remains authoritative. Geometric Z uses the declared reference-centered PPFD range; observed raw extrema are reported separately above. Values outside that range continue linearly and no samples are clipped, corrected, or removed.</p>
+        </section>
+      </aside>
+    </main>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "fspm-optics-viewer-tooling",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:viewer": "node --test tests_js/*.test.js",
+    "vendor:three": "node scripts/vendor-three.mjs"
+  },
+  "dependencies": {
+    "three": "0.184.0"
+  }
+}

@@ -1,0 +1,85 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fspm-optics"
+version = "0.1.0"
+description = "Headless deterministic FSPM plant optics core"
+license = "BSD-3-Clause-Clear"
+license-files = ["LICENSE", "PATENTS.md"]
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "starlette>=0.47,<1",
+    "uvicorn>=0.30,<1",
+]
+
+[project.optional-dependencies]
+test = ["httpx>=0.27", "pytest>=8"]
+
+[project.scripts]
+fspm-optics = "fspm_optics.web.__main__:main"
+fspm-optics-web = "fspm_optics.web.__main__:main"
+fspm-optics-calibrate-surface-flux = "fspm_optics.surface_flux_calibration_cli:main"
+fspm-optics-calibrate-surface-flux-d5 = "fspm_optics.surface_flux_recalibration_cli:main"
+fspm-optics-analyze-surface-flux-d5 = "fspm_optics.surface_flux_coefficient_analysis_cli:main"
+fspm-optics-promote-surface-flux-d5 = "fspm_optics.surface_flux_optimized_calibration_promotion_cli:main"
+fspm-optics-run-surface-flux-d5-c1 = "fspm_optics.application.surface_flux_endpoint_replication_cli:main"
+fspm-optics-analyze-surface-flux-d5-c2 = "fspm_optics.application.surface_flux_repeatability_analysis_cli:main"
+fspm-optics-generate-surface-flux-display-calibration = "fspm_optics.surface_flux_display_calibration_cli:main"
+fspm-optics-diagnose-receiver-placement = "fspm_optics.diagnostics.receiver_placement_cli:main"
+fspm-optics-angular-experiment = "fspm_optics.angular_experiment_cli:main"
+fspm-optics-precomputed = "fspm_optics.precomputed_cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.package-data]
+fspm_optics = [
+    "resources/data/radiance/plant_optics/lettuce_rex/*.csv",
+    "resources/data/radiance/plant_optics/lettuce_rex/*.json",
+    "resources/data/conventional_led/*.csv",
+    "resources/data/conventional_led/*.ies",
+    "resources/data/proposed_cob/citizen_clu04q_1812e1/*.ies",
+    "resources/data/hps/*.csv",
+    "resources/data/hps/*.ies",
+    "resources/data/smd/*.csv",
+    "resources/data/fixture_occlusion/*.json",
+    "resources/calibration/*.json",
+    "resources/calibration/d5-c3/*",
+    "resources/viewer/*.html",
+    "resources/viewer/*.css",
+    "resources/viewer/*.js",
+    "resources/viewer/vendor/*.js",
+    "resources/viewer/vendor/*.txt",
+    "resources/viewer/vendor/addons/controls/*.js",
+    "resources/viewer/vendor/addons/environments/*.js",
+    "resources/viewer/vendor/addons/loaders/*.js",
+    "resources/viewer/vendor/addons/utils/*.js",
+    "resources/viewer/fixtures/proposed/*.glb",
+    "resources/viewer/fixtures/conventional/*.glb",
+    "resources/viewer/fixtures/hps/*.glb",
+    "resources/web/*.html",
+    "resources/web/*.css",
+    "resources/web/*.js",
+    "resources/web/*.png",
+    "resources/scatter/*.html",
+    "resources/scatter/*.css",
+    "resources/scatter/*.js",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "fast: pure units, validation, source contracts, and small deterministic artifacts",
+    "subsystem: integration across web, CLI, workspace, publication, or fake-runner seams",
+    "scientific: artifact-heavy scientific diagnostics, calibration, and full workspaces",
+]

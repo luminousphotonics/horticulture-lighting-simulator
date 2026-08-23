@@ -1,0 +1,4435 @@
+{
+  "asset_id": "hps-housing-v3",
+  "byte_lengths": {
+    "packed_glb": 353160,
+    "raw_glb": 515592,
+    "step": 334749
+  },
+  "classification_next_phase": {
+    "asset_id": "hps-housing-v3",
+    "document_inventory": {
+      "accessors": [
+        {
+          "bufferView": 0,
+          "byteOffset": 0,
+          "componentType": 5126,
+          "count": 26,
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 1,
+          "byteOffset": 0,
+          "componentType": 5126,
+          "count": 26,
+          "max": [
+            355.600006,
+            0,
+            165
+          ],
+          "min": [
+            -355.600006,
+            -78,
+            -165
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 2,
+          "byteOffset": 0,
+          "componentType": 5123,
+          "count": 36,
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 0,
+          "byteOffset": 312,
+          "componentType": 5126,
+          "count": 908,
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 1,
+          "byteOffset": 312,
+          "componentType": 5126,
+          "count": 908,
+          "max": [
+            422.910004,
+            -78,
+            321.309998
+          ],
+          "min": [
+            -422.910004,
+            -248.919998,
+            -321.309998
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 2,
+          "byteOffset": 72,
+          "componentType": 5123,
+          "count": 942,
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 0,
+          "byteOffset": 11208,
+          "componentType": 5126,
+          "count": 1532,
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 1,
+          "byteOffset": 11208,
+          "componentType": 5126,
+          "count": 1532,
+          "max": [
+            -353.890167,
+            -67.0215454,
+            81.1614914
+          ],
+          "min": [
+            -471.987518,
+            -237.157135,
+            -81.1614914
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 2,
+          "byteOffset": 1956,
+          "componentType": 5123,
+          "count": 1836,
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 0,
+          "byteOffset": 29592,
+          "componentType": 5126,
+          "count": 50,
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 1,
+          "byteOffset": 29592,
+          "componentType": 5126,
+          "count": 50,
+          "max": [
+            -143,
+            -85,
+            35
+          ],
+          "min": [
+            -213,
+            -154,
+            -35
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 2,
+          "byteOffset": 5628,
+          "componentType": 5123,
+          "count": 84,
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 0,
+          "byteOffset": 30192,
+          "componentType": 5126,
+          "count": 321,
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 1,
+          "byteOffset": 30192,
+          "componentType": 5126,
+          "count": 321,
+          "max": [
+            -141,
+            -111.051208,
+            26.9871941
+          ],
+          "min": [
+            -179,
+            -165,
+            -26.9871941
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 2,
+          "byteOffset": 5796,
+          "componentType": 5123,
+          "count": 600,
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 0,
+          "byteOffset": 34044,
+          "componentType": 5126,
+          "count": 4955,
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 1,
+          "byteOffset": 34044,
+          "componentType": 5126,
+          "count": 4955,
+          "max": [
+            -146.5,
+            -116.241348,
+            21.7896614
+          ],
+          "min": [
+            -217.5,
+            -159.800003,
+            -21.7896614
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 2,
+          "byteOffset": 6996,
+          "componentType": 5123,
+          "count": 8556,
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 0,
+          "byteOffset": 93504,
+          "componentType": 5126,
+          "count": 4086,
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 1,
+          "byteOffset": 93504,
+          "componentType": 5126,
+          "count": 4086,
+          "max": [
+            117.404869,
+            -113,
+            25
+          ],
+          "min": [
+            -177.404861,
+            -163,
+            -25
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 2,
+          "byteOffset": 24108,
+          "componentType": 5123,
+          "count": 4188,
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 0,
+          "byteOffset": 142536,
+          "componentType": 5126,
+          "count": 1048,
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 1,
+          "byteOffset": 142536,
+          "componentType": 5126,
+          "count": 1048,
+          "max": [
+            76,
+            -132.011383,
+            5.99715424
+          ],
+          "min": [
+            -92,
+            -144,
+            -5.99715424
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 2,
+          "byteOffset": 32484,
+          "componentType": 5123,
+          "count": 1824,
+          "type": "SCALAR"
+        }
+      ],
+      "materials": [
+        {
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "reflector_hood_top_box",
+            "viewer_only": true
+          },
+          "name": "reflector_hood_top_box",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.720000029,
+              0.720000029,
+              0.720000029,
+              1
+            ],
+            "metallicFactor": 0.850000024,
+            "roughnessFactor": 0.280000001
+          }
+        },
+        {
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "reflector_hood_flared_skirt",
+            "viewer_only": true
+          },
+          "name": "reflector_hood_flared_skirt",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.879999995,
+              0.879999995,
+              0.819999993,
+              1
+            ],
+            "metallicFactor": 0.75,
+            "roughnessFactor": 0.219999999
+          }
+        },
+        {
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "exhaust_flange",
+            "viewer_only": true
+          },
+          "name": "exhaust_flange",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.579999983,
+              0.579999983,
+              0.579999983,
+              1
+            ],
+            "metallicFactor": 0.899999976,
+            "roughnessFactor": 0.319999993
+          }
+        },
+        {
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "socket_bracket",
+            "viewer_only": true
+          },
+          "name": "socket_bracket",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.349999994,
+              0.349999994,
+              0.349999994,
+              1
+            ],
+            "metallicFactor": 0.800000012,
+            "roughnessFactor": 0.379999995
+          }
+        },
+        {
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "ceramic_socket",
+            "viewer_only": true
+          },
+          "name": "ceramic_socket",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.850000024,
+              0.819999993,
+              0.720000029,
+              1
+            ],
+            "metallicFactor": 0,
+            "roughnessFactor": 0.649999976
+          }
+        },
+        {
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "hps_bulb_base",
+            "viewer_only": true
+          },
+          "name": "hps_bulb_base",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.720000029,
+              0.639999986,
+              0.449999988,
+              1
+            ],
+            "metallicFactor": 0.649999976,
+            "roughnessFactor": 0.360000014
+          }
+        },
+        {
+          "alphaMode": "BLEND",
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "hps_bulb_glass",
+            "viewer_only": true
+          },
+          "name": "hps_bulb_glass",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.75,
+              0.899999976,
+              1,
+              0.349999994
+            ],
+            "metallicFactor": 0,
+            "roughnessFactor": 0.119999997
+          }
+        },
+        {
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "hps_inner_arc_tube",
+            "viewer_only": true
+          },
+          "name": "hps_inner_arc_tube",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              1,
+              0.779999971,
+              0.349999994,
+              1
+            ],
+            "metallicFactor": 0.150000006,
+            "roughnessFactor": 0.300000012
+          }
+        }
+      ],
+      "meshes": [
+        {
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 0,
+                "POSITION": 1
+              },
+              "indices": 2,
+              "material": 0
+            }
+          ]
+        },
+        {
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 3,
+                "POSITION": 4
+              },
+              "indices": 5,
+              "material": 1
+            }
+          ]
+        },
+        {
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 6,
+                "POSITION": 7
+              },
+              "indices": 8,
+              "material": 2
+            }
+          ]
+        },
+        {
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 9,
+                "POSITION": 10
+              },
+              "indices": 11,
+              "material": 3
+            }
+          ]
+        },
+        {
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 12,
+                "POSITION": 13
+              },
+              "indices": 14,
+              "material": 4
+            }
+          ]
+        },
+        {
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 15,
+                "POSITION": 16
+              },
+              "indices": 17,
+              "material": 5
+            }
+          ]
+        },
+        {
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 18,
+                "POSITION": 19
+              },
+              "indices": 20,
+              "material": 6
+            }
+          ]
+        },
+        {
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 21,
+                "POSITION": 22
+              },
+              "indices": 23,
+              "material": 7
+            }
+          ]
+        }
+      ],
+      "nodes": [
+        {
+          "extras": {
+            "cad_label": "reflector_hood_top_box"
+          },
+          "mesh": 0,
+          "name": "reflector_hood_top_box"
+        },
+        {
+          "extras": {
+            "cad_label": "reflector_hood_flared_skirt"
+          },
+          "mesh": 1,
+          "name": "reflector_hood_flared_skirt"
+        },
+        {
+          "children": [
+            0,
+            1
+          ],
+          "extras": {
+            "cad_label": "reflector_hood"
+          },
+          "name": "reflector_hood"
+        },
+        {
+          "extras": {
+            "cad_label": "exhaust_flange"
+          },
+          "mesh": 2,
+          "name": "exhaust_flange"
+        },
+        {
+          "extras": {
+            "cad_label": "socket_bracket"
+          },
+          "mesh": 3,
+          "name": "socket_bracket"
+        },
+        {
+          "extras": {
+            "cad_label": "ceramic_socket"
+          },
+          "mesh": 4,
+          "name": "ceramic_socket"
+        },
+        {
+          "children": [
+            4,
+            5
+          ],
+          "extras": {
+            "cad_label": "socket_bracket_assembly"
+          },
+          "name": "socket_bracket_assembly"
+        },
+        {
+          "extras": {
+            "cad_label": "hps_bulb_base"
+          },
+          "mesh": 5,
+          "name": "hps_bulb_base"
+        },
+        {
+          "extras": {
+            "cad_label": "hps_bulb_glass"
+          },
+          "mesh": 6,
+          "name": "hps_bulb_glass"
+        },
+        {
+          "extras": {
+            "cad_label": "hps_inner_arc_tube"
+          },
+          "mesh": 7,
+          "name": "hps_inner_arc_tube"
+        },
+        {
+          "children": [
+            2,
+            3,
+            6,
+            7,
+            8,
+            9
+          ],
+          "extras": {
+            "cad_label": "competitor_hps_1000w"
+          },
+          "name": "competitor_hps_1000w"
+        }
+      ]
+    },
+    "hps_fixture_occlusion_enabled": false,
+    "inventory_sha256": "aa0dd3eabb398a06713a8c7522c746cbf8f966c01325e6749d292b4b4c2b91d5",
+    "node_primitive_inventory": {
+      "nodes": [
+        {
+          "children": [],
+          "index": 0,
+          "matrix": null,
+          "mesh": 0,
+          "name": "reflector_hood_top_box",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 1,
+          "matrix": null,
+          "mesh": 1,
+          "name": "reflector_hood_flared_skirt",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [
+            0,
+            1
+          ],
+          "index": 2,
+          "matrix": null,
+          "mesh": null,
+          "name": "reflector_hood",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 3,
+          "matrix": null,
+          "mesh": 2,
+          "name": "exhaust_flange",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 4,
+          "matrix": null,
+          "mesh": 3,
+          "name": "socket_bracket",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 5,
+          "matrix": null,
+          "mesh": 4,
+          "name": "ceramic_socket",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [
+            4,
+            5
+          ],
+          "index": 6,
+          "matrix": null,
+          "mesh": null,
+          "name": "socket_bracket_assembly",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 7,
+          "matrix": null,
+          "mesh": 5,
+          "name": "hps_bulb_base",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 8,
+          "matrix": null,
+          "mesh": 6,
+          "name": "hps_bulb_glass",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 9,
+          "matrix": null,
+          "mesh": 7,
+          "name": "hps_inner_arc_tube",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [
+            2,
+            3,
+            6,
+            7,
+            8,
+            9
+          ],
+          "index": 10,
+          "matrix": null,
+          "mesh": null,
+          "name": "competitor_hps_1000w",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        }
+      ],
+      "primitives": [
+        {
+          "index_accessor": 2,
+          "material_index": 0,
+          "mesh_index": 0,
+          "mode": 4,
+          "node_index": 0,
+          "node_path": "competitor_hps_1000w/reflector_hood/reflector_hood_top_box",
+          "position_accessor": 1,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 5,
+          "material_index": 1,
+          "mesh_index": 1,
+          "mode": 4,
+          "node_index": 1,
+          "node_path": "competitor_hps_1000w/reflector_hood/reflector_hood_flared_skirt",
+          "position_accessor": 4,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 8,
+          "material_index": 2,
+          "mesh_index": 2,
+          "mode": 4,
+          "node_index": 3,
+          "node_path": "competitor_hps_1000w/exhaust_flange",
+          "position_accessor": 7,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 11,
+          "material_index": 3,
+          "mesh_index": 3,
+          "mode": 4,
+          "node_index": 4,
+          "node_path": "competitor_hps_1000w/socket_bracket_assembly/socket_bracket",
+          "position_accessor": 10,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 14,
+          "material_index": 4,
+          "mesh_index": 4,
+          "mode": 4,
+          "node_index": 5,
+          "node_path": "competitor_hps_1000w/socket_bracket_assembly/ceramic_socket",
+          "position_accessor": 13,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 17,
+          "material_index": 5,
+          "mesh_index": 5,
+          "mode": 4,
+          "node_index": 7,
+          "node_path": "competitor_hps_1000w/hps_bulb_base",
+          "position_accessor": 16,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 20,
+          "material_index": 6,
+          "mesh_index": 6,
+          "mode": 4,
+          "node_index": 8,
+          "node_path": "competitor_hps_1000w/hps_bulb_glass",
+          "position_accessor": 19,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 23,
+          "material_index": 7,
+          "mesh_index": 7,
+          "mode": 4,
+          "node_index": 9,
+          "node_path": "competitor_hps_1000w/hps_inner_arc_tube",
+          "position_accessor": 22,
+          "primitive_index": 0
+        }
+      ]
+    },
+    "primitive_inventory": [
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -355.6000061035156,
+            -78.0,
+            -165.0
+          ],
+          [
+            355.6000061035156,
+            0.0,
+            165.0
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 18306288.314208984,
+        "geometry_sha256": "3cfb12970770a51f1bbd02a1890908b4d881c31a10ac1566713787aa09361f41",
+        "material_index": 0,
+        "mesh_index": 0,
+        "node_index": 0,
+        "node_path": "competitor_hps_1000w/reflector_hood/reflector_hood_top_box",
+        "primitive_index": 0,
+        "triangle_count": 12
+      },
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -422.9100036621094,
+            -248.9199981689453,
+            -321.30999755859375
+          ],
+          [
+            422.9100036621094,
+            -78.0,
+            321.30999755859375
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 831560.1944705257,
+        "geometry_sha256": "d2905ceab85dad87031c4de9ec705a9cef1d7475c5f2c8a296f27c2432350555",
+        "material_index": 1,
+        "mesh_index": 1,
+        "node_index": 1,
+        "node_path": "competitor_hps_1000w/reflector_hood/reflector_hood_flared_skirt",
+        "primitive_index": 0,
+        "triangle_count": 314
+      },
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -471.9875183105469,
+            -237.15713500976562,
+            -81.16149139404297
+          ],
+          [
+            -353.8901672363281,
+            -67.02154541015625,
+            81.16149139404297
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 140638.2972517702,
+        "geometry_sha256": "f84014f2e9e003f85bcbb0bbafe92ed969674da27d90a68f680db951eab1a04a",
+        "material_index": 2,
+        "mesh_index": 2,
+        "node_index": 3,
+        "node_path": "competitor_hps_1000w/exhaust_flange",
+        "primitive_index": 0,
+        "triangle_count": 612
+      },
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -213.0,
+            -154.0,
+            -35.0
+          ],
+          [
+            -143.0,
+            -85.0,
+            35.0
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 90064.0,
+        "geometry_sha256": "3a0e82be3b3401aa3a027c69fb952c858cb835cb37cc37d84cf72ce7555d8880",
+        "material_index": 3,
+        "mesh_index": 3,
+        "node_index": 4,
+        "node_path": "competitor_hps_1000w/socket_bracket_assembly/socket_bracket",
+        "primitive_index": 0,
+        "triangle_count": 28
+      },
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -179.0,
+            -165.0,
+            -26.987194061279297
+          ],
+          [
+            -141.0,
+            -111.05120849609375,
+            26.987194061279297
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 86808.41711184394,
+        "geometry_sha256": "5754b309ef63e00fabc6bf06581ce72ffb59f9952f59bc6752da10b2fe1137a8",
+        "material_index": 4,
+        "mesh_index": 4,
+        "node_index": 5,
+        "node_path": "competitor_hps_1000w/socket_bracket_assembly/ceramic_socket",
+        "primitive_index": 0,
+        "triangle_count": 200
+      },
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -217.5,
+            -159.8000030517578,
+            -21.789661407470703
+          ],
+          [
+            -146.5,
+            -116.24134826660156,
+            21.789661407470703
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 83930.00274284286,
+        "geometry_sha256": "f9d2dcfbcac7c436dea79d5c2961dbc52dfa8a78ced8c2bd15da5ff5118dc77b",
+        "material_index": 5,
+        "mesh_index": 5,
+        "node_index": 7,
+        "node_path": "competitor_hps_1000w/hps_bulb_base",
+        "primitive_index": 0,
+        "triangle_count": 2852
+      },
+      {
+        "alpha_mode": "BLEND",
+        "base_color_alpha": 0.349999994,
+        "bounds_gltf_mm": [
+          [
+            -177.4048614501953,
+            -163.0,
+            -25.0
+          ],
+          [
+            117.40486907958984,
+            -113.0,
+            25.0
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 544558.073264085,
+        "geometry_sha256": "cc5200397c278c18a4ae1a8f86b29886f0053ade533263540ccfd65b41e106de",
+        "material_index": 6,
+        "mesh_index": 6,
+        "node_index": 8,
+        "node_path": "competitor_hps_1000w/hps_bulb_glass",
+        "primitive_index": 0,
+        "triangle_count": 1396
+      },
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -92.0,
+            -144.0,
+            -5.997154235839844
+          ],
+          [
+            76.0,
+            -132.01138305664062,
+            5.997154235839844
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 12634.885686340966,
+        "geometry_sha256": "a38bae75f8400bc068b99970ea9d4f34cb73851725ef1d89b82ff546fe50a73b",
+        "material_index": 7,
+        "mesh_index": 7,
+        "node_index": 9,
+        "node_path": "competitor_hps_1000w/hps_inner_arc_tube",
+        "primitive_index": 0,
+        "triangle_count": 608
+      }
+    ]
+  },
+  "commands": {
+    "build_argv": [
+      "/home/austin/Desktop/build123d-modeling/.venv/bin/python",
+      "scripts/fixture_assets/build_hps_fixture.py",
+      "--gltfpack",
+      "/tmp/fspm-gltfpack-v020.JI0DgJ/gltfpack"
+    ],
+    "pack_argv": [
+      "/tmp/fspm-gltfpack-v020.JI0DgJ/gltfpack",
+      "-i",
+      "/home/austin/Desktop/fspm-optics-engine/src/fspm_optics/resources/cad/hps/hps_1000w_fixture.raw.glb",
+      "-o",
+      "/home/austin/Desktop/fspm-optics-engine/src/fspm_optics/resources/viewer/fixtures/hps/hps.glb",
+      "-kn",
+      "-km",
+      "-ke",
+      "-noq"
+    ]
+  },
+  "coordinate_contract": {
+    "auto_center": false,
+    "auto_fit": false,
+    "browser_geometry_correction": false,
+    "cad_bounds_mm": [
+      [
+        -472.04394483199064,
+        -321.3100001,
+        -248.92000010000007
+      ],
+      [
+        422.9100001,
+        321.3100001,
+        0.0
+      ]
+    ],
+    "cad_to_gltf": "(X,Y,Z)->(X,Z,-Y)",
+    "cad_units": "millimetres",
+    "dimension_correction_scale_xyz": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "draco": false,
+    "gltf_bounds_mm": [
+      [
+        -471.9875183105469,
+        -248.9199981689453,
+        -321.30999755859375
+      ],
+      [
+        422.9100036621094,
+        0.0,
+        321.30999755859375
+      ]
+    ],
+    "gltf_units": "millimetres",
+    "local_aperture_placement_plane_y_mm": -248.92,
+    "meters_per_asset_unit": 0.001,
+    "placement_correction_local_xyz_mm": [
+      0.0,
+      248.92,
+      0.0
+    ],
+    "registered_gltf_up_axis": "+Y",
+    "shear": false,
+    "simplification": false
+  },
+  "fixture_type": "hps_1000w_fixture",
+  "hashes": {
+    "packed_glb_sha256": "083df1475e84e9552d5ec548fc34669092b5ba4284fcf33ebf7dbb2f26439d7d",
+    "packed_inventory_sha256": "aa0dd3eabb398a06713a8c7522c746cbf8f966c01325e6749d292b4b4c2b91d5",
+    "raw_glb_sha256": "09bff23bdb43de8c9e9d8c3422188517afad76868260cf3686a1fd277b9c4051",
+    "raw_inventory_sha256": "567f69761e41f49b3fb0620bc8ae58c278dd0ab50caa75313a21cdc594b5984a",
+    "step_sha256": "10423382d90007159b351fc417fbb94ec3a7305dd14242d59a5070967de061c7"
+  },
+  "mechanical_assertions": {
+    "bounds_cad_mm": [
+      [
+        -472.04394483199064,
+        -321.3100001,
+        -248.92000010000007
+      ],
+      [
+        422.9100001,
+        321.3100001,
+        0.0
+      ]
+    ],
+    "complete_assembly_ray_assertions": {
+      "luminous_axis_to_rear_exhaust": {
+        "direction_cad": [
+          -0.9978678013211558,
+          0.0,
+          -0.06526753470510753
+        ],
+        "hood_and_flange_clear": true,
+        "intervening_internal_leaf_first_distances_mm": {
+          "ceramic_socket": 141.30128240766862,
+          "hps_bulb_base": 146.81303455832236,
+          "socket_bracket": 172.36752180226242
+        },
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      }
+    },
+    "complete_named_hierarchy": true,
+    "dimensions_mm": [
+      894.9539449319907,
+      642.6200002,
+      248.92000010000007
+    ],
+    "finite_positive_volume_solids": true,
+    "hood_opening_ray_assertions": {
+      "closed_negative_y_side": {
+        "direction_cad": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 217.87128481160775,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "closed_positive_y_side": {
+        "direction_cad": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 217.87128481160775,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "horizontal_positive_x": {
+        "direction_cad": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 377.2285981745846,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "luminous_axis_to_rear_exhaust": {
+        "direction_cad": [
+          -0.9978678013211558,
+          0.0,
+          -0.06526753470510753
+        ],
+        "expected": "miss",
+        "hit": false,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "optical_opening_straight_down": {
+        "direction_cad": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "expected": "miss",
+        "hit": false,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "rear_exhaust_bore_axis": {
+        "direction_cad": [
+          -0.9304494532673857,
+          0.0,
+          0.3664202708836165
+        ],
+        "expected": "miss",
+        "hit": false,
+        "origin_cad_mm": [
+          -249.68758200989214,
+          0.0,
+          -218.4230406325425
+        ]
+      },
+      "rear_outside_bore_negative_y": {
+        "direction_cad": [
+          -0.9537594385771598,
+          -0.2940261078965182,
+          -0.06238253922537796
+        ],
+        "expected": "hit",
+        "first_distance_mm": 405.9746163030028,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "rear_outside_bore_positive_y": {
+        "direction_cad": [
+          -0.9537594385771598,
+          0.2940261078965182,
+          -0.06238253922537796
+        ],
+        "expected": "hit",
+        "first_distance_mm": 405.9746163030028,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "sealed_roof_straight_up": {
+        "direction_cad": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 60.0,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "sealed_roof_upward_negative_y": {
+        "direction_cad": [
+          0.0,
+          -1.0,
+          1.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 84.85281374238569,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "sealed_roof_upward_positive_x": {
+        "direction_cad": [
+          1.0,
+          0.0,
+          1.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 84.85281374238569,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "sealed_roof_upward_positive_y": {
+        "direction_cad": [
+          0.0,
+          1.0,
+          1.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 84.85281374238569,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      }
+    },
+    "leaf_solid_counts": {
+      "ceramic_socket": 1,
+      "exhaust_flange": 1,
+      "hps_bulb_base": 1,
+      "hps_bulb_glass": 1,
+      "hps_inner_arc_tube": 1,
+      "reflector_hood_flared_skirt": 1,
+      "reflector_hood_top_box": 1,
+      "socket_bracket": 1
+    },
+    "leaf_volumes_mm3": {
+      "ceramic_socket": 87028.39968974446,
+      "exhaust_flange": 140994.6782931099,
+      "hps_bulb_base": 84142.70860734546,
+      "hps_bulb_glass": 546506.2220307245,
+      "hps_inner_arc_tube": 12666.90157927405,
+      "reflector_hood_flared_skirt": 831525.0057166503,
+      "reflector_hood_top_box": 18306287.999999996,
+      "socket_bracket": 90064.0
+    },
+    "rear_exhaust": {
+      "flange_bounds_cad_mm": [
+        [
+          -472.04394483199064,
+          -81.19999999999999,
+          -237.29161050604375
+        ],
+        [
+          -353.8901797325293,
+          81.19999999999999,
+          -67.02154895432216
+        ]
+      ],
+      "flange_one_valid_positive_volume_solid": true,
+      "inner_bore_diameter_mm": 144.39999999999998,
+      "negative_x_end_only": true,
+      "outer_diameter_mm": 152.39999999999998,
+      "outward_unit_normal_cad": [
+        -0.9304494532673857,
+        0.0,
+        0.3664202708836165
+      ],
+      "rear_wall_center_below_roof_seam": true,
+      "wall_center_cad_mm": [
+        -389.255,
+        0.0,
+        -163.46
+      ],
+      "wall_thickness_mm": 4.0
+    },
+    "reflector_hood_bounds_cad_mm": [
+      [
+        -422.9100001,
+        -321.3100001,
+        -248.92000010000007
+      ],
+      [
+        422.9100001,
+        321.3100001,
+        0.0
+      ]
+    ],
+    "reflector_skirt_one_valid_solid": true,
+    "sealed_top_box": {
+      "bounds_cad_mm": [
+        [
+          -355.59999999999997,
+          -165.0,
+          -78.0
+        ],
+        [
+          355.59999999999997,
+          165.0,
+          0.0
+        ]
+      ],
+      "former_vertical_roof_bore_absent": true,
+      "unperforated_single_valid_solid": true,
+      "volume_mm3": 18306287.999999996
+    },
+    "solid_count": 8,
+    "unique_named_leaf_count": 8
+  },
+  "packed_validation": {
+    "bounds_gltf_mm": [
+      [
+        -471.9875183105469,
+        -248.9199981689453,
+        -321.30999755859375
+      ],
+      [
+        422.9100036621094,
+        0.0,
+        321.30999755859375
+      ]
+    ],
+    "byte_length": 353160,
+    "complete_assembly_ray_assertions": {
+      "luminous_axis_to_rear_exhaust": {
+        "direction_cad": [
+          -0.9978678013211558,
+          0.0,
+          -0.06526753470510753
+        ],
+        "hood_and_flange_clear": true,
+        "intervening_internal_leaf_first_distances_mm": {
+          "ceramic_socket": 141.3012824076686,
+          "hps_bulb_base": 146.81303455832236,
+          "socket_bracket": 172.36752180226244
+        },
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      }
+    },
+    "degenerate_triangle_count": 0,
+    "document_inventory": {
+      "accessors": [
+        {
+          "bufferView": 0,
+          "byteOffset": 0,
+          "componentType": 5126,
+          "count": 26,
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 1,
+          "byteOffset": 0,
+          "componentType": 5126,
+          "count": 26,
+          "max": [
+            355.600006,
+            0,
+            165
+          ],
+          "min": [
+            -355.600006,
+            -78,
+            -165
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 2,
+          "byteOffset": 0,
+          "componentType": 5123,
+          "count": 36,
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 0,
+          "byteOffset": 312,
+          "componentType": 5126,
+          "count": 908,
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 1,
+          "byteOffset": 312,
+          "componentType": 5126,
+          "count": 908,
+          "max": [
+            422.910004,
+            -78,
+            321.309998
+          ],
+          "min": [
+            -422.910004,
+            -248.919998,
+            -321.309998
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 2,
+          "byteOffset": 72,
+          "componentType": 5123,
+          "count": 942,
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 0,
+          "byteOffset": 11208,
+          "componentType": 5126,
+          "count": 1532,
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 1,
+          "byteOffset": 11208,
+          "componentType": 5126,
+          "count": 1532,
+          "max": [
+            -353.890167,
+            -67.0215454,
+            81.1614914
+          ],
+          "min": [
+            -471.987518,
+            -237.157135,
+            -81.1614914
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 2,
+          "byteOffset": 1956,
+          "componentType": 5123,
+          "count": 1836,
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 0,
+          "byteOffset": 29592,
+          "componentType": 5126,
+          "count": 50,
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 1,
+          "byteOffset": 29592,
+          "componentType": 5126,
+          "count": 50,
+          "max": [
+            -143,
+            -85,
+            35
+          ],
+          "min": [
+            -213,
+            -154,
+            -35
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 2,
+          "byteOffset": 5628,
+          "componentType": 5123,
+          "count": 84,
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 0,
+          "byteOffset": 30192,
+          "componentType": 5126,
+          "count": 321,
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 1,
+          "byteOffset": 30192,
+          "componentType": 5126,
+          "count": 321,
+          "max": [
+            -141,
+            -111.051208,
+            26.9871941
+          ],
+          "min": [
+            -179,
+            -165,
+            -26.9871941
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 2,
+          "byteOffset": 5796,
+          "componentType": 5123,
+          "count": 600,
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 0,
+          "byteOffset": 34044,
+          "componentType": 5126,
+          "count": 4955,
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 1,
+          "byteOffset": 34044,
+          "componentType": 5126,
+          "count": 4955,
+          "max": [
+            -146.5,
+            -116.241348,
+            21.7896614
+          ],
+          "min": [
+            -217.5,
+            -159.800003,
+            -21.7896614
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 2,
+          "byteOffset": 6996,
+          "componentType": 5123,
+          "count": 8556,
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 0,
+          "byteOffset": 93504,
+          "componentType": 5126,
+          "count": 4086,
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 1,
+          "byteOffset": 93504,
+          "componentType": 5126,
+          "count": 4086,
+          "max": [
+            117.404869,
+            -113,
+            25
+          ],
+          "min": [
+            -177.404861,
+            -163,
+            -25
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 2,
+          "byteOffset": 24108,
+          "componentType": 5123,
+          "count": 4188,
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 0,
+          "byteOffset": 142536,
+          "componentType": 5126,
+          "count": 1048,
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 1,
+          "byteOffset": 142536,
+          "componentType": 5126,
+          "count": 1048,
+          "max": [
+            76,
+            -132.011383,
+            5.99715424
+          ],
+          "min": [
+            -92,
+            -144,
+            -5.99715424
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 2,
+          "byteOffset": 32484,
+          "componentType": 5123,
+          "count": 1824,
+          "type": "SCALAR"
+        }
+      ],
+      "materials": [
+        {
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "reflector_hood_top_box",
+            "viewer_only": true
+          },
+          "name": "reflector_hood_top_box",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.720000029,
+              0.720000029,
+              0.720000029,
+              1
+            ],
+            "metallicFactor": 0.850000024,
+            "roughnessFactor": 0.280000001
+          }
+        },
+        {
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "reflector_hood_flared_skirt",
+            "viewer_only": true
+          },
+          "name": "reflector_hood_flared_skirt",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.879999995,
+              0.879999995,
+              0.819999993,
+              1
+            ],
+            "metallicFactor": 0.75,
+            "roughnessFactor": 0.219999999
+          }
+        },
+        {
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "exhaust_flange",
+            "viewer_only": true
+          },
+          "name": "exhaust_flange",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.579999983,
+              0.579999983,
+              0.579999983,
+              1
+            ],
+            "metallicFactor": 0.899999976,
+            "roughnessFactor": 0.319999993
+          }
+        },
+        {
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "socket_bracket",
+            "viewer_only": true
+          },
+          "name": "socket_bracket",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.349999994,
+              0.349999994,
+              0.349999994,
+              1
+            ],
+            "metallicFactor": 0.800000012,
+            "roughnessFactor": 0.379999995
+          }
+        },
+        {
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "ceramic_socket",
+            "viewer_only": true
+          },
+          "name": "ceramic_socket",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.850000024,
+              0.819999993,
+              0.720000029,
+              1
+            ],
+            "metallicFactor": 0,
+            "roughnessFactor": 0.649999976
+          }
+        },
+        {
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "hps_bulb_base",
+            "viewer_only": true
+          },
+          "name": "hps_bulb_base",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.720000029,
+              0.639999986,
+              0.449999988,
+              1
+            ],
+            "metallicFactor": 0.649999976,
+            "roughnessFactor": 0.360000014
+          }
+        },
+        {
+          "alphaMode": "BLEND",
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "hps_bulb_glass",
+            "viewer_only": true
+          },
+          "name": "hps_bulb_glass",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.75,
+              0.899999976,
+              1,
+              0.349999994
+            ],
+            "metallicFactor": 0,
+            "roughnessFactor": 0.119999997
+          }
+        },
+        {
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "hps_inner_arc_tube",
+            "viewer_only": true
+          },
+          "name": "hps_inner_arc_tube",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              1,
+              0.779999971,
+              0.349999994,
+              1
+            ],
+            "metallicFactor": 0.150000006,
+            "roughnessFactor": 0.300000012
+          }
+        }
+      ],
+      "meshes": [
+        {
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 0,
+                "POSITION": 1
+              },
+              "indices": 2,
+              "material": 0
+            }
+          ]
+        },
+        {
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 3,
+                "POSITION": 4
+              },
+              "indices": 5,
+              "material": 1
+            }
+          ]
+        },
+        {
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 6,
+                "POSITION": 7
+              },
+              "indices": 8,
+              "material": 2
+            }
+          ]
+        },
+        {
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 9,
+                "POSITION": 10
+              },
+              "indices": 11,
+              "material": 3
+            }
+          ]
+        },
+        {
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 12,
+                "POSITION": 13
+              },
+              "indices": 14,
+              "material": 4
+            }
+          ]
+        },
+        {
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 15,
+                "POSITION": 16
+              },
+              "indices": 17,
+              "material": 5
+            }
+          ]
+        },
+        {
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 18,
+                "POSITION": 19
+              },
+              "indices": 20,
+              "material": 6
+            }
+          ]
+        },
+        {
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 21,
+                "POSITION": 22
+              },
+              "indices": 23,
+              "material": 7
+            }
+          ]
+        }
+      ],
+      "nodes": [
+        {
+          "extras": {
+            "cad_label": "reflector_hood_top_box"
+          },
+          "mesh": 0,
+          "name": "reflector_hood_top_box"
+        },
+        {
+          "extras": {
+            "cad_label": "reflector_hood_flared_skirt"
+          },
+          "mesh": 1,
+          "name": "reflector_hood_flared_skirt"
+        },
+        {
+          "children": [
+            0,
+            1
+          ],
+          "extras": {
+            "cad_label": "reflector_hood"
+          },
+          "name": "reflector_hood"
+        },
+        {
+          "extras": {
+            "cad_label": "exhaust_flange"
+          },
+          "mesh": 2,
+          "name": "exhaust_flange"
+        },
+        {
+          "extras": {
+            "cad_label": "socket_bracket"
+          },
+          "mesh": 3,
+          "name": "socket_bracket"
+        },
+        {
+          "extras": {
+            "cad_label": "ceramic_socket"
+          },
+          "mesh": 4,
+          "name": "ceramic_socket"
+        },
+        {
+          "children": [
+            4,
+            5
+          ],
+          "extras": {
+            "cad_label": "socket_bracket_assembly"
+          },
+          "name": "socket_bracket_assembly"
+        },
+        {
+          "extras": {
+            "cad_label": "hps_bulb_base"
+          },
+          "mesh": 5,
+          "name": "hps_bulb_base"
+        },
+        {
+          "extras": {
+            "cad_label": "hps_bulb_glass"
+          },
+          "mesh": 6,
+          "name": "hps_bulb_glass"
+        },
+        {
+          "extras": {
+            "cad_label": "hps_inner_arc_tube"
+          },
+          "mesh": 7,
+          "name": "hps_inner_arc_tube"
+        },
+        {
+          "children": [
+            2,
+            3,
+            6,
+            7,
+            8,
+            9
+          ],
+          "extras": {
+            "cad_label": "competitor_hps_1000w"
+          },
+          "name": "competitor_hps_1000w"
+        }
+      ]
+    },
+    "embedded_data_only": true,
+    "extensions_required": [],
+    "extensions_used": [],
+    "finite_unit_normals": true,
+    "full_geometry_sha256": "8584166b13409cf1f5739e0f86a9fd78fa5c2fc704636c4809a13b4406efa9f1",
+    "hood_opening_ray_assertions": {
+      "closed_negative_y_side": {
+        "direction_cad": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 217.8712845424055,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "closed_positive_y_side": {
+        "direction_cad": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 217.8712845424055,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "horizontal_positive_x": {
+        "direction_cad": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 377.2286036741971,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "luminous_axis_to_rear_exhaust": {
+        "direction_cad": [
+          -0.9978678013211558,
+          0.0,
+          -0.06526753470510753
+        ],
+        "expected": "miss",
+        "hit": false,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "optical_opening_straight_down": {
+        "direction_cad": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "expected": "miss",
+        "hit": false,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "rear_exhaust_bore_axis": {
+        "direction_cad": [
+          -0.9304494532673857,
+          0.0,
+          0.3664202708836165
+        ],
+        "expected": "miss",
+        "hit": false,
+        "origin_cad_mm": [
+          -249.68758200989214,
+          0.0,
+          -218.4230406325425
+        ]
+      },
+      "rear_outside_bore_negative_y": {
+        "direction_cad": [
+          -0.9537594385771598,
+          -0.2940261078965182,
+          -0.06238253922537796
+        ],
+        "expected": "hit",
+        "first_distance_mm": 405.97462078096544,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "rear_outside_bore_positive_y": {
+        "direction_cad": [
+          -0.9537594385771598,
+          0.2940261078965182,
+          -0.06238253922537796
+        ],
+        "expected": "hit",
+        "first_distance_mm": 405.974626337274,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "sealed_roof_straight_up": {
+        "direction_cad": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 60.00000000000001,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "sealed_roof_upward_negative_y": {
+        "direction_cad": [
+          0.0,
+          -1.0,
+          1.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 84.85281374238572,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "sealed_roof_upward_positive_x": {
+        "direction_cad": [
+          1.0,
+          0.0,
+          1.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 84.85281374238572,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "sealed_roof_upward_positive_y": {
+        "direction_cad": [
+          0.0,
+          1.0,
+          1.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 84.8528137423857,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      }
+    },
+    "indexed_finite_triangles": true,
+    "inventory_sha256": "aa0dd3eabb398a06713a8c7522c746cbf8f966c01325e6749d292b4b4c2b91d5",
+    "material_contract": {
+      "all_double_sided": true,
+      "all_other_alpha_modes": "OPAQUE",
+      "authored_glass_base_color_alpha": 0.35,
+      "glass_alpha_mode": "BLEND",
+      "material_count": 8,
+      "stored_glass_base_color_alpha": 0.349999994,
+      "viewer_only_not_scientific_transport": true
+    },
+    "mesh_count": 8,
+    "node_count": 11,
+    "node_primitive_inventory": {
+      "nodes": [
+        {
+          "children": [],
+          "index": 0,
+          "matrix": null,
+          "mesh": 0,
+          "name": "reflector_hood_top_box",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 1,
+          "matrix": null,
+          "mesh": 1,
+          "name": "reflector_hood_flared_skirt",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [
+            0,
+            1
+          ],
+          "index": 2,
+          "matrix": null,
+          "mesh": null,
+          "name": "reflector_hood",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 3,
+          "matrix": null,
+          "mesh": 2,
+          "name": "exhaust_flange",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 4,
+          "matrix": null,
+          "mesh": 3,
+          "name": "socket_bracket",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 5,
+          "matrix": null,
+          "mesh": 4,
+          "name": "ceramic_socket",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [
+            4,
+            5
+          ],
+          "index": 6,
+          "matrix": null,
+          "mesh": null,
+          "name": "socket_bracket_assembly",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 7,
+          "matrix": null,
+          "mesh": 5,
+          "name": "hps_bulb_base",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 8,
+          "matrix": null,
+          "mesh": 6,
+          "name": "hps_bulb_glass",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 9,
+          "matrix": null,
+          "mesh": 7,
+          "name": "hps_inner_arc_tube",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [
+            2,
+            3,
+            6,
+            7,
+            8,
+            9
+          ],
+          "index": 10,
+          "matrix": null,
+          "mesh": null,
+          "name": "competitor_hps_1000w",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        }
+      ],
+      "primitives": [
+        {
+          "index_accessor": 2,
+          "material_index": 0,
+          "mesh_index": 0,
+          "mode": 4,
+          "node_index": 0,
+          "node_path": "competitor_hps_1000w/reflector_hood/reflector_hood_top_box",
+          "position_accessor": 1,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 5,
+          "material_index": 1,
+          "mesh_index": 1,
+          "mode": 4,
+          "node_index": 1,
+          "node_path": "competitor_hps_1000w/reflector_hood/reflector_hood_flared_skirt",
+          "position_accessor": 4,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 8,
+          "material_index": 2,
+          "mesh_index": 2,
+          "mode": 4,
+          "node_index": 3,
+          "node_path": "competitor_hps_1000w/exhaust_flange",
+          "position_accessor": 7,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 11,
+          "material_index": 3,
+          "mesh_index": 3,
+          "mode": 4,
+          "node_index": 4,
+          "node_path": "competitor_hps_1000w/socket_bracket_assembly/socket_bracket",
+          "position_accessor": 10,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 14,
+          "material_index": 4,
+          "mesh_index": 4,
+          "mode": 4,
+          "node_index": 5,
+          "node_path": "competitor_hps_1000w/socket_bracket_assembly/ceramic_socket",
+          "position_accessor": 13,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 17,
+          "material_index": 5,
+          "mesh_index": 5,
+          "mode": 4,
+          "node_index": 7,
+          "node_path": "competitor_hps_1000w/hps_bulb_base",
+          "position_accessor": 16,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 20,
+          "material_index": 6,
+          "mesh_index": 6,
+          "mode": 4,
+          "node_index": 8,
+          "node_path": "competitor_hps_1000w/hps_bulb_glass",
+          "position_accessor": 19,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 23,
+          "material_index": 7,
+          "mesh_index": 7,
+          "mode": 4,
+          "node_index": 9,
+          "node_path": "competitor_hps_1000w/hps_inner_arc_tube",
+          "position_accessor": 22,
+          "primitive_index": 0
+        }
+      ]
+    },
+    "primitive_count": 8,
+    "primitive_inventory": [
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -355.6000061035156,
+            -78.0,
+            -165.0
+          ],
+          [
+            355.6000061035156,
+            0.0,
+            165.0
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 18306288.314208984,
+        "geometry_sha256": "3cfb12970770a51f1bbd02a1890908b4d881c31a10ac1566713787aa09361f41",
+        "material_index": 0,
+        "mesh_index": 0,
+        "node_index": 0,
+        "node_path": "competitor_hps_1000w/reflector_hood/reflector_hood_top_box",
+        "primitive_index": 0,
+        "triangle_count": 12
+      },
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -422.9100036621094,
+            -248.9199981689453,
+            -321.30999755859375
+          ],
+          [
+            422.9100036621094,
+            -78.0,
+            321.30999755859375
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 831560.1944705257,
+        "geometry_sha256": "d2905ceab85dad87031c4de9ec705a9cef1d7475c5f2c8a296f27c2432350555",
+        "material_index": 1,
+        "mesh_index": 1,
+        "node_index": 1,
+        "node_path": "competitor_hps_1000w/reflector_hood/reflector_hood_flared_skirt",
+        "primitive_index": 0,
+        "triangle_count": 314
+      },
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -471.9875183105469,
+            -237.15713500976562,
+            -81.16149139404297
+          ],
+          [
+            -353.8901672363281,
+            -67.02154541015625,
+            81.16149139404297
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 140638.2972517702,
+        "geometry_sha256": "f84014f2e9e003f85bcbb0bbafe92ed969674da27d90a68f680db951eab1a04a",
+        "material_index": 2,
+        "mesh_index": 2,
+        "node_index": 3,
+        "node_path": "competitor_hps_1000w/exhaust_flange",
+        "primitive_index": 0,
+        "triangle_count": 612
+      },
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -213.0,
+            -154.0,
+            -35.0
+          ],
+          [
+            -143.0,
+            -85.0,
+            35.0
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 90064.0,
+        "geometry_sha256": "3a0e82be3b3401aa3a027c69fb952c858cb835cb37cc37d84cf72ce7555d8880",
+        "material_index": 3,
+        "mesh_index": 3,
+        "node_index": 4,
+        "node_path": "competitor_hps_1000w/socket_bracket_assembly/socket_bracket",
+        "primitive_index": 0,
+        "triangle_count": 28
+      },
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -179.0,
+            -165.0,
+            -26.987194061279297
+          ],
+          [
+            -141.0,
+            -111.05120849609375,
+            26.987194061279297
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 86808.41711184394,
+        "geometry_sha256": "5754b309ef63e00fabc6bf06581ce72ffb59f9952f59bc6752da10b2fe1137a8",
+        "material_index": 4,
+        "mesh_index": 4,
+        "node_index": 5,
+        "node_path": "competitor_hps_1000w/socket_bracket_assembly/ceramic_socket",
+        "primitive_index": 0,
+        "triangle_count": 200
+      },
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -217.5,
+            -159.8000030517578,
+            -21.789661407470703
+          ],
+          [
+            -146.5,
+            -116.24134826660156,
+            21.789661407470703
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 83930.00274284286,
+        "geometry_sha256": "f9d2dcfbcac7c436dea79d5c2961dbc52dfa8a78ced8c2bd15da5ff5118dc77b",
+        "material_index": 5,
+        "mesh_index": 5,
+        "node_index": 7,
+        "node_path": "competitor_hps_1000w/hps_bulb_base",
+        "primitive_index": 0,
+        "triangle_count": 2852
+      },
+      {
+        "alpha_mode": "BLEND",
+        "base_color_alpha": 0.349999994,
+        "bounds_gltf_mm": [
+          [
+            -177.4048614501953,
+            -163.0,
+            -25.0
+          ],
+          [
+            117.40486907958984,
+            -113.0,
+            25.0
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 544558.073264085,
+        "geometry_sha256": "cc5200397c278c18a4ae1a8f86b29886f0053ade533263540ccfd65b41e106de",
+        "material_index": 6,
+        "mesh_index": 6,
+        "node_index": 8,
+        "node_path": "competitor_hps_1000w/hps_bulb_glass",
+        "primitive_index": 0,
+        "triangle_count": 1396
+      },
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -92.0,
+            -144.0,
+            -5.997154235839844
+          ],
+          [
+            76.0,
+            -132.01138305664062,
+            5.997154235839844
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 12634.885686340966,
+        "geometry_sha256": "a38bae75f8400bc068b99970ea9d4f34cb73851725ef1d89b82ff546fe50a73b",
+        "material_index": 7,
+        "mesh_index": 7,
+        "node_index": 9,
+        "node_path": "competitor_hps_1000w/hps_inner_arc_tube",
+        "primitive_index": 0,
+        "triangle_count": 608
+      }
+    ],
+    "projected_area_mm2": 1173851.9690387314,
+    "sealed_top_box": {
+      "bounds_gltf_mm": [
+        [
+          -355.6000061035156,
+          -78.0,
+          -165.0
+        ],
+        [
+          355.6000061035156,
+          0.0,
+          165.0
+        ]
+      ],
+      "decoded_closed_mesh_volume_mm3": 18306288.314208984,
+      "former_vertical_roof_bore_absent": true,
+      "straight_up_ray_hits": true
+    },
+    "sha256": "083df1475e84e9552d5ec548fc34669092b5ba4284fcf33ebf7dbb2f26439d7d",
+    "surface_area_mm2": 1851758.3511026863,
+    "triangle_count": 6022,
+    "unexpected_transforms": false
+  },
+  "raw_packed_agreement": {
+    "bounds_max_residual_mm": 0.0,
+    "complete_assembly_rays_equal": true,
+    "hood_opening_rays_equal": true,
+    "mesh_count_equal": true,
+    "primitive_count_equal": true,
+    "projected_area_relative_error": 0.0,
+    "surface_area_relative_error": 0.0,
+    "triangle_count_equal": true,
+    "triangle_geometry_sha256_equal": true
+  },
+  "raw_validation": {
+    "bounds_gltf_mm": [
+      [
+        -471.9875183105469,
+        -248.9199981689453,
+        -321.30999755859375
+      ],
+      [
+        422.9100036621094,
+        0.0,
+        321.30999755859375
+      ]
+    ],
+    "byte_length": 515592,
+    "complete_assembly_ray_assertions": {
+      "luminous_axis_to_rear_exhaust": {
+        "direction_cad": [
+          -0.9978678013211558,
+          0.0,
+          -0.06526753470510753
+        ],
+        "hood_and_flange_clear": true,
+        "intervening_internal_leaf_first_distances_mm": {
+          "ceramic_socket": 141.3012824076686,
+          "hps_bulb_base": 146.81303455832236,
+          "socket_bracket": 172.36752180226244
+        },
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      }
+    },
+    "degenerate_triangle_count": 0,
+    "document_inventory": {
+      "accessors": [
+        {
+          "bufferView": 0,
+          "componentType": 5126,
+          "count": 36,
+          "max": [
+            355.6,
+            0.0,
+            165.0
+          ],
+          "min": [
+            -355.6,
+            -78.0,
+            -165.0
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 1,
+          "componentType": 5126,
+          "count": 36,
+          "max": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "min": [
+            -1.0,
+            -1.0,
+            -1.0
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 2,
+          "componentType": 5125,
+          "count": 36,
+          "max": [
+            35
+          ],
+          "min": [
+            0
+          ],
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 3,
+          "componentType": 5126,
+          "count": 942,
+          "max": [
+            422.91,
+            -78.0,
+            321.31
+          ],
+          "min": [
+            -422.91,
+            -248.92,
+            -321.31
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 4,
+          "componentType": 5126,
+          "count": 942,
+          "max": [
+            0.9304494532890135,
+            1.0,
+            0.9994328974908099
+          ],
+          "min": [
+            -0.9304494532759284,
+            -1.0,
+            -0.9997030019844427
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 5,
+          "componentType": 5125,
+          "count": 942,
+          "max": [
+            941
+          ],
+          "min": [
+            0
+          ],
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 6,
+          "componentType": 5126,
+          "count": 1836,
+          "max": [
+            -353.8901797325,
+            -67.02154895432,
+            81.16148844072531
+          ],
+          "min": [
+            -471.9875125535937,
+            -237.15713604239997,
+            -81.16148844072531
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 7,
+          "componentType": 5126,
+          "count": 1836,
+          "max": [
+            0.9304494532703355,
+            0.9304494532676109,
+            0.9995257197133659
+          ],
+          "min": [
+            -0.9304494532673251,
+            -0.9304494532679205,
+            -0.9995257197133659
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 8,
+          "componentType": 5125,
+          "count": 1836,
+          "max": [
+            1835
+          ],
+          "min": [
+            0
+          ],
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 9,
+          "componentType": 5126,
+          "count": 84,
+          "max": [
+            -143.0,
+            -85.0,
+            35.0
+          ],
+          "min": [
+            -213.0,
+            -154.0,
+            -35.0
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 10,
+          "componentType": 5126,
+          "count": 84,
+          "max": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "min": [
+            -1.0,
+            -1.0,
+            -1.0
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 11,
+          "componentType": 5125,
+          "count": 84,
+          "max": [
+            83
+          ],
+          "min": [
+            0
+          ],
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 12,
+          "componentType": 5126,
+          "count": 600,
+          "max": [
+            -141.0,
+            -111.05121012409981,
+            26.98719443226088
+          ],
+          "min": [
+            -179.0,
+            -165.0,
+            -26.98719443226088
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 13,
+          "componentType": 5126,
+          "count": 600,
+          "max": [
+            1.0,
+            1.0,
+            0.9995257197133659
+          ],
+          "min": [
+            -1.0,
+            -0.9981033287370443,
+            -0.9995257197133659
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 14,
+          "componentType": 5125,
+          "count": 600,
+          "max": [
+            599
+          ],
+          "min": [
+            0
+          ],
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 15,
+          "componentType": 5126,
+          "count": 8556,
+          "max": [
+            -146.5,
+            -116.24134743353244,
+            21.789660689751376
+          ],
+          "min": [
+            -217.5,
+            -159.8,
+            -21.789660689751376
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 16,
+          "componentType": 5126,
+          "count": 8556,
+          "max": [
+            1.0,
+            1.0,
+            0.999525719713366
+          ],
+          "min": [
+            -1.0,
+            -0.9981033287370444,
+            -0.9995257197133659
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 17,
+          "componentType": 5125,
+          "count": 8556,
+          "max": [
+            8555
+          ],
+          "min": [
+            0
+          ],
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 18,
+          "componentType": 5126,
+          "count": 4188,
+          "max": [
+            117.40486745229387,
+            -113.0,
+            25.0
+          ],
+          "min": [
+            -177.40486745229407,
+            -163.0,
+            -25.0
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 19,
+          "componentType": 5126,
+          "count": 4188,
+          "max": [
+            0.9978568817645362,
+            0.9981755542233174,
+            0.9981755542233177
+          ],
+          "min": [
+            -0.9978568817645369,
+            -0.9981755542233177,
+            -0.9981755542233175
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 20,
+          "componentType": 5125,
+          "count": 4188,
+          "max": [
+            4187
+          ],
+          "min": [
+            0
+          ],
+          "type": "SCALAR"
+        },
+        {
+          "bufferView": 21,
+          "componentType": 5126,
+          "count": 1824,
+          "max": [
+            76.0,
+            -132.01138002757773,
+            5.997154318280195
+          ],
+          "min": [
+            -92.0,
+            -144.0,
+            -5.997154318280195
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 22,
+          "componentType": 5126,
+          "count": 1824,
+          "max": [
+            1.0,
+            1.0,
+            0.9995257197133659
+          ],
+          "min": [
+            -1.0,
+            -0.9981033287370438,
+            -0.9995257197133659
+          ],
+          "type": "VEC3"
+        },
+        {
+          "bufferView": 23,
+          "componentType": 5125,
+          "count": 1824,
+          "max": [
+            1823
+          ],
+          "min": [
+            0
+          ],
+          "type": "SCALAR"
+        }
+      ],
+      "materials": [
+        {
+          "alphaMode": "OPAQUE",
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "reflector_hood_top_box",
+            "viewer_only": true
+          },
+          "name": "reflector_hood_top_box",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.72,
+              0.72,
+              0.72,
+              1.0
+            ],
+            "metallicFactor": 0.85,
+            "roughnessFactor": 0.28
+          }
+        },
+        {
+          "alphaMode": "OPAQUE",
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "reflector_hood_flared_skirt",
+            "viewer_only": true
+          },
+          "name": "reflector_hood_flared_skirt",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.88,
+              0.88,
+              0.82,
+              1.0
+            ],
+            "metallicFactor": 0.75,
+            "roughnessFactor": 0.22
+          }
+        },
+        {
+          "alphaMode": "OPAQUE",
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "exhaust_flange",
+            "viewer_only": true
+          },
+          "name": "exhaust_flange",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.58,
+              0.58,
+              0.58,
+              1.0
+            ],
+            "metallicFactor": 0.9,
+            "roughnessFactor": 0.32
+          }
+        },
+        {
+          "alphaMode": "OPAQUE",
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "socket_bracket",
+            "viewer_only": true
+          },
+          "name": "socket_bracket",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.35,
+              0.35,
+              0.35,
+              1.0
+            ],
+            "metallicFactor": 0.8,
+            "roughnessFactor": 0.38
+          }
+        },
+        {
+          "alphaMode": "OPAQUE",
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "ceramic_socket",
+            "viewer_only": true
+          },
+          "name": "ceramic_socket",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.85,
+              0.82,
+              0.72,
+              1.0
+            ],
+            "metallicFactor": 0.0,
+            "roughnessFactor": 0.65
+          }
+        },
+        {
+          "alphaMode": "OPAQUE",
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "hps_bulb_base",
+            "viewer_only": true
+          },
+          "name": "hps_bulb_base",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.72,
+              0.64,
+              0.45,
+              1.0
+            ],
+            "metallicFactor": 0.65,
+            "roughnessFactor": 0.36
+          }
+        },
+        {
+          "alphaMode": "BLEND",
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "hps_bulb_glass",
+            "viewer_only": true
+          },
+          "name": "hps_bulb_glass",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              0.75,
+              0.9,
+              1.0,
+              0.35
+            ],
+            "metallicFactor": 0.0,
+            "roughnessFactor": 0.12
+          }
+        },
+        {
+          "alphaMode": "OPAQUE",
+          "doubleSided": true,
+          "extras": {
+            "cad_leaf_name": "hps_inner_arc_tube",
+            "viewer_only": true
+          },
+          "name": "hps_inner_arc_tube",
+          "pbrMetallicRoughness": {
+            "baseColorFactor": [
+              1.0,
+              0.78,
+              0.35,
+              1.0
+            ],
+            "metallicFactor": 0.15,
+            "roughnessFactor": 0.3
+          }
+        }
+      ],
+      "meshes": [
+        {
+          "extras": {
+            "cad_leaf_name": "reflector_hood_top_box"
+          },
+          "name": "reflector_hood_top_box",
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 1,
+                "POSITION": 0
+              },
+              "extras": {
+                "cad_leaf_name": "reflector_hood_top_box"
+              },
+              "indices": 2,
+              "material": 0,
+              "mode": 4
+            }
+          ]
+        },
+        {
+          "extras": {
+            "cad_leaf_name": "reflector_hood_flared_skirt"
+          },
+          "name": "reflector_hood_flared_skirt",
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 4,
+                "POSITION": 3
+              },
+              "extras": {
+                "cad_leaf_name": "reflector_hood_flared_skirt"
+              },
+              "indices": 5,
+              "material": 1,
+              "mode": 4
+            }
+          ]
+        },
+        {
+          "extras": {
+            "cad_leaf_name": "exhaust_flange"
+          },
+          "name": "exhaust_flange",
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 7,
+                "POSITION": 6
+              },
+              "extras": {
+                "cad_leaf_name": "exhaust_flange"
+              },
+              "indices": 8,
+              "material": 2,
+              "mode": 4
+            }
+          ]
+        },
+        {
+          "extras": {
+            "cad_leaf_name": "socket_bracket"
+          },
+          "name": "socket_bracket",
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 10,
+                "POSITION": 9
+              },
+              "extras": {
+                "cad_leaf_name": "socket_bracket"
+              },
+              "indices": 11,
+              "material": 3,
+              "mode": 4
+            }
+          ]
+        },
+        {
+          "extras": {
+            "cad_leaf_name": "ceramic_socket"
+          },
+          "name": "ceramic_socket",
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 13,
+                "POSITION": 12
+              },
+              "extras": {
+                "cad_leaf_name": "ceramic_socket"
+              },
+              "indices": 14,
+              "material": 4,
+              "mode": 4
+            }
+          ]
+        },
+        {
+          "extras": {
+            "cad_leaf_name": "hps_bulb_base"
+          },
+          "name": "hps_bulb_base",
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 16,
+                "POSITION": 15
+              },
+              "extras": {
+                "cad_leaf_name": "hps_bulb_base"
+              },
+              "indices": 17,
+              "material": 5,
+              "mode": 4
+            }
+          ]
+        },
+        {
+          "extras": {
+            "cad_leaf_name": "hps_bulb_glass"
+          },
+          "name": "hps_bulb_glass",
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 19,
+                "POSITION": 18
+              },
+              "extras": {
+                "cad_leaf_name": "hps_bulb_glass"
+              },
+              "indices": 20,
+              "material": 6,
+              "mode": 4
+            }
+          ]
+        },
+        {
+          "extras": {
+            "cad_leaf_name": "hps_inner_arc_tube"
+          },
+          "name": "hps_inner_arc_tube",
+          "primitives": [
+            {
+              "attributes": {
+                "NORMAL": 22,
+                "POSITION": 21
+              },
+              "extras": {
+                "cad_leaf_name": "hps_inner_arc_tube"
+              },
+              "indices": 23,
+              "material": 7,
+              "mode": 4
+            }
+          ]
+        }
+      ],
+      "nodes": [
+        {
+          "extras": {
+            "cad_label": "reflector_hood_top_box"
+          },
+          "mesh": 0,
+          "name": "reflector_hood_top_box"
+        },
+        {
+          "extras": {
+            "cad_label": "reflector_hood_flared_skirt"
+          },
+          "mesh": 1,
+          "name": "reflector_hood_flared_skirt"
+        },
+        {
+          "children": [
+            0,
+            1
+          ],
+          "extras": {
+            "cad_label": "reflector_hood"
+          },
+          "name": "reflector_hood"
+        },
+        {
+          "extras": {
+            "cad_label": "exhaust_flange"
+          },
+          "mesh": 2,
+          "name": "exhaust_flange"
+        },
+        {
+          "extras": {
+            "cad_label": "socket_bracket"
+          },
+          "mesh": 3,
+          "name": "socket_bracket"
+        },
+        {
+          "extras": {
+            "cad_label": "ceramic_socket"
+          },
+          "mesh": 4,
+          "name": "ceramic_socket"
+        },
+        {
+          "children": [
+            4,
+            5
+          ],
+          "extras": {
+            "cad_label": "socket_bracket_assembly"
+          },
+          "name": "socket_bracket_assembly"
+        },
+        {
+          "extras": {
+            "cad_label": "hps_bulb_base"
+          },
+          "mesh": 5,
+          "name": "hps_bulb_base"
+        },
+        {
+          "extras": {
+            "cad_label": "hps_bulb_glass"
+          },
+          "mesh": 6,
+          "name": "hps_bulb_glass"
+        },
+        {
+          "extras": {
+            "cad_label": "hps_inner_arc_tube"
+          },
+          "mesh": 7,
+          "name": "hps_inner_arc_tube"
+        },
+        {
+          "children": [
+            2,
+            3,
+            6,
+            7,
+            8,
+            9
+          ],
+          "extras": {
+            "cad_label": "competitor_hps_1000w"
+          },
+          "name": "competitor_hps_1000w"
+        }
+      ]
+    },
+    "embedded_data_only": true,
+    "extensions_required": [],
+    "extensions_used": [],
+    "finite_unit_normals": true,
+    "full_geometry_sha256": "8584166b13409cf1f5739e0f86a9fd78fa5c2fc704636c4809a13b4406efa9f1",
+    "hood_opening_ray_assertions": {
+      "closed_negative_y_side": {
+        "direction_cad": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 217.8712845424055,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "closed_positive_y_side": {
+        "direction_cad": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 217.8712845424055,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "horizontal_positive_x": {
+        "direction_cad": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 377.2286036741971,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "luminous_axis_to_rear_exhaust": {
+        "direction_cad": [
+          -0.9978678013211558,
+          0.0,
+          -0.06526753470510753
+        ],
+        "expected": "miss",
+        "hit": false,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "optical_opening_straight_down": {
+        "direction_cad": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "expected": "miss",
+        "hit": false,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "rear_exhaust_bore_axis": {
+        "direction_cad": [
+          -0.9304494532673857,
+          0.0,
+          0.3664202708836165
+        ],
+        "expected": "miss",
+        "hit": false,
+        "origin_cad_mm": [
+          -249.68758200989214,
+          0.0,
+          -218.4230406325425
+        ]
+      },
+      "rear_outside_bore_negative_y": {
+        "direction_cad": [
+          -0.9537594385771598,
+          -0.2940261078965182,
+          -0.06238253922537796
+        ],
+        "expected": "hit",
+        "first_distance_mm": 405.97462078096544,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "rear_outside_bore_positive_y": {
+        "direction_cad": [
+          -0.9537594385771598,
+          0.2940261078965182,
+          -0.06238253922537796
+        ],
+        "expected": "hit",
+        "first_distance_mm": 405.974626337274,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "sealed_roof_straight_up": {
+        "direction_cad": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 60.00000000000001,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "sealed_roof_upward_negative_y": {
+        "direction_cad": [
+          0.0,
+          -1.0,
+          1.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 84.85281374238572,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "sealed_roof_upward_positive_x": {
+        "direction_cad": [
+          1.0,
+          0.0,
+          1.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 84.85281374238572,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "sealed_roof_upward_positive_y": {
+        "direction_cad": [
+          0.0,
+          1.0,
+          1.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 84.8528137423857,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      }
+    },
+    "indexed_finite_triangles": true,
+    "inventory_sha256": "567f69761e41f49b3fb0620bc8ae58c278dd0ab50caa75313a21cdc594b5984a",
+    "material_contract": {
+      "all_double_sided": true,
+      "all_other_alpha_modes": "OPAQUE",
+      "authored_glass_base_color_alpha": 0.35,
+      "glass_alpha_mode": "BLEND",
+      "material_count": 8,
+      "stored_glass_base_color_alpha": 0.35,
+      "viewer_only_not_scientific_transport": true
+    },
+    "mesh_count": 8,
+    "node_count": 11,
+    "node_primitive_inventory": {
+      "nodes": [
+        {
+          "children": [],
+          "index": 0,
+          "matrix": null,
+          "mesh": 0,
+          "name": "reflector_hood_top_box",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 1,
+          "matrix": null,
+          "mesh": 1,
+          "name": "reflector_hood_flared_skirt",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [
+            0,
+            1
+          ],
+          "index": 2,
+          "matrix": null,
+          "mesh": null,
+          "name": "reflector_hood",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 3,
+          "matrix": null,
+          "mesh": 2,
+          "name": "exhaust_flange",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 4,
+          "matrix": null,
+          "mesh": 3,
+          "name": "socket_bracket",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 5,
+          "matrix": null,
+          "mesh": 4,
+          "name": "ceramic_socket",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [
+            4,
+            5
+          ],
+          "index": 6,
+          "matrix": null,
+          "mesh": null,
+          "name": "socket_bracket_assembly",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 7,
+          "matrix": null,
+          "mesh": 5,
+          "name": "hps_bulb_base",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 8,
+          "matrix": null,
+          "mesh": 6,
+          "name": "hps_bulb_glass",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [],
+          "index": 9,
+          "matrix": null,
+          "mesh": 7,
+          "name": "hps_inner_arc_tube",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        },
+        {
+          "children": [
+            2,
+            3,
+            6,
+            7,
+            8,
+            9
+          ],
+          "index": 10,
+          "matrix": null,
+          "mesh": null,
+          "name": "competitor_hps_1000w",
+          "rotation": null,
+          "scale": null,
+          "translation": null
+        }
+      ],
+      "primitives": [
+        {
+          "index_accessor": 2,
+          "material_index": 0,
+          "mesh_index": 0,
+          "mode": 4,
+          "node_index": 0,
+          "node_path": "competitor_hps_1000w/reflector_hood/reflector_hood_top_box",
+          "position_accessor": 0,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 5,
+          "material_index": 1,
+          "mesh_index": 1,
+          "mode": 4,
+          "node_index": 1,
+          "node_path": "competitor_hps_1000w/reflector_hood/reflector_hood_flared_skirt",
+          "position_accessor": 3,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 8,
+          "material_index": 2,
+          "mesh_index": 2,
+          "mode": 4,
+          "node_index": 3,
+          "node_path": "competitor_hps_1000w/exhaust_flange",
+          "position_accessor": 6,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 11,
+          "material_index": 3,
+          "mesh_index": 3,
+          "mode": 4,
+          "node_index": 4,
+          "node_path": "competitor_hps_1000w/socket_bracket_assembly/socket_bracket",
+          "position_accessor": 9,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 14,
+          "material_index": 4,
+          "mesh_index": 4,
+          "mode": 4,
+          "node_index": 5,
+          "node_path": "competitor_hps_1000w/socket_bracket_assembly/ceramic_socket",
+          "position_accessor": 12,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 17,
+          "material_index": 5,
+          "mesh_index": 5,
+          "mode": 4,
+          "node_index": 7,
+          "node_path": "competitor_hps_1000w/hps_bulb_base",
+          "position_accessor": 15,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 20,
+          "material_index": 6,
+          "mesh_index": 6,
+          "mode": 4,
+          "node_index": 8,
+          "node_path": "competitor_hps_1000w/hps_bulb_glass",
+          "position_accessor": 18,
+          "primitive_index": 0
+        },
+        {
+          "index_accessor": 23,
+          "material_index": 7,
+          "mesh_index": 7,
+          "mode": 4,
+          "node_index": 9,
+          "node_path": "competitor_hps_1000w/hps_inner_arc_tube",
+          "position_accessor": 21,
+          "primitive_index": 0
+        }
+      ]
+    },
+    "primitive_count": 8,
+    "primitive_inventory": [
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -355.6000061035156,
+            -78.0,
+            -165.0
+          ],
+          [
+            355.6000061035156,
+            0.0,
+            165.0
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 18306288.314208984,
+        "geometry_sha256": "3cfb12970770a51f1bbd02a1890908b4d881c31a10ac1566713787aa09361f41",
+        "material_index": 0,
+        "mesh_index": 0,
+        "node_index": 0,
+        "node_path": "competitor_hps_1000w/reflector_hood/reflector_hood_top_box",
+        "primitive_index": 0,
+        "triangle_count": 12
+      },
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -422.9100036621094,
+            -248.9199981689453,
+            -321.30999755859375
+          ],
+          [
+            422.9100036621094,
+            -78.0,
+            321.30999755859375
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 831560.1944705257,
+        "geometry_sha256": "d2905ceab85dad87031c4de9ec705a9cef1d7475c5f2c8a296f27c2432350555",
+        "material_index": 1,
+        "mesh_index": 1,
+        "node_index": 1,
+        "node_path": "competitor_hps_1000w/reflector_hood/reflector_hood_flared_skirt",
+        "primitive_index": 0,
+        "triangle_count": 314
+      },
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -471.9875183105469,
+            -237.15713500976562,
+            -81.16149139404297
+          ],
+          [
+            -353.8901672363281,
+            -67.02154541015625,
+            81.16149139404297
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 140638.2972517702,
+        "geometry_sha256": "f84014f2e9e003f85bcbb0bbafe92ed969674da27d90a68f680db951eab1a04a",
+        "material_index": 2,
+        "mesh_index": 2,
+        "node_index": 3,
+        "node_path": "competitor_hps_1000w/exhaust_flange",
+        "primitive_index": 0,
+        "triangle_count": 612
+      },
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -213.0,
+            -154.0,
+            -35.0
+          ],
+          [
+            -143.0,
+            -85.0,
+            35.0
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 90064.0,
+        "geometry_sha256": "3a0e82be3b3401aa3a027c69fb952c858cb835cb37cc37d84cf72ce7555d8880",
+        "material_index": 3,
+        "mesh_index": 3,
+        "node_index": 4,
+        "node_path": "competitor_hps_1000w/socket_bracket_assembly/socket_bracket",
+        "primitive_index": 0,
+        "triangle_count": 28
+      },
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -179.0,
+            -165.0,
+            -26.987194061279297
+          ],
+          [
+            -141.0,
+            -111.05120849609375,
+            26.987194061279297
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 86808.41711184394,
+        "geometry_sha256": "5754b309ef63e00fabc6bf06581ce72ffb59f9952f59bc6752da10b2fe1137a8",
+        "material_index": 4,
+        "mesh_index": 4,
+        "node_index": 5,
+        "node_path": "competitor_hps_1000w/socket_bracket_assembly/ceramic_socket",
+        "primitive_index": 0,
+        "triangle_count": 200
+      },
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -217.5,
+            -159.8000030517578,
+            -21.789661407470703
+          ],
+          [
+            -146.5,
+            -116.24134826660156,
+            21.789661407470703
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 83930.00274284286,
+        "geometry_sha256": "f9d2dcfbcac7c436dea79d5c2961dbc52dfa8a78ced8c2bd15da5ff5118dc77b",
+        "material_index": 5,
+        "mesh_index": 5,
+        "node_index": 7,
+        "node_path": "competitor_hps_1000w/hps_bulb_base",
+        "primitive_index": 0,
+        "triangle_count": 2852
+      },
+      {
+        "alpha_mode": "BLEND",
+        "base_color_alpha": 0.35,
+        "bounds_gltf_mm": [
+          [
+            -177.4048614501953,
+            -163.0,
+            -25.0
+          ],
+          [
+            117.40486907958984,
+            -113.0,
+            25.0
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 544558.073264085,
+        "geometry_sha256": "cc5200397c278c18a4ae1a8f86b29886f0053ade533263540ccfd65b41e106de",
+        "material_index": 6,
+        "mesh_index": 6,
+        "node_index": 8,
+        "node_path": "competitor_hps_1000w/hps_bulb_glass",
+        "primitive_index": 0,
+        "triangle_count": 1396
+      },
+      {
+        "alpha_mode": "OPAQUE",
+        "base_color_alpha": 1.0,
+        "bounds_gltf_mm": [
+          [
+            -92.0,
+            -144.0,
+            -5.997154235839844
+          ],
+          [
+            76.0,
+            -132.01138305664062,
+            5.997154235839844
+          ]
+        ],
+        "decoded_closed_mesh_volume_mm3": 12634.885686340966,
+        "geometry_sha256": "a38bae75f8400bc068b99970ea9d4f34cb73851725ef1d89b82ff546fe50a73b",
+        "material_index": 7,
+        "mesh_index": 7,
+        "node_index": 9,
+        "node_path": "competitor_hps_1000w/hps_inner_arc_tube",
+        "primitive_index": 0,
+        "triangle_count": 608
+      }
+    ],
+    "projected_area_mm2": 1173851.9690387314,
+    "sealed_top_box": {
+      "bounds_gltf_mm": [
+        [
+          -355.6000061035156,
+          -78.0,
+          -165.0
+        ],
+        [
+          355.6000061035156,
+          0.0,
+          165.0
+        ]
+      ],
+      "decoded_closed_mesh_volume_mm3": 18306288.314208984,
+      "former_vertical_roof_bore_absent": true,
+      "straight_up_ray_hits": true
+    },
+    "sha256": "09bff23bdb43de8c9e9d8c3422188517afad76868260cf3686a1fd277b9c4051",
+    "surface_area_mm2": 1851758.3511026863,
+    "triangle_count": 6022,
+    "unexpected_transforms": false
+  },
+  "rear_exhaust_contract": {
+    "collar_axis_normal_to_sloped_panel": true,
+    "former_vertical_roof_bore_removed": true,
+    "intended_downward_optical_opening_preserved": true,
+    "rear_outward_unit_normal_cad": [
+      -0.9304494532673857,
+      0.0,
+      0.3664202708836165
+    ],
+    "rear_wall_center_cad_mm": [
+      -389.255,
+      0.0,
+      -163.46
+    ],
+    "sealed_top_box_volume_mm3": 18306288.0,
+    "single_exhaust_location": "negative-X flared end wall"
+  },
+  "schema_id": "fspm-optics.hps-housing-asset-provenance",
+  "schema_version": 1,
+  "scientific_boundary": {
+    "classification_manifest_byte_length": 692248,
+    "classification_manifest_changed": false,
+    "classification_manifest_sha256": "bdbd6c4ca708bcd446a0535490a642c56a321a8d1f7ef4122fee54a4d15eab7e",
+    "housing_fitted_to_luminous_aperture": false,
+    "hps_fixture_occlusion_enabled": false,
+    "luminous_aperture_m": [
+      0.798576,
+      0.603504,
+      0.0
+    ],
+    "physical_housing_dimensions_are_display_only": true,
+    "viewer_pbr_materials_are_scientific_transport_coefficients": false
+  },
+  "source": {
+    "byte_for_byte_equal": true,
+    "repository_source": "scripts/fixture_assets/hps_1000w_fixture.py",
+    "repository_source_sha256": "5bc9ca6670440a3d39e331063930b85eb6c67b9ab5c52569e30f7ee4a91596c4",
+    "supplied_path": "/home/austin/Desktop/build123d-modeling/models/hps_1000w_fixture.py",
+    "supplied_sha256": "5bc9ca6670440a3d39e331063930b85eb6c67b9ab5c52569e30f7ee4a91596c4"
+  },
+  "step_export": {
+    "named_assembly_hierarchy": true,
+    "normalized_header_timestamp": "1970-01-01T00:00:00",
+    "presentation_colors_omitted_for_determinism": true,
+    "trailing_horizontal_whitespace_removed": true,
+    "viewer_materials_authored_in_glb_only": true
+  },
+  "step_roundtrip_assertions": {
+    "bounds_cad_mm": [
+      [
+        -472.0439448319873,
+        -321.3100001,
+        -248.9200001000057
+      ],
+      [
+        422.91000010000005,
+        321.3100001,
+        0.0
+      ]
+    ],
+    "complete_assembly_ray_assertions": {
+      "luminous_axis_to_rear_exhaust": {
+        "direction_cad": [
+          -0.9978678013211558,
+          0.0,
+          -0.06526753470510753
+        ],
+        "hood_and_flange_clear": true,
+        "intervening_internal_leaf_first_distances_mm": {
+          "ceramic_socket": 141.30128240766862,
+          "hps_bulb_base": 146.81303455832236,
+          "socket_bracket": 172.36752180226242
+        },
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      }
+    },
+    "complete_named_hierarchy": true,
+    "dimensions_mm": [
+      894.9539449319873,
+      642.6200002,
+      248.9200001000057
+    ],
+    "finite_positive_volume_solids": true,
+    "hood_opening_ray_assertions": {
+      "closed_negative_y_side": {
+        "direction_cad": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 217.87128481154562,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "closed_positive_y_side": {
+        "direction_cad": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 217.87128481160337,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "horizontal_positive_x": {
+        "direction_cad": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 377.2285981745798,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "luminous_axis_to_rear_exhaust": {
+        "direction_cad": [
+          -0.9978678013211558,
+          0.0,
+          -0.06526753470510753
+        ],
+        "expected": "miss",
+        "hit": false,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "optical_opening_straight_down": {
+        "direction_cad": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "expected": "miss",
+        "hit": false,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "rear_exhaust_bore_axis": {
+        "direction_cad": [
+          -0.9304494532673857,
+          0.0,
+          0.3664202708836165
+        ],
+        "expected": "miss",
+        "hit": false,
+        "origin_cad_mm": [
+          -249.68758200989214,
+          0.0,
+          -218.4230406325425
+        ]
+      },
+      "rear_outside_bore_negative_y": {
+        "direction_cad": [
+          -0.9537594385771598,
+          -0.2940261078965182,
+          -0.06238253922537796
+        ],
+        "expected": "hit",
+        "first_distance_mm": 405.9746163029489,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "rear_outside_bore_positive_y": {
+        "direction_cad": [
+          -0.9537594385771598,
+          0.2940261078965182,
+          -0.06238253922537796
+        ],
+        "expected": "hit",
+        "first_distance_mm": 405.9746163029489,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "sealed_roof_straight_up": {
+        "direction_cad": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 60.0,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "sealed_roof_upward_negative_y": {
+        "direction_cad": [
+          0.0,
+          -1.0,
+          1.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 84.85281374238569,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "sealed_roof_upward_positive_x": {
+        "direction_cad": [
+          1.0,
+          0.0,
+          1.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 84.85281374238569,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      },
+      "sealed_roof_upward_positive_y": {
+        "direction_cad": [
+          0.0,
+          1.0,
+          1.0
+        ],
+        "expected": "hit",
+        "first_distance_mm": 84.85281374238569,
+        "hit": true,
+        "origin_cad_mm": [
+          0.0,
+          0.0,
+          -138.0
+        ]
+      }
+    },
+    "leaf_solid_counts": {
+      "ceramic_socket": 1,
+      "exhaust_flange": 1,
+      "hps_bulb_base": 1,
+      "hps_bulb_glass": 1,
+      "hps_inner_arc_tube": 1,
+      "reflector_hood_flared_skirt": 1,
+      "reflector_hood_top_box": 1,
+      "socket_bracket": 1
+    },
+    "leaf_volumes_mm3": {
+      "ceramic_socket": 87028.39968974446,
+      "exhaust_flange": 140994.67829193108,
+      "hps_bulb_base": 84142.70860734538,
+      "hps_bulb_glass": 546506.2220307002,
+      "hps_inner_arc_tube": 12666.901579274278,
+      "reflector_hood_flared_skirt": 831525.0056329481,
+      "reflector_hood_top_box": 18306288.000000004,
+      "socket_bracket": 90064.0
+    },
+    "rear_exhaust": {
+      "flange_bounds_cad_mm": [
+        [
+          -472.0439448319873,
+          -81.2,
+          -237.2916105059609
+        ],
+        [
+          -353.89017973243307,
+          81.2,
+          -67.02154895430309
+        ]
+      ],
+      "flange_one_valid_positive_volume_solid": true,
+      "inner_bore_diameter_mm": 144.39999999999998,
+      "negative_x_end_only": true,
+      "outer_diameter_mm": 152.39999999999998,
+      "outward_unit_normal_cad": [
+        -0.9304494532673857,
+        0.0,
+        0.3664202708836165
+      ],
+      "rear_wall_center_below_roof_seam": true,
+      "wall_center_cad_mm": [
+        -389.255,
+        0.0,
+        -163.46
+      ],
+      "wall_thickness_mm": 4.0
+    },
+    "reflector_hood_bounds_cad_mm": [
+      [
+        -422.91000010000005,
+        -321.3100001,
+        -248.9200001000057
+      ],
+      [
+        422.91000010000005,
+        321.3100001,
+        0.0
+      ]
+    ],
+    "reflector_skirt_one_valid_solid": true,
+    "sealed_top_box": {
+      "bounds_cad_mm": [
+        [
+          -355.6,
+          -165.0,
+          -78.0
+        ],
+        [
+          355.6,
+          165.0,
+          0.0
+        ]
+      ],
+      "former_vertical_roof_bore_absent": true,
+      "unperforated_single_valid_solid": true,
+      "volume_mm3": 18306288.000000004
+    },
+    "solid_count": 8,
+    "unique_named_leaf_count": 8
+  },
+  "supersession": {
+    "historical_v2_identity_reused": false,
+    "reason": "sealed-roof and negative-X rear-exhaust correction",
+    "supersedes_active_asset_id": "hps-housing-v2"
+  },
+  "tessellation": {
+    "angular_tolerance_rad": 0.25,
+    "engine": "OpenCascade via Build123d import_step/tessellate",
+    "linear_tolerance_mm": 0.1,
+    "normals_policy": "explicit flat per-face normals from triangle winding",
+    "omitted_zero_area_triangles": {
+      "hps_bulb_glass": 4
+    },
+    "zero_area_triangle_policy": "omit only the four authenticated exact-zero-area triangles emitted at the fused HPS glass seam"
+  },
+  "toolchain": {
+    "blender_used": false,
+    "build123d": "0.11.0",
+    "gltfpack": "gltfpack 0.20",
+    "opencascade": "7.9.3.1",
+    "python": "3.12.3"
+  }
+}

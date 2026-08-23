@@ -1,0 +1,63 @@
+"""Authenticated GLB-derived fixture-body occlusion for scientific transport."""
+
+from .gltf import (
+    DecodedFixtureGlb,
+    FixtureGlbError,
+    GlbPrimitiveInventory,
+    decode_fixture_glb,
+    node_inventory_payload,
+)
+from .manifest import (
+    FIXTURE_BODY_MATERIAL_ID,
+    FIXTURE_BODY_MATERIAL_NAME,
+    FIXTURE_BODY_MATERIAL_RAD,
+    FixtureClassificationError,
+    OCCLUSION_MODEL_ID,
+    OCCLUSION_MODEL_VERSION,
+    load_authenticated_fixture_asset,
+    validate_complete_classification_manifest,
+)
+from .planning import (
+    EMITTING_BOUNDARY_POLICY_ID,
+    OCCLUSION_VERSION_ID,
+    PROJECTED_AREA_POLICY_ID,
+    TRANSFORM_POLICY_ID,
+    FixtureEmittingBoundary,
+    FixtureOcclusionPlan,
+    FixtureOcclusionPlanningError,
+    compile_fixture_occlusion,
+    extract_conventional_emitting_boundaries,
+    materialize_fixture_occlusion,
+    plan_fixture_occlusion,
+    proposed_layout_transport_payload,
+    validate_compiled_fixture_occlusion,
+)
+
+__all__ = [
+    "DecodedFixtureGlb",
+    "FixtureGlbError",
+    "GlbPrimitiveInventory",
+    "FIXTURE_BODY_MATERIAL_ID",
+    "FIXTURE_BODY_MATERIAL_NAME",
+    "FIXTURE_BODY_MATERIAL_RAD",
+    "FixtureClassificationError",
+    "FixtureEmittingBoundary",
+    "FixtureOcclusionPlan",
+    "FixtureOcclusionPlanningError",
+    "EMITTING_BOUNDARY_POLICY_ID",
+    "OCCLUSION_MODEL_ID",
+    "OCCLUSION_MODEL_VERSION",
+    "OCCLUSION_VERSION_ID",
+    "PROJECTED_AREA_POLICY_ID",
+    "TRANSFORM_POLICY_ID",
+    "compile_fixture_occlusion",
+    "decode_fixture_glb",
+    "extract_conventional_emitting_boundaries",
+    "load_authenticated_fixture_asset",
+    "materialize_fixture_occlusion",
+    "node_inventory_payload",
+    "plan_fixture_occlusion",
+    "proposed_layout_transport_payload",
+    "validate_compiled_fixture_occlusion",
+    "validate_complete_classification_manifest",
+]

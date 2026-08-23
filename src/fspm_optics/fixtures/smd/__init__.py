@@ -1,0 +1,132 @@
+"""Default Proposed LED/SMD module layout and scheduling."""
+
+from .artifacts import (
+    SmdEmitterArtifactPaths,
+    build_smd_emitter_artifact_payload,
+    format_smd_emitter_metadata_json,
+    write_smd_emitter_artifacts,
+)
+from .alignment_lattice import (
+    ALIGNMENT_LATTICE_ATTACHMENT_POLICY_ID,
+    ALIGNMENT_LATTICE_DIAMETER_M,
+    ALIGNMENT_LATTICE_GEOMETRY_ID,
+    ALIGNMENT_LATTICE_RADIUS_M,
+    ALIGNMENT_LATTICE_SCHEMA_ID,
+    ALIGNMENT_LATTICE_SCHEMA_VERSION,
+    ALIGNMENT_LATTICE_TOPOLOGY_ID,
+    AUTHENTICATED_REAR_PLANE_OFFSET_M,
+    AlignmentLattice,
+    AlignmentLatticeLink,
+)
+from .band_writer import (
+    COMBINED_MODULE_EMITTING_WINDOW,
+    ISOLATED_BAND_CONVERSION_POLICY,
+    ISOLATED_BAND_PHOTON_CARRIER_BASIS,
+    ISOLATED_BAND_RGB_POLICY,
+    NATIVE_LAMBERTIAN_ANGULAR_MODEL,
+    SmdBandEmitterAssumptions,
+    SmdBandEmitterMetadata,
+    SmdBandRadianceDocument,
+    build_smd_band_radiance_document,
+)
+from .config import SmdLayoutConfig
+from .module_profile import DEFAULT_SMD_MODULE_PROFILE, SmdModuleProfile
+from .optical_stack import (
+    ACCEPTED_FIXTURE_TRANSMISSION,
+    COMPLETED_APERTURE_PPE_UMOL_PER_J,
+    INTERNAL_SOURCE_PPE_UMOL_PER_J,
+    PROPOSED_FIXTURE_OPTICAL_STACK_ID,
+)
+from .photons import (
+    photon_flux_to_lambertian_radiance,
+    photon_flux_umol_s_to_watts,
+    watts_to_lambertian_radiance,
+    watts_to_photon_flux_umol_s,
+)
+from .positions import (
+    SmdFixtureAssembly,
+    SmdFixtureConnector,
+    SmdLayout,
+    SmdModulePosition,
+    generate_proposed_led_layout,
+    generate_smd_layout,
+)
+from .power_schedule import (
+    DEFAULT_OPTIMIZED_MAX_WATTS_PER_MODULE,
+    LEGACY_DEFAULT_CONTROL_ZONE_POWER_W,
+    LegacyControlZonePowerSchedule,
+    ModulePowerSchedule,
+    build_legacy_default_module_schedule,
+    build_optimized_module_schedule,
+    legacy_default_control_zone_power_schedule,
+)
+from .radiance_writer import (
+    SmdEmitterAssumptions,
+    SmdEmitterMetadata,
+    SmdRadianceDocument,
+    build_smd_radiance_document,
+    smd_radiance_text,
+)
+from .source_variants import (
+    CompletedApertureAngularCalibration,
+    SmdSourceVariant,
+    get_smd_source_variant,
+)
+
+__all__ = [
+    "ALIGNMENT_LATTICE_ATTACHMENT_POLICY_ID",
+    "ALIGNMENT_LATTICE_DIAMETER_M",
+    "ALIGNMENT_LATTICE_GEOMETRY_ID",
+    "ALIGNMENT_LATTICE_RADIUS_M",
+    "ALIGNMENT_LATTICE_SCHEMA_ID",
+    "ALIGNMENT_LATTICE_SCHEMA_VERSION",
+    "ALIGNMENT_LATTICE_TOPOLOGY_ID",
+    "AUTHENTICATED_REAR_PLANE_OFFSET_M",
+    "AlignmentLattice",
+    "AlignmentLatticeLink",
+    "DEFAULT_SMD_MODULE_PROFILE",
+    "DEFAULT_OPTIMIZED_MAX_WATTS_PER_MODULE",
+    "ACCEPTED_FIXTURE_TRANSMISSION",
+    "COMPLETED_APERTURE_PPE_UMOL_PER_J",
+    "COMBINED_MODULE_EMITTING_WINDOW",
+    "ISOLATED_BAND_CONVERSION_POLICY",
+    "ISOLATED_BAND_PHOTON_CARRIER_BASIS",
+    "ISOLATED_BAND_RGB_POLICY",
+    "LEGACY_DEFAULT_CONTROL_ZONE_POWER_W",
+    "LegacyControlZonePowerSchedule",
+    "ModulePowerSchedule",
+    "NATIVE_LAMBERTIAN_ANGULAR_MODEL",
+    "INTERNAL_SOURCE_PPE_UMOL_PER_J",
+    "PROPOSED_FIXTURE_OPTICAL_STACK_ID",
+    "SmdLayout",
+    "SmdLayoutConfig",
+    "SmdFixtureAssembly",
+    "SmdFixtureConnector",
+    "SmdModulePosition",
+    "SmdModuleProfile",
+    "SmdEmitterAssumptions",
+    "SmdEmitterArtifactPaths",
+    "SmdEmitterMetadata",
+    "SmdRadianceDocument",
+    "SmdBandEmitterAssumptions",
+    "SmdBandEmitterMetadata",
+    "SmdBandRadianceDocument",
+    "SmdSourceVariant",
+    "CompletedApertureAngularCalibration",
+    "build_legacy_default_module_schedule",
+    "build_smd_emitter_artifact_payload",
+    "build_smd_band_radiance_document",
+    "build_optimized_module_schedule",
+    "build_smd_radiance_document",
+    "generate_proposed_led_layout",
+    "generate_smd_layout",
+    "format_smd_emitter_metadata_json",
+    "get_smd_source_variant",
+    "legacy_default_control_zone_power_schedule",
+    "photon_flux_to_lambertian_radiance",
+    "photon_flux_umol_s_to_watts",
+    "smd_radiance_text",
+    "watts_to_lambertian_radiance",
+    "watts_to_photon_flux_umol_s",
+    "write_smd_emitter_artifacts",
+]

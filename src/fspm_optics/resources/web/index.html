@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FSPM Optics — Native Lighting Simulator</title>
+    <link rel="stylesheet" href="/static/styles.css?v=precomputed-playback-v1">
+  </head>
+  <body>
+    <header class="masthead">
+      <a class="brand-home-link" href="https://luminousphotonics.com/" aria-label="Visit Luminous Photonics website">
+        <img class="brand-home-logo" src="/static/homeleaf.png" alt="Luminous Photonics home">
+      </a>
+      <div class="masthead-title">
+        <p class="eyebrow">HORTICULTURE LIGHTING SIMULATOR</p>
+        <h1 id="system-heading">Modularized LED System</h1>
+      </div>
+      <div class="status-pill" id="runtime-status" data-state="idle">
+        <span class="status-dot"></span><span>Idle</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="workspace" aria-label="Simulator workspace">
+        <aside class="control-panel">
+          <div class="section-heading">
+            <span>01</span>
+            <div><p>Configuration</p><h2>Analysis inputs</h2></div>
+          </div>
+          <form id="run-form">
+            <label>
+              <span>Execution Mode</span>
+              <select id="execution-mode" name="execution_mode">
+                <option value="live" selected>Live Simulation</option>
+                <option value="precomputed">Precomputed Playback</option>
+              </select>
+            </label>
+
+            <div class="precomputed-contract-note" id="precomputed-contract-note" hidden aria-live="polite">
+              <strong>Authenticated bundle settings</strong>
+              <span id="precomputed-contract-summary">Checking bundle availability…</span>
+            </div>
+
+            <label>
+              <span>Lighting system</span>
+              <select id="system" name="system">
+                <option value="proposed">Modularized LED System</option>
+                <option value="conventional">Conventional LED System</option>
+                <option value="hps">1000W HPS System</option>
+              </select>
+            </label>
+
+            <div class="field-group" id="layout-mode-field" aria-hidden="true" hidden>
+              <label>
+                <span>Fixture Layout</span>
+                <select id="layout-mode" name="layout_mode" disabled>
+                  <option value="rolling_bench" selected>Rolling Bench</option>
+                  <option value="practical">Practical Coverage</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="field-group" id="proposed-ring-mode-field" aria-hidden="true" hidden>
+              <label>
+                <span>Module arrangement</span>
+                <select id="proposed-ring-mode" name="proposed_ring_mode" disabled>
+                  <option value="full">Full ring</option>
+                  <option value="reduced_one_ring" selected>Reduced by one ring</option>
+                </select>
+              </label>
+              <p class="field-note">Reduced mode constructs one lower concentric topology order and increases pitch to retain the same natural-fit geometric footprint.</p>
+            </div>
+
+            <div class="field-group" id="proposed-control-mode-field" aria-hidden="true" hidden>
+              <label class="optional-analysis-toggle">
+                <span>Disable Basis-Matrix Solver</span>
+                <input id="disable-basis-matrix-solver" type="checkbox" checked disabled>
+              </label>
+              <p class="field-note">Uses one complete Modularized LED scene with equal per-module power and one room-wide output scale.</p>
+            </div>
+
+            <div class="field-group" id="proposed-source-mode-field" aria-hidden="true" hidden>
+              <label class="optional-analysis-toggle">
+                <span>COB Mode</span>
+                <input id="cob-mode" type="checkbox" disabled>
+              </label>
+              <p class="field-note">Controlled source-shape surrogate: a centered 22 mm circular LES uses the authenticated Citizen CLU04Q-1812E1 3000 K angular law inside the unchanged Modularized LED optical stack. This is not a Citizen efficacy claim or a completed hybrid COB/red-ring product.</p>
+            </div>
+
+            <div class="field-group">
+              <label>
+                <span>Analysis Scope</span>
+                <select id="analysis-scope" name="analysis_scope">
+                  <option value="baseline_ppfd">Baseline PPFD</option>
+                  <option value="baseline_plus_multispectral_fspm">Baseline + Multispectral FSPM</option>
+                </select>
+              </label>
+              <p class="field-note" id="analysis-scope-description">Plant-free horizontal PPFD, uniformity metrics, CSV, heatmaps, fixture overlays, and 3D scatter.</p>
+            </div>
+
+            <div class="field-group" id="spectral-basis-field" aria-hidden="true" hidden>
+              <label>
+                <span>Modularized LED spectral basis</span>
+                <select id="spectral-basis" name="spectral_basis" disabled>
+                  <option value="native_proposed">Native Modularized LED spectrum</option>
+                  <option value="conventional_led_control">Conventional LED spectrum (controlled A/B)</option>
+                </select>
+              </label>
+              <p class="field-note">Stage B only. The controlled A/B choice keeps Modularized LED geometry, layout, angular transport, source control, power, and completed-aperture PAR output while substituting the Conventional LED relative SPD.</p>
+            </div>
+
+            <div class="field-group" id="far-red-analysis-field" aria-hidden="true" hidden>
+              <label class="optional-analysis-toggle">
+                <span>Optional far-red analysis</span>
+                <input id="include-far-red" name="include_far_red" type="checkbox" disabled>
+              </label>
+              <p class="field-note">Adds a separate far-red Stage B trace; far-red is never combined with PAR or PPFD.</p>
+            </div>
+
+            <div class="field-group" id="lighting-target-mode-field">
+              <label>
+                <span>Lighting Target Policy</span>
+                <select id="lighting-target-mode" name="lighting_target_mode">
+                  <option value="mean_target">Mean Target</option>
+                  <option value="target_capped">Target-Capped</option>
+                </select>
+              </label>
+            </div>
+
+            <label id="lighting-target-field">
+              <span><span id="lighting-target-label">Target mean PPFD</span> <small>µmol/m²/s</small></span>
+              <input id="target-ppfd" name="target_ppfd" type="number" min="0" step="any" value="500" required>
+            </label>
+            <p class="field-note" id="lighting-target-note">The existing requested mean Stage A PPFD policy.</p>
+            <p class="system-operation-note" id="system-operation-note">Modularized LED System uses target-controlled global output.</p>
+
+            <label>
+              <span>Mounting height <small>(in)</small></span>
+              <input id="mounting-height" name="mounting_height_in" type="number" min="0.000001" max="119.8" step="any" value="18" required>
+            </label>
+
+            <div class="field-group" id="fspm-target-field" aria-hidden="true" hidden>
+              <label>
+                <span>FSPM Reference PPFD</span>
+                <select id="fspm-target-mode" name="fspm_target_mode" disabled>
+                  <option value="automatic" selected>Automatic after baseline</option>
+                  <option value="override">Explicit override</option>
+                </select>
+              </label>
+              <label>
+                <span class="sr-only">FSPM Reference PPFD override</span>
+                <input id="fspm-target-ppfd" name="fspm_target_ppfd" type="number" min="0.000001" step="any" placeholder="Resolves from achieved mean" disabled>
+              </label>
+              <p class="field-note">Classification metadata only; it does not alter baseline transport.</p>
+            </div>
+
+            <label>
+              <span>FSPM Reference Tolerance <small>± µmol/m²/s</small></span>
+              <input id="fspm-tolerance" name="fspm_target_tolerance" type="number" min="0.000001" step="any" value="75" required>
+            </label>
+
+            <div class="two-column">
+              <label>
+                <span>Room length <small>ft</small></span>
+                <input id="room-length" name="room_length_ft" type="number" min="0.000001" step="any" value="10" required>
+              </label>
+              <label>
+                <span>Room width <small>ft</small></span>
+                <input id="room-width" name="room_width_ft" type="number" min="0.000001" step="any" value="10" required>
+              </label>
+            </div>
+
+            <div class="field-group" id="aisle-mode-field">
+              <label class="optional-analysis-toggle">
+                <span>Aisle Mode</span>
+                <input id="aisle-mode" name="aisle_mode" type="checkbox">
+              </label>
+              <p class="field-note">Creates a fixed 2 ft perimeter aisle around the active grow area.</p>
+            </div>
+
+            <fieldset id="quality-fieldset">
+              <legend>Radiance quality</legend>
+              <div class="quality-grid">
+                <label><input type="radio" name="quality" value="direct"><span>Direct</span></label>
+                <label><input type="radio" name="quality" value="standard" checked><span>Standard</span></label>
+                <label><input type="radio" name="quality" value="quality"><span>Quality</span></label>
+                <label><input type="radio" name="quality" value="rigorous"><span>Rigorous</span></label>
+              </div>
+            </fieldset>
+
+            <button class="run-button" id="run-button" type="submit">
+              <span id="run-button-label">Run analysis</span><span aria-hidden="true">→</span>
+            </button>
+          </form>
+        </aside>
+
+        <!-- SHARED_RESULT_VIEW_START -->
+        <section class="visual-panel">
+          <div class="section-heading">
+            <span>02</span>
+            <div><p>Visual outputs</p><h2>Validated artifacts</h2></div>
+          </div>
+
+          <div class="visual-stage" id="visual-stage" data-available="false">
+            <div class="stage-grid"></div>
+            <div class="stage-copy" id="visual-placeholder">
+              <p class="eyebrow">PPFD FIELD</p>
+              <h3>Visualizations unavailable</h3>
+              <p>Run and successfully publish a validated baseline to activate both heatmaps and the 3D scatter.</p>
+            </div>
+            <div class="heatmap-grid" id="heatmap-grid" hidden>
+              <figure class="heatmap-card" id="heatmap-card" data-available="false">
+                <button class="heatmap-open" id="heatmap-open" type="button" disabled aria-label="View PPFD Heatmap full size">
+                  <img id="heatmap-image" alt="Validated PPFD heatmap">
+                </button>
+                <figcaption><strong>PPFD Heatmap</strong><span>X position (m) · Y position (m)</span></figcaption>
+              </figure>
+              <figure class="heatmap-card" id="overlay-card" data-available="false">
+                <button class="heatmap-open" id="overlay-open" type="button" disabled aria-label="View PPFD Heatmap with authoritative overlay full size">
+                  <img id="overlay-image" alt="Validated PPFD heatmap with authoritative lighting-system overlay">
+                </button>
+                <figcaption><strong>PPFD Heatmap with authoritative overlay</strong><span>Simulation-plan geometry · scientific XY</span></figcaption>
+              </figure>
+            </div>
+          </div>
+          <p class="visual-context" id="visual-context">PPFD color mapping and units become available with validated visualization metadata.</p>
+
+          <div class="artifact-grid">
+            <a class="artifact-card" id="csv-card" data-available="false" aria-disabled="true" tabindex="-1">
+              <div class="artifact-icon">CSV</div>
+              <h3>Final baseline PPFD</h3>
+            </a>
+            <a class="artifact-card" id="viewer-card" data-available="false" target="_blank" rel="noopener" aria-disabled="true" tabindex="-1">
+              <div class="artifact-icon">3D</div>
+              <h3>Plant layout viewer</h3>
+            </a>
+            <a class="artifact-card" id="scatter-card" data-available="false" target="_blank" rel="noopener" aria-disabled="true" tabindex="-1">
+              <div class="artifact-icon">XYZ</div>
+              <h3>Validated PPFD scatter</h3>
+            </a>
+          </div>
+        </section>
+      </section>
+
+      <section class="results-panel">
+        <div class="log-panel">
+          <div class="section-heading compact">
+            <span>03</span>
+            <div><p id="event-log-kicker">Run log</p><h2 id="event-log-heading">Native execution events</h2></div>
+          </div>
+          <div class="log-meta"><span id="job-identity">No active job</span><span id="cursor-label">Cursor 0</span></div>
+          <pre id="run-log" aria-live="polite">Ready for a native baseline run.</pre>
+        </div>
+
+        <div class="metrics-panel">
+          <div class="section-heading compact">
+            <span>04</span>
+            <div><p>Scientific metrics</p><h2>Target and operating point</h2></div>
+          </div>
+          <dl id="metrics-grid" class="metrics-grid">
+            <div><dt>Lighting system</dt><dd data-metric="system">—</dd></div>
+            <div><dt>Analysis Scope</dt><dd data-metric="analysis-scope">—</dd></div>
+            <div class="spectral-control-result" data-counterfactual="false"><dt>Spectral basis</dt><dd data-metric="spectral-basis">—</dd></div>
+            <div><dt id="requested-target-result-label">Target mean PPFD</dt><dd data-metric="requested">—</dd></div>
+            <div><dt>Achieved mean</dt><dd data-metric="achieved">—</dd></div>
+            <div><dt>Achieved maximum</dt><dd data-metric="achieved-maximum">—</dd></div>
+            <div><dt>Dimming factor</dt><dd data-metric="dimming">—</dd></div>
+            <div><dt id="target-status-result-label">Target feasible</dt><dd data-metric="feasible">—</dd></div>
+            <div><dt>Emitted PPF</dt><dd data-metric="emitted-ppf">—</dd></div>
+            <div><dt>Modeled electrical power</dt><dd data-metric="modeled-power">—</dd></div>
+            <div><dt>Modules</dt><dd data-metric="modules">—</dd></div>
+            <div><dt>Room</dt><dd data-metric="room">—</dd></div>
+            <div><dt>Quality</dt><dd data-metric="quality">—</dd></div>
+            <div><dt>Runtime status</dt><dd data-metric="status">Idle</dd></div>
+            <div class="wide"><dt>FSPM classification reference</dt><dd data-metric="fspm">Automatic — resolves after baseline</dd></div>
+          </dl>
+          <div class="metric-help">
+            <p><strong>PPF</strong> is emitted photon output. <strong>Power</strong> is modeled electrical input.</p>
+          </div>
+
+          <div class="metrics-subsection-title">
+            <p>Spatial uniformity</p>
+            <span>Final achieved horizontal reference-plane field</span>
+          </div>
+          <dl id="uniformity-grid" class="metrics-grid uniformity-grid">
+            <div><dt>Mean PPFD</dt><dd data-metric="uniformity-mean">—</dd></div>
+            <div><dt>Minimum PPFD</dt><dd data-metric="uniformity-minimum">—</dd></div>
+            <div><dt>Maximum PPFD</dt><dd data-metric="uniformity-maximum">—</dd></div>
+            <div><dt>Population standard deviation</dt><dd data-metric="uniformity-standard-deviation">—</dd></div>
+            <div><dt>Coefficient of variation (%)</dt><dd data-metric="uniformity-cv-percent">—</dd></div>
+            <div><dt>Degree of uniformity (%)</dt><dd data-metric="uniformity-degree-percent">—</dd></div>
+            <div><dt>Minimum / mean PPFD</dt><dd data-metric="uniformity-minimum-mean">—</dd></div>
+            <div><dt>Minimum / maximum PPFD</dt><dd data-metric="uniformity-minimum-maximum">—</dd></div>
+            <div class="wide"><dt>Sample count</dt><dd data-metric="uniformity-sample-count">—</dd></div>
+          </dl>
+
+          <section id="baseline-leaf-uniformity-section">
+            <div class="metrics-subsection-title">
+              <p>Baseline leaf-position uniformity</p>
+              <span id="baseline-leaf-uniformity-context">Plant-free Stage A field sampled at authoritative physical-leaf centroids</span>
+            </div>
+            <dl id="baseline-leaf-uniformity-grid" class="metrics-grid baseline-leaf-uniformity-grid">
+              <div><dt>Target-range leaves</dt><dd data-metric="baseline-leaf-target-range">—</dd></div>
+              <div><dt>Under-lit leaves</dt><dd data-metric="baseline-leaf-under-lit">—</dd></div>
+              <div><dt>Over-lit leaves</dt><dd data-metric="baseline-leaf-over-lit">—</dd></div>
+              <div><dt>Mean absolute deviation</dt><dd data-metric="baseline-leaf-mad">—</dd></div>
+              <div class="wide"><dt>Leaf-position PPFD CV</dt><dd data-metric="baseline-leaf-cv">—</dd></div>
+            </dl>
+          </section>
+
+          <section id="fspm-surface-section" hidden>
+            <div class="metrics-subsection-title">
+              <p>FSPM Surface-Light Metrics</p>
+              <span>Area-weighted modeled plant surfaces</span>
+              <span>Crop-total photon capture · plant spatial consistency</span>
+            </div>
+            <dl id="fspm-surface-grid" class="metrics-grid fspm-surface-grid">
+              <div><dt>Modeled plants</dt><dd data-metric="fspm-plant-count">—</dd></div>
+              <div><dt>Physical one-sided leaf area</dt><dd data-metric="fspm-area">—</dd></div>
+              <div><dt>PAR combined incident exposure</dt><dd data-metric="fspm-par-incident-density">—</dd></div>
+              <div><dt>PAR combined absorbed exposure</dt><dd data-metric="fspm-par-absorbed-density">—</dd></div>
+              <div><dt title="Crop-total absorbed PAR divided by authenticated emitted PAR PPF">Absorbed capture efficiency</dt><dd data-metric="fspm-absorbed-capture-efficiency">—</dd></div>
+              <div><dt title="Crop-total absorbed PAR rate divided by modeled electrical power">Absorbed PAR per electrical watt</dt><dd data-metric="fspm-absorbed-par-per-watt">—</dd></div>
+              <div><dt title="Population CV across one area-weighted absorbed exposure per plant">Plant-to-plant absorbed-exposure CV</dt><dd data-metric="fspm-plant-absorbed-cv">—</dd></div>
+              <div><dt>Plant minimum / mean absorbed exposure</dt><dd data-metric="fspm-plant-minimum-mean">—</dd></div>
+              <div id="fspm-leaf-absorbed-row" class="wide"><dt title="Organ-scale population CV across leaf instances; includes orientation, self-shading, and lighting-field effects">Leaf-to-leaf absorbed-exposure CV</dt><dd data-metric="fspm-leaf-absorbed-cv">—</dd></div>
+              <div id="fspm-fr-incident-row" hidden><dt>Far-red combined incident exposure</dt><dd data-metric="fspm-fr-incident-density">—</dd></div>
+              <div id="fspm-fr-absorbed-row" class="wide" hidden><dt>Far-red combined absorbed exposure</dt><dd data-metric="fspm-fr-absorbed-density">—</dd></div>
+            </dl>
+          </section>
+        </div>
+      </section>
+    </main>
+    <dialog id="heatmap-dialog" aria-labelledby="heatmap-dialog-title">
+      <div class="dialog-header">
+        <div><p class="eyebrow">FULL-SIZE VISUALIZATION</p><h2 id="heatmap-dialog-title">PPFD Heatmap</h2></div>
+        <button id="heatmap-dialog-close" type="button">Close</button>
+      </div>
+      <img id="heatmap-dialog-image" alt="Full-size validated PPFD visualization">
+      <p id="heatmap-dialog-context"></p>
+    </dialog>
+    <!-- SHARED_RESULT_VIEW_END -->
+    <script type="module" src="/static/app.js?v=precomputed-playback-v1"></script>
+  </body>
+</html>

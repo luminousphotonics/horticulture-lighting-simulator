@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Juvenile Rex Scientific Viewer</title>
+    <link rel="stylesheet" href="./styles.css">
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./vendor/three.module.js",
+          "three/addons/": "./vendor/addons/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <header>
+      <div>
+        <p class="eyebrow">FSPM scientific geometry</p>
+        <h1>Juvenile Rex · 9 DAT</h1>
+      </div>
+      <a class="return-to-simulator" href="../../../">Return to Simulator</a>
+      <div id="status" role="status" aria-busy="true">Waiting to validate scene…</div>
+    </header>
+    <main>
+      <canvas id="viewport" aria-label="Interactive juvenile Rex run scene"></canvas>
+      <aside aria-label="Viewer controls">
+        <section id="fixture-height-panel" aria-labelledby="fixture-height-heading">
+          <h2 id="fixture-height-heading">Display-only fixture height</h2>
+          <p id="fixture-height-description" class="display-only-note">
+            Changes fixture display only. Simulation results and the authenticated mounting height remain unchanged.
+          </p>
+          <div class="height-readout">
+            <span>Current height</span>
+            <output id="fixture-height-output" for="fixture-height">—</output>
+            <span>in</span>
+          </div>
+          <label for="fixture-height">Mounting height</label>
+          <input
+            id="fixture-height"
+            data-control="fixtureHeight"
+            type="range"
+            min="0"
+            max="0"
+            step="1"
+            disabled
+            aria-describedby="fixture-height-description fixture-height-state"
+          >
+          <button
+            type="button"
+            data-control="resetFixtureHeight"
+            aria-label="Reset fixture display height to simulated height"
+            disabled
+          >Reset Height</button>
+          <p id="fixture-height-state" class="panel-state" role="status" aria-live="polite">
+            Waiting for authenticated mounting metadata…
+          </p>
+        </section>
+        <section>
+          <h2>View</h2>
+          <div class="button-row">
+            <button data-control="reset">Reset</button>
+            <button data-control="top">Top</button>
+            <button data-control="side">Side</button>
+          </div>
+        </section>
+        <section>
+          <h2>Layers</h2>
+          <label><input data-control="surface" type="checkbox" checked> Plant surface</label>
+          <label><input data-control="fixtures" type="checkbox" checked> Fixtures</label>
+          <label><input data-control="bounds" type="checkbox"> Local bounds</label>
+          <label><input data-control="receivers" type="checkbox" disabled> Selected-plant receivers</label>
+          <label><input data-control="normals" type="checkbox" disabled> Receiver normals</label>
+        </section>
+        <section id="ppfd-heatmap-panel" aria-labelledby="ppfd-heatmap-heading">
+          <h2 id="ppfd-heatmap-heading">Reference-plane PPFD</h2>
+          <p id="ppfd-heatmap-state" class="panel-state" role="status" aria-live="polite">
+            Loading authenticated PPFD heatmap…
+          </p>
+          <label>
+            <input
+              data-control="ppfdHeatmap"
+              type="checkbox"
+              checked
+              disabled
+              aria-describedby="ppfd-heatmap-state"
+            >
+            PPFD Heatmap
+          </label>
+          <div class="opacity-readout">
+            <label for="ppfd-heatmap-opacity">Opacity</label>
+            <output id="ppfd-heatmap-opacity-output" for="ppfd-heatmap-opacity">70%</output>
+          </div>
+          <input
+            id="ppfd-heatmap-opacity"
+            data-control="ppfdHeatmapOpacity"
+            type="range"
+            min="15"
+            max="100"
+            step="5"
+            value="70"
+            disabled
+            aria-describedby="ppfd-heatmap-state"
+          >
+          <div id="ppfd-heatmap-legend" class="ppfd-legend" hidden>
+            <div class="ppfd-legend-gradient" aria-hidden="true"></div>
+            <div class="ppfd-legend-scale">
+              <span id="ppfd-heatmap-legend-minimum">—</span>
+              <span>PPFD · µmol/m²/s</span>
+              <span id="ppfd-heatmap-legend-maximum">—</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            data-control="retryPpfdHeatmap"
+            aria-label="Retry loading the authenticated PPFD heatmap"
+            hidden
+          >Retry Heatmap</button>
+        </section>
+        <section id="surface-flux-panel" aria-labelledby="surface-flux-heading">
+          <h2 id="surface-flux-heading">Leaf Coloring</h2>
+          <p id="surface-flux-state" class="panel-state" role="status" aria-live="polite" hidden></p>
+          <p class="leaf-color-mode">Target Coverage</p>
+          <label><input data-control="surfaceFlux" type="checkbox" checked> Color leaves</label>
+          <div id="surface-flux-legends" aria-label="Leaf-coloring legend"></div>
+        </section>
+        <section>
+          <h2>Inspection</h2>
+          <pre id="inspection">Click a leaf surface to inspect identity.</pre>
+        </section>
+      </aside>
+    </main>
+    <div id="ppfd-heatmap-tooltip" class="ppfd-tooltip" role="tooltip" hidden></div>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

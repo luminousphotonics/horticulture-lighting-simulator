@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(dirname -- "$script_dir")"
+cd "$repo_root"
+
+.venv/bin/python -m pytest --stepwise --durations=30 "$@"
+npm run test:viewer

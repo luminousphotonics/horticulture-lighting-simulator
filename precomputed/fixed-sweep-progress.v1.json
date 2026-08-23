@@ -1,0 +1,228 @@
+{
+  "completion_authority": "fresh_compact_bundle_validation",
+  "current_case_id": null,
+  "executed_completed_case_ids": [
+    "conventional-rolling-bench-50x30-ppfd-250-aisle-off-e9776a389eafc647",
+    "conventional-rolling-bench-50x30-ppfd-250-aisle-on-7c59902a1a8b9ce8",
+    "karma_hps-10x10-ppfd-250-aisle-off-f6ca65661e3d53ed",
+    "karma_hps-10x10-ppfd-250-aisle-on-89dd72b4c790890b",
+    "karma_hps-30x15-ppfd-250-aisle-off-9d00bca23343813b",
+    "karma_hps-30x15-ppfd-250-aisle-on-630a48333dec5ff5",
+    "karma_hps-50x30-ppfd-250-aisle-off-636194cd87973a8f",
+    "karma_hps-50x30-ppfd-250-aisle-on-a7008a97befee70d"
+  ],
+  "executed_completed_cases": 8,
+  "failed_case_ids": [],
+  "failed_cases": 0,
+  "failure": null,
+  "plan_identity_sha256": "114d6171d46a12284c9c7c3de8fae776851dbd7cb806be55b64aa1053d693416",
+  "preexisting_or_skipped_cases": 16,
+  "remaining_cases": 0,
+  "schema_id": "fspm-optics.fixed-precomputed-sweep-progress",
+  "schema_version": 1,
+  "state": "completed",
+  "status": {
+    "cases": [
+      {
+        "bundle_identity_sha256": "ce28c9a6806ff6923f2f76dabaaf6703fc2f41f37a58fd0bd606dd4f2fa1b198",
+        "case_id": "proposed-10x10-ppfd-250-aisle-off-4d885c0fe70afcb6",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 1,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/proposed/proposed_reduced_one_ring/10x10/ppfd-250/aisle-off.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "c30f0670617d34df556eb1ba6b25b8c7ba1d7dd7701a6e30b3d3083909a2d803",
+        "case_id": "proposed-10x10-ppfd-250-aisle-on-de29baaa20bd3be7",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 2,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/proposed/proposed_reduced_one_ring/10x10/ppfd-250/aisle-on.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "af6a77675b67019f4c6b372ee211ff042fae44bba83f3a1e34ec1efd8502b338",
+        "case_id": "proposed-30x15-ppfd-250-aisle-off-02cc1ffde5f6a41b",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 3,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/proposed/proposed_reduced_one_ring/30x15/ppfd-250/aisle-off.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "2e35e8a0011fc536c25c2178f5235f2cdcec596069c71e672f436301ed1bd130",
+        "case_id": "proposed-30x15-ppfd-250-aisle-on-72fbab3639afc123",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 4,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/proposed/proposed_reduced_one_ring/30x15/ppfd-250/aisle-on.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "187d4a8492e6f529d158c91edc7346ba6b04032faf4d995aa83c054edc07579a",
+        "case_id": "proposed-50x30-ppfd-250-aisle-off-2bc67e47980e2497",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 5,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/proposed/proposed_reduced_one_ring/50x30/ppfd-250/aisle-off.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "21c72aae4365b90b8ec16dc4f06b8bce86680151b43110d78407f9ffe5e150f3",
+        "case_id": "proposed-50x30-ppfd-250-aisle-on-1fcce32339e280db",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 6,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/proposed/proposed_reduced_one_ring/50x30/ppfd-250/aisle-on.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "ad67a74006cbc7dd336c3f857929423023566e8e38a950f1bac58a74ed01968e",
+        "case_id": "conventional-practical-10x10-ppfd-250-aisle-off-5e38082b5b697173",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 7,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/conventional/practical/10x10/ppfd-250/aisle-off.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "d2ba0bcee982b948ed2c2094e3e280ba0e2c074c3d5a32eb6fc8ae5d9287e1b3",
+        "case_id": "conventional-practical-10x10-ppfd-250-aisle-on-933aea01f5ae8bbe",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 8,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/conventional/practical/10x10/ppfd-250/aisle-on.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "0d8a04a25ff22da6f3c8c563aafe06598d4c658af9383f008fa7b63456be90db",
+        "case_id": "conventional-practical-30x15-ppfd-250-aisle-off-d6ef9a1fba3c8d27",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 9,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/conventional/practical/30x15/ppfd-250/aisle-off.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "c0937021cd7e59ee7fdc8df5f726e97c194fc8facb04164f06fcd9dd8483386b",
+        "case_id": "conventional-practical-30x15-ppfd-250-aisle-on-c54ee9ed58943cf7",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 10,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/conventional/practical/30x15/ppfd-250/aisle-on.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "8df862109837eec5786b053af4545ba3969b1124815bb8d17ac2f89815b30ec4",
+        "case_id": "conventional-practical-50x30-ppfd-250-aisle-off-a1b6a9eae5882ec3",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 11,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/conventional/practical/50x30/ppfd-250/aisle-off.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "276f051d0672f390dc91621ad23ef625d1f716ee79068008eea972aea463a781",
+        "case_id": "conventional-practical-50x30-ppfd-250-aisle-on-b2ec67bf15a6f449",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 12,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/conventional/practical/50x30/ppfd-250/aisle-on.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "5161ff479de325d1792223bb26ba1f7afdd40099433d6647e2c8e55aa453a096",
+        "case_id": "conventional-rolling-bench-10x10-ppfd-250-aisle-off-4919a551599735bf",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 13,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/conventional/rolling_bench/10x10/ppfd-250/aisle-off.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "164ef703395f8c44b539a18a570a76a74af42876c88e467ae799cd5e19824f49",
+        "case_id": "conventional-rolling-bench-10x10-ppfd-250-aisle-on-e8be63b1cb0c4171",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 14,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/conventional/rolling_bench/10x10/ppfd-250/aisle-on.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "086a8b5eb0fbb2b91e1d41a15243496ab821fe1d2d0772d71d765737db8c7405",
+        "case_id": "conventional-rolling-bench-30x15-ppfd-250-aisle-off-f508d7b26129e200",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 15,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/conventional/rolling_bench/30x15/ppfd-250/aisle-off.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "3a736785f6cc577e619a9a9c73591a64269272e6b03925276610406d6578bd5f",
+        "case_id": "conventional-rolling-bench-30x15-ppfd-250-aisle-on-2d452ce182fb5e79",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 16,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/conventional/rolling_bench/30x15/ppfd-250/aisle-on.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "62dfe34e921eeb26fa671db28b1e0fdc87a6623ceb5b63d6e0288110db820e3e",
+        "case_id": "conventional-rolling-bench-50x30-ppfd-250-aisle-off-e9776a389eafc647",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 17,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/conventional/rolling_bench/50x30/ppfd-250/aisle-off.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "cb84eb4b021f1f63ad6644888304d1d6c24204a5f868739d2f39ec83234f6d9c",
+        "case_id": "conventional-rolling-bench-50x30-ppfd-250-aisle-on-7c59902a1a8b9ce8",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 18,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/conventional/rolling_bench/50x30/ppfd-250/aisle-on.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "a2b182f14ae282af50191db7064830654c0dd2ec821cb6bacb559e0917d00d82",
+        "case_id": "karma_hps-10x10-ppfd-250-aisle-off-f6ca65661e3d53ed",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 19,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/karma_hps/fixed_full_output/10x10/ppfd-250/aisle-off.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "c169da60e925f54d1326a1c29cbaf74991ba09be95301f71be0995abf27cc824",
+        "case_id": "karma_hps-10x10-ppfd-250-aisle-on-89dd72b4c790890b",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 20,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/karma_hps/fixed_full_output/10x10/ppfd-250/aisle-on.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "4818fcca11c2ada92408222f4587c90af5f45dc6e27ee033db4b157ea476288b",
+        "case_id": "karma_hps-30x15-ppfd-250-aisle-off-9d00bca23343813b",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 21,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/karma_hps/fixed_full_output/30x15/ppfd-250/aisle-off.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "9f8c3133848665c2bcfb9621e704123261e495ce566c29c7b45bb8655fd23077",
+        "case_id": "karma_hps-30x15-ppfd-250-aisle-on-630a48333dec5ff5",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 22,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/karma_hps/fixed_full_output/30x15/ppfd-250/aisle-on.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "da185173e555380220723f70ebcee4d4931277773bba2d96ce6363de9bd3dacf",
+        "case_id": "karma_hps-50x30-ppfd-250-aisle-off-636194cd87973a8f",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 23,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/karma_hps/fixed_full_output/50x30/ppfd-250/aisle-off.fspm-compact",
+        "status": "valid_completed_bundle"
+      },
+      {
+        "bundle_identity_sha256": "a6e9b1a086ab61c4ad04ee045f38e26677b5fce4db26a0c67d890991d89c3154",
+        "case_id": "karma_hps-50x30-ppfd-250-aisle-on-a7008a97befee70d",
+        "message": "compact bundle is complete and authenticated.",
+        "ordinal": 24,
+        "path": "/home/austin/Desktop/fspm-optics-engine/precomputed/karma_hps/fixed_full_output/50x30/ppfd-250/aisle-on.fspm-compact",
+        "status": "valid_completed_bundle"
+      }
+    ],
+    "invalid_or_incompatible_cases": 0,
+    "missing_or_pending_cases": 0,
+    "output_root": "/home/austin/Desktop/fspm-optics-engine/precomputed",
+    "plan_identity_sha256": "114d6171d46a12284c9c7c3de8fae776851dbd7cb806be55b64aa1053d693416",
+    "remaining_cases": 0,
+    "total_cases": 24,
+    "valid_or_skipped_cases": 24
+  },
+  "validated_completed_cases": 24
+}

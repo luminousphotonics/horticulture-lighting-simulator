@@ -1,0 +1,27 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+dist/
+build/
+node_modules/
+.surface-flux-calibration/
+.surface-flux-recalibration-d5/
+.proposed-fixture-calibration/
+/.fspm-optics-runtime/
+
+# Local salvage snapshots
+.salvage_source/
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
+
+/artifacts/

@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: fspm-optics
+    runtime: python
+    plan: standard
+    buildCommand: pip install .
+    startCommand: fspm-optics --host 0.0.0.0 --port "$PORT" --precomputed-root ./precomputed
+    healthCheckPath: /health/ready
+    maxShutdownDelaySeconds: 30
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: FSPM_ALLOWED_HOSTS
+        value: sim.luminousphotonics.com
+      - key: FSPM_BASE_BUNDLE_CACHE_SIZE
+        value: "8"
+      - key: FSPM_PLAYBACK_CACHE_SIZE
+        value: "16"
+      - key: FSPM_MAX_SESSIONS
+        value: "256"
+      - key: FSPM_SESSION_TTL_SECONDS
+        value: "1800"
+      - key: FSPM_MAX_CONCURRENT_WORK
+        value: "4"
+      - key: FSPM_WORK_WAIT_SECONDS
+        value: "5"
+      - key: FSPM_PLAYBACK_ACTIVE_LIMIT
+        value: "4"
+      - key: FSPM_PLAYBACK_WAITING_LIMIT
+        value: "128"
+      - key: FSPM_PLAYBACK_RECORD_LIMIT
+        value: "512"
+      - key: FSPM_PLAYBACK_RECORD_TTL_SECONDS
+        value: "900"
+      - key: FSPM_PLAYBACK_EXPIRED_TTL_SECONDS
+        value: "60"
